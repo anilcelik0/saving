@@ -1,0 +1,36 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.python-version
+
+# Django
+staticfiles/
+media/
+*.sqlite3
+*.log
+
+# Celery
+celerybeat-schedule*
+celerybeat.pid
+
+# Flet / mobile build
+mobile/build/
+mobile/dist/
+mobile/storage/
+
+# Real bank statements (personal data) - never commit
+statement_samples/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
