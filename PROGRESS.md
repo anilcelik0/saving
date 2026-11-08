@@ -7,11 +7,7 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 
 ## ⏳ Waiting on user (pending commands)
 
-```powershell
-# Phase 2a: saving_budget models
-docker compose exec web python manage.py makemigrations saving_budget
-docker compose exec web python manage.py migrate
-```
+- [ ] Try the mobile app on desktop: `cd mobile; .venv\Scripts\flet run` (backend must be up)
 
 ---
 
@@ -52,7 +48,17 @@ docker compose exec web python manage.py migrate
 - [x] Default categories seeded on saving user registration (signal)
 - [x] CRUD APIs under `/api/v1/saving/budget/`: categories, accounts, transactions (filters), recurring-payments, goals (current_amount, progress_percent), goal-contributions
 - [x] `recurring-payments/upcoming/?days=30` (incl. overdue), `recurring-payments/{id}/pay/` → expense transaction + next due date
-- [~] Migrations (user) → API smoke test
+- [x] Migrations (user) + API smoke test
+- [x] `?page_size=` support (max 100) via `core.pagination.DefaultPagination`
+
+### 2a-mobile ✅ (logic only, minimal UI)
+- [x] Flet 1.1.2 project (`mobile/pyproject.toml`, `.venv`), async httpx `ApiClient`
+- [x] Auth: login, register, auto-login with stored tokens, logout, session-expired → login
+- [x] Auto refresh on 401 (single-flight lock, retries request once)
+- [x] Tabs: Transactions (kind filter, load more, form), Recurring payments (upcoming/all, pay dialog, form),
+      Goals (progress, detail with deposits/withdrawals, form), More (accounts, categories, profile, logout)
+- [x] Headless smoke test of all flows against the backend (fake page; not committed)
+- [ ] Manual check in the real Flet window (date picker, dropdowns)
 - [ ] (Later) Payment reminder (Celery task + push notification)
 - [ ] (Later) Recurring income (e.g. salary), "skip this period" action
 
@@ -70,11 +76,10 @@ docker compose exec web python manage.py migrate
 ## Phase 4: saving_reports
 - [ ] Monthly income/expense, category breakdown, savings progress, portfolio value
 
-## Phase 5: Mobile (Flet, Android)
-- [ ] Skeleton, API client, secure token storage
-- [ ] Auto refresh: on 401 `token_not_valid` call `auth/refresh/` once (single-flight, since old refresh is blacklisted after rotation), retry request; go to login only if refresh fails. Also refresh on app start.
-- [ ] Login/register screens, then screens per backend phase
-- [ ] APK build
+## Phase 5: Mobile finalization (per-phase mobile work is done inside each phase)
+- [ ] Secure token storage (SharedPreferences is not encrypted)
+- [ ] Android build (`flet build apk`), cleartext HTTP / real-device API URL config
+- [ ] Visual design pass (last)
 
 ---
 

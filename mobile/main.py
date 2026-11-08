@@ -1,0 +1,27 @@
+import flet as ft
+
+from config import api_base_url
+from router import Router
+from services.api_client import ApiClient
+from services.auth_service import AuthService
+from services.budget_service import BudgetService
+from services.token_store import TokenStore
+from state import AppState
+
+
+async def main(page: ft.Page):
+    page.title = "Saving"
+
+    tokens = TokenStore(ft.SharedPreferences())
+    await tokens.load()
+
+    state = AppState(page=page, router=Router(page))
+    state.api = ApiClient(api_base_url(page.platform), tokens, on_session_expired=state.on_session_expired)
+    state.auth = AuthService(state.api)
+    state.budget = BudgetService(state.api)
+
+    await state.start()
+
+
+if __name__ == "__main__":
+    ft.run(main)

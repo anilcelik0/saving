@@ -131,8 +131,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"]
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_PAGINATION_CLASS": "core.pagination.DefaultPagination",
     "COERCE_DECIMAL_TO_STRING": True,
     "DEFAULT_THROTTLE_RATES": {"auth": "10/min"},
     "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",

@@ -1,0 +1,14 @@
+[project]
+name = "saving"
+version = "0.1.0"
+description = "Saving - personal finance client for app_manager backend"
+requires-python = ">=3.12"
+dependencies = [
+    "flet==1.1.2",
+    "httpx==0.28.1",
+]
+
+[tool.flet]
+org = "com.anilcelik"
+product = "Saving"
+company = "anilcelik"

@@ -26,10 +26,12 @@ app_manager/                          # repo root
 │   ├── saving_budget/           # income/expense, categories, savings goals, recurring payments, bank statement parsing
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
 │   └── saving_reports/          # aggregated reporting endpoints
-└── mobile/                      # Flet Android client
-    ├── main.py
-    ├── screens/
-    └── services/                # HTTP/JWT API client only
+└── mobile/                      # Flet 1.x Android client (pyproject.toml, own .venv)
+    ├── main.py                  # entry: builds AppState, ft.run(main)
+    ├── config.py                # API base URL per platform (SAVING_API_URL overrides)
+    ├── state.py / router.py     # session lifecycle, cached refs; view-stack navigation
+    ├── screens/                 # one module per feature; ui.py = shared helpers, choices.py = backend choice mirrors
+    └── services/                # api_client (async httpx, JWT auto-refresh), token_store, per-backend-app services
 ```
 
 ### App Naming Convention
@@ -56,5 +58,6 @@ app_manager/                          # repo root
 - **Shell Commands:** Run only what the user explicitly asked for (e.g. git init, docker build). Otherwise provide the commands.
 - **Token Efficiency:** Keep responses concise. Edit only what is needed; don't rewrite whole files for small changes.
 - **Small Steps:** Work in small task chunks and confirm before moving to the next phase.
+- **Phase Workflow:** Every backend phase ends with its mobile (Flet) counterpart before the next phase starts. Mobile UI stays minimal and functional (logic first); visual design is a dedicated final phase.
 - **Progress Tracking:** `PROGRESS.md` is the single source of truth for phases/tasks. Read it at the start of a session; update it (checkboxes, notes, pending user commands) whenever a task is completed or the plan changes.
 - **Language:** Respond in Turkish. Code, comments and identifiers are in English. User-facing API messages (validation/error `detail`) are in Turkish; keep machine-readable `code` values in English.
