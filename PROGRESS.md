@@ -8,8 +8,8 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# username validator message changed (no schema change)
-docker compose exec web python manage.py makemigrations accounts
+# Phase 2a: saving_budget models
+docker compose exec web python manage.py makemigrations saving_budget
 docker compose exec web python manage.py migrate
 ```
 
@@ -45,10 +45,18 @@ docker compose exec web python manage.py migrate
       refresh checks user/app still active (`AppTokenRefreshSerializer`); daily `flushexpiredtokens` beat task (04:00)
 - [ ] (Later) Test a second ClientApp to verify the cross-app token rejection in practice
 
-## Phase 2: saving_budget
-- [ ] Models: Category, Transaction (income/expense), SavingGoal, RecurringPayment
-- [ ] CRUD APIs (user-scoped querysets, `IsSavingUser`)
-- [ ] Upcoming payments endpoint (+ reminder task later)
+## Phase 2: saving_budget 🔄
+### 2a: Core budget (code done, waiting on migration + smoke test)
+- [x] Models: Category, Account (bank/credit card/cash), Transaction, RecurringPayment (weekly/monthly/yearly, interval, installments), SavingGoal + GoalContribution (negative = withdrawal)
+- [x] Shared helpers: `core.viewsets.OwnedModelViewSet`, `core.serializers.OwnedPrimaryKeyRelatedField`, ProtectedError → 409
+- [x] Default categories seeded on saving user registration (signal)
+- [x] CRUD APIs under `/api/v1/saving/budget/`: categories, accounts, transactions (filters), recurring-payments, goals (current_amount, progress_percent), goal-contributions
+- [x] `recurring-payments/upcoming/?days=30` (incl. overdue), `recurring-payments/{id}/pay/` → expense transaction + next due date
+- [~] Migrations (user) → API smoke test
+- [ ] (Later) Payment reminder (Celery task + push notification)
+- [ ] (Later) Recurring income (e.g. salary), "skip this period" action
+
+### 2b: Statement parsing
 - [ ] Statement upload model + file storage
 - [ ] Parser registry + normalized transaction DTO
 - [ ] First bank parsers (PDF/Excel) — need sample statements from user
@@ -77,4 +85,5 @@ docker compose exec web python manage.py migrate
 - Android emulator reaches the host via `10.0.2.2:8080`.
 - Celery worker does not auto-reload: `docker compose restart celery_worker` after task code changes.
 - Login payload: `{"app": "saving", "identifier": "<username or email>", "password": "..."}`.
+- Accounts/categories referenced by transactions: account delete is PROTECTed (409, archive instead); category delete sets NULL.
 - A test account `smoketest` / `smoke@example.com` (app `saving`) exists from the smoke test; delete it from the admin if unwanted.

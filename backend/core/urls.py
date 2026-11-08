@@ -6,6 +6,7 @@ from .views import health
 api_v1 = [
     path("health/", health, name="health"),
     path("auth/", include("accounts.urls")),
+    path("saving/budget/", include("saving_budget.urls")),
 ]
 
 urlpatterns = [
