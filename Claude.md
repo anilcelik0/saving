@@ -59,5 +59,6 @@ app_manager/                          # repo root
 - **Token Efficiency:** Keep responses concise. Edit only what is needed; don't rewrite whole files for small changes.
 - **Small Steps:** Work in small task chunks and confirm before moving to the next phase.
 - **Phase Workflow:** Every backend phase ends with its mobile (Flet) counterpart before the next phase starts. Mobile UI stays minimal and functional (logic first); visual design is a dedicated final phase.
+- **Flow Diagram:** `docs/FLOW.md` (Mermaid, Turkish labels) documents the end-to-end flow. Update it at the end of every phase (move items from planned/dashed to real, update the "Son güncelleme" line).
 - **Progress Tracking:** `PROGRESS.md` is the single source of truth for phases/tasks. Read it at the start of a session; update it (checkboxes, notes, pending user commands) whenever a task is completed or the plan changes.
 - **Language:** Respond in Turkish. Code, comments and identifiers are in English. User-facing API messages (validation/error `detail`) are in Turkish; keep machine-readable `code` values in English.
