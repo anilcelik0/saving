@@ -30,19 +30,31 @@ class Resource:
         return await self.api.delete(f"{self.path}{obj_id}/")
 
 
+class Transactions(Resource):
+    """Single money-movement resource. scope: 'this' | 'following' (series occurrences)."""
+
+    async def update(self, obj_id, data: dict, scope: str = "this"):
+        return await self.api.patch(f"{self.path}{obj_id}/?scope={scope}", data)
+
+    async def delete(self, obj_id, scope: str = "this"):
+        return await self.api.delete(f"{self.path}{obj_id}/?scope={scope}")
+
+    async def upcoming(self, days: int = 30) -> list:
+        return await self.api.get(self.path + "upcoming/", params={"days": days})
+
+    async def pay(self, obj_id, amount: str | None = None, date: str | None = None) -> dict:
+        return await self.api.post(f"{self.path}{obj_id}/pay/", _clean({"amount": amount, "date": date}))
+
+    async def unpay(self, obj_id) -> dict:
+        return await self.api.post(f"{self.path}{obj_id}/unpay/", {})
+
+
 class BudgetService:
     def __init__(self, api: ApiClient):
         self.api = api
         self.categories = Resource(api, "categories/")  # not paginated
         self.accounts = Resource(api, "accounts/")  # not paginated
-        self.transactions = Resource(api, "transactions/")  # paginated
-        self.plans = Resource(api, "plans/")  # paginated; create = recurring or installment entry
-
-    async def upcoming_plans(self, days: int = 30) -> list:
-        return await self.api.get(BASE + "plans/upcoming/", params={"days": days})
-
-    async def pay_plan(self, plan_id, amount: str | None = None, date: str | None = None) -> dict:
-        return await self.api.post(f"{BASE}plans/{plan_id}/pay/", _clean({"amount": amount, "date": date}))
+        self.transactions = Transactions(api, "transactions/")  # paginated
 
     async def summary(self, month: str | None = None) -> dict:
         """month: 'YYYY-MM' (default current)."""

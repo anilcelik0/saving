@@ -111,8 +111,8 @@ CELERY_BEAT_SCHEDULE = {
         "task": "accounts.tasks.flush_expired_tokens",
         "schedule": crontab(hour=4, minute=0),
     },
-    "saving-budget-process-due-plans": {
-        "task": "saving_budget.tasks.process_due_plans_task",
+    "saving-budget-daily-maintenance": {
+        "task": "saving_budget.tasks.daily_budget_maintenance",
         "schedule": crontab(hour=0, minute=30),
     },
 }

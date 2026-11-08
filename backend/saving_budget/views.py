@@ -10,17 +10,17 @@ from rest_framework.views import APIView
 
 from core.viewsets import OwnedModelViewSet
 
-from .models import Account, Category, PaymentPlan, Transaction
+from .models import Account, Category, Transaction
 from .permissions import IsSavingUser
 from .serializers import (
     AccountSerializer,
     CategorySerializer,
     MonthlySummarySerializer,
-    PaymentPlanSerializer,
-    PayPlanSerializer,
+    PaySerializer,
+    TransactionCreateSerializer,
     TransactionSerializer,
 )
-from .services import monthly_summary, pay_plan, with_balance
+from .services import apply_to_following, delete_with_following, mark_paid, mark_unpaid, monthly_summary, with_balance
 
 
 def _query_date(request, name):
@@ -31,6 +31,13 @@ def _query_date(request, name):
     if value is None:
         raise ValidationError({name: "Tarih YYYY-AA-GG formatında olmalı."})
     return value
+
+
+def _scope(request):
+    scope = request.query_params.get("scope", "this")
+    if scope not in ("this", "following"):
+        raise ValidationError({"scope": "Kapsam 'this' veya 'following' olmalı."})
+    return scope
 
 
 class SavingViewSet(OwnedModelViewSet):
@@ -72,10 +79,15 @@ class AccountViewSet(SavingViewSet):
 
 
 class TransactionViewSet(SavingViewSet):
-    """Filters: date_from, date_to, kind, category, account, source, plan, search."""
+    """
+    Filters: date_from, date_to, kind, status, category, account, source, series, search; ordering=date|-date.
+    Update/delete accept ?scope=this|following for series occurrences.
+    """
 
-    queryset = Transaction.objects.select_related("plan")
-    serializer_class = TransactionSerializer
+    queryset = Transaction.objects.select_related("series")
+
+    def get_serializer_class(self):
+        return TransactionCreateSerializer if self.action == "create" else TransactionSerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -84,52 +96,61 @@ class TransactionViewSet(SavingViewSet):
             qs = qs.filter(date__gte=date_from)
         if date_to := _query_date(self.request, "date_to"):
             qs = qs.filter(date__lte=date_to)
-        for field in ("kind", "category", "account", "source", "plan"):
+        for field in ("kind", "status", "category", "account", "source", "series"):
             if value := params.get(field):
                 qs = qs.filter(**{field: value})
         if search := params.get("search"):
             qs = qs.filter(description__icontains=search)
+        if params.get("ordering") == "date":
+            qs = qs.order_by("date", "created_at")
         return qs
 
+    def perform_update(self, serializer):
+        scope = _scope(self.request)
+        txn = serializer.save()
+        if scope == "following":
+            apply_to_following(txn, serializer.validated_data)
 
-class PaymentPlanViewSet(SavingViewSet):
-    queryset = PaymentPlan.objects.all()
-    serializer_class = PaymentPlanSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        params = self.request.query_params
-        if (active := params.get("is_active")) in ("true", "false"):
-            qs = qs.filter(is_active=active == "true")
-        if plan_type := params.get("plan_type"):
-            qs = qs.filter(plan_type=plan_type)
-        return qs
+    def perform_destroy(self, instance):
+        if _scope(self.request) == "following":
+            delete_with_following(instance)
+        else:
+            instance.delete()
 
     @action(detail=False, methods=["get"])
     def upcoming(self, request):
-        """Active plans due within `days` (default 30), including overdue ones."""
+        """Pending transactions due within `days` (default 30), including overdue ones, oldest first."""
         try:
             days = int(request.query_params.get("days", 30))
         except ValueError:
             raise ValidationError({"days": "Gün sayısı tam sayı olmalı."})
         until = timezone.localdate() + timedelta(days=days)
-        qs = self.get_queryset().filter(is_active=True, next_due_date__lte=until)
-        return Response(self.get_serializer(qs, many=True).data)
+        qs = (
+            Transaction.objects.select_related("series")
+            .filter(user=request.user, status=Transaction.Status.PENDING, date__lte=until)
+            .order_by("date", "created_at")
+        )
+        return Response(TransactionSerializer(qs, many=True, context={"request": request}).data)
 
     @action(detail=True, methods=["post"])
     def pay(self, request, pk=None):
-        serializer = PayPlanSerializer(data=request.data)
+        serializer = PaySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        txn = pay_plan(
+        txn = mark_paid(
             self.get_object(),
             amount=serializer.validated_data.get("amount"),
             paid_on=serializer.validated_data.get("date"),
         )
-        return Response(TransactionSerializer(txn, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        return Response(TransactionSerializer(txn, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def unpay(self, request, pk=None):
+        txn = mark_unpaid(self.get_object())
+        return Response(TransactionSerializer(txn, context={"request": request}).data)
 
 
 class SummaryView(APIView):
-    """GET ?month=YYYY-MM (default: current month): balances, month totals, pending plan amounts."""
+    """GET ?month=YYYY-MM (default: current month)."""
 
     permission_classes = [IsSavingUser]
 

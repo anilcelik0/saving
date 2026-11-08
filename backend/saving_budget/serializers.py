@@ -5,8 +5,8 @@ from rest_framework import serializers
 
 from core.serializers import OwnedPrimaryKeyRelatedField
 
-from .models import Account, Category, Kind, PaymentPlan, Transaction
-from .services import create_plan
+from .models import Account, Category, Kind, Series, Transaction
+from .services import create_entry
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -40,111 +40,85 @@ def _current(serializer, attrs, name):
     return attrs.get(name, getattr(serializer.instance, name, None))
 
 
-def _check_category_kind(category, kind):
-    if category and kind and category.kind != kind:
-        raise serializers.ValidationError({"category": "Kategori türü işlem türüyle uyuşmuyor."})
-
-
 class TransactionSerializer(serializers.ModelSerializer):
+    """Read + update. Status changes go through the pay/unpay actions."""
+
     category = OwnedPrimaryKeyRelatedField(queryset=Category.objects.all(), allow_null=True, required=False)
     account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
-    plan_info = serializers.SerializerMethodField()
+    is_overdue = serializers.SerializerMethodField()
+    series_info = serializers.SerializerMethodField()
 
     class Meta:
         model = Transaction
         fields = [
-            "id", "kind", "amount", "date", "description", "note", "category", "account",
-            "source", "plan", "plan_sequence", "plan_info", "created_at",
+            "id", "kind", "amount", "date", "status", "paid_on", "auto_pay", "is_overdue",
+            "description", "note", "category", "account", "source", "series", "sequence",
+            "series_info", "created_at",
         ]
-        read_only_fields = ["id", "source", "plan", "plan_sequence", "created_at"]
-
-    def get_plan_info(self, obj):
-        """e.g. {"plan_type": "installment", "label": "2/6"} for list display."""
-        plan = obj.plan
-        if plan is None:
-            return None
-        if plan.plan_type == PaymentPlan.PlanType.INSTALLMENT:
-            label = f"{obj.plan_sequence}/{plan.installment_count}"
-        else:
-            label = plan.get_frequency_display()
-        return {"plan_type": plan.plan_type, "label": label}
-
-    def validate(self, attrs):
-        _check_category_kind(_current(self, attrs, "category"), _current(self, attrs, "kind"))
-        return attrs
-
-
-class PaymentPlanSerializer(serializers.ModelSerializer):
-    """Create = one entry point for repeating expenses/incomes. Fields fixed after creation are read-only on update."""
-
-    IMMUTABLE = ("plan_type", "kind", "total_amount", "installment_count", "start_date")
-
-    category = OwnedPrimaryKeyRelatedField(queryset=Category.objects.all(), allow_null=True, required=False)
-    account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
-    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False)
-    next_due_date = serializers.DateField(required=False)
-    is_overdue = serializers.SerializerMethodField()
-    remaining_installments = serializers.SerializerMethodField()
-
-    class Meta:
-        model = PaymentPlan
-        fields = [
-            "id", "plan_type", "kind", "description", "amount", "total_amount", "installment_count",
-            "category", "account", "frequency", "interval", "start_date", "next_due_date", "end_date",
-            "paid_count", "remaining_installments", "auto_pay", "is_active", "is_overdue", "note", "created_at",
-        ]
-        read_only_fields = ["id", "paid_count", "created_at"]
+        read_only_fields = ["id", "status", "paid_on", "source", "series", "sequence", "created_at"]
 
     def get_is_overdue(self, obj):
-        return obj.is_active and obj.next_due_date < timezone.localdate()
+        return obj.status == Transaction.Status.PENDING and obj.date < timezone.localdate()
 
-    def get_remaining_installments(self, obj):
-        if obj.installment_count is None:
+    def get_series_info(self, obj):
+        """e.g. {"series_type": "installment", "label": "2/6", "is_active": true}"""
+        s = obj.series
+        if s is None:
             return None
-        return max(obj.installment_count - obj.paid_count, 0)
-
-    def validate_interval(self, value):
-        if value < 1:
-            raise serializers.ValidationError("Tekrar aralığı en az 1 olmalı.")
-        return value
+        if s.series_type == Series.SeriesType.INSTALLMENT:
+            label = f"{obj.sequence}/{s.installment_count}"
+        else:
+            label = s.get_frequency_display()
+        return {"series_type": s.series_type, "label": label, "is_active": s.is_active}
 
     def validate(self, attrs):
-        if self.instance:
-            return self._validate_update(attrs)
-
-        plan_type = attrs.get("plan_type")
-        attrs.pop("next_due_date", None)  # always starts at start_date
-        if plan_type == PaymentPlan.PlanType.INSTALLMENT:
-            if attrs.get("kind", Kind.EXPENSE) != Kind.EXPENSE:
-                raise serializers.ValidationError({"kind": "Taksit yalnızca gider için kullanılabilir."})
-            if not attrs.get("total_amount"):
-                raise serializers.ValidationError({"total_amount": "Taksitli işlemde toplam tutar gerekli."})
-            if (attrs.get("installment_count") or 0) < 2:
-                raise serializers.ValidationError({"installment_count": "Taksit sayısı en az 2 olmalı."})
-            attrs.pop("amount", None)
-        else:
-            if not attrs.get("amount"):
-                raise serializers.ValidationError({"amount": "Tutar gerekli."})
-            attrs["total_amount"] = attrs["installment_count"] = None
-            start, end = attrs.get("start_date"), attrs.get("end_date")
-            if start and end and end < start:
-                raise serializers.ValidationError({"end_date": "Bitiş tarihi başlangıçtan önce olamaz."})
-
-        _check_category_kind(attrs.get("category"), attrs.get("kind", Kind.EXPENSE))
+        if self.instance and self.instance.series_id and attrs.get("kind", self.instance.kind) != self.instance.kind:
+            raise serializers.ValidationError({"kind": "Tekrarlayan bir kaydın türü değiştirilemez."})
+        category, kind = _current(self, attrs, "category"), _current(self, attrs, "kind")
+        if category and kind and category.kind != kind:
+            raise serializers.ValidationError({"category": "Kategori türü işlem türüyle uyuşmuyor."})
         return attrs
 
-    def _validate_update(self, attrs):
-        for name in self.IMMUTABLE:
-            if name in attrs and attrs[name] != getattr(self.instance, name):
-                raise serializers.ValidationError({name: "Bu alan plan oluşturulduktan sonra değiştirilemez."})
-        if self.instance.plan_type == PaymentPlan.PlanType.INSTALLMENT:
-            for name in ("amount", "end_date", "frequency", "interval"):
-                attrs.pop(name, None)
-        _check_category_kind(_current(self, attrs, "category"), self.instance.kind)
+
+class TransactionCreateSerializer(TransactionSerializer):
+    """
+    Create = single entry form. repeat: none | recurring | installment.
+    For installment, `amount` is the TOTAL amount; the backend splits it.
+    """
+
+    repeat = serializers.ChoiceField(choices=["none", "recurring", "installment"], default="none", write_only=True)
+    frequency = serializers.ChoiceField(choices=Series.Frequency.choices, default=Series.Frequency.MONTHLY, write_only=True)
+    interval = serializers.IntegerField(min_value=1, default=1, write_only=True)
+    end_date = serializers.DateField(required=False, allow_null=True, write_only=True)
+    installment_count = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+
+    class Meta(TransactionSerializer.Meta):
+        fields = TransactionSerializer.Meta.fields + ["repeat", "frequency", "interval", "end_date", "installment_count"]
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        repeat = attrs["repeat"]
+        if repeat == "installment":
+            if attrs["kind"] != Kind.EXPENSE:
+                raise serializers.ValidationError({"kind": "Taksit yalnızca gider için kullanılabilir."})
+            if (attrs.get("installment_count") or 0) < 2:
+                raise serializers.ValidationError({"installment_count": "Taksit sayısı en az 2 olmalı."})
+        if repeat == "recurring" and attrs.get("end_date") and attrs["end_date"] < attrs["date"]:
+            raise serializers.ValidationError({"end_date": "Bitiş tarihi başlangıçtan önce olamaz."})
+        if repeat != "none" and not attrs.get("description"):
+            raise serializers.ValidationError({"description": "Tekrarlayan kayıtlar için açıklama gerekli."})
         return attrs
 
     def create(self, validated_data):
-        return create_plan(**validated_data)
+        options = {k: validated_data.pop(k, None) for k in ("frequency", "interval", "end_date", "installment_count")}
+        repeat = validated_data.pop("repeat")
+        user = validated_data.pop("user")
+        return create_entry(user=user, repeat=repeat, data=validated_data, series_options=options)
+
+
+class PaySerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False)
+    date = serializers.DateField(required=False)
 
 
 def _money():
@@ -159,19 +133,18 @@ class SummaryAccountSerializer(serializers.Serializer):
 
 
 class MonthlySummarySerializer(serializers.Serializer):
-    """Output-only: keeps money as strings like every other endpoint."""
+    """Output-only: money as strings like every other endpoint."""
 
     month = serializers.CharField()
     income = _money()
+    income_paid = _money()
+    income_pending = _money()
     expense = _money()
+    expense_paid = _money()
+    expense_pending = _money()
     net = _money()
     accounts = SummaryAccountSerializer(many=True)
-    total_balance = _money()
-    planned_income = _money()
-    planned_expense = _money()
-    projected_balance = _money()
-
-
-class PayPlanSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False)
-    date = serializers.DateField(required=False)
+    current_balance = _money()
+    overdue_income = _money()
+    overdue_expense = _money()
+    projected_balance = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)

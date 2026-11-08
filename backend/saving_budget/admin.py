@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Account, Category, PaymentPlan, Transaction
+from .models import Account, Category, Series, Transaction
 
 
 @admin.register(Category)
@@ -19,18 +19,18 @@ class AccountAdmin(admin.ModelAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ["date", "kind", "amount", "description", "category", "account", "source", "plan_sequence", "user"]
-    list_filter = ["kind", "source", "date"]
+    list_display = ["date", "kind", "amount", "status", "auto_pay", "description", "account", "sequence", "user"]
+    list_filter = ["kind", "status", "auto_pay", "source", "date"]
     search_fields = ["description", "user__username"]
-    list_select_related = ["category", "account", "user"]
+    list_select_related = ["account", "user"]
     date_hierarchy = "date"
 
 
-@admin.register(PaymentPlan)
-class PaymentPlanAdmin(admin.ModelAdmin):
+@admin.register(Series)
+class SeriesAdmin(admin.ModelAdmin):
     list_display = [
-        "description", "plan_type", "kind", "amount", "frequency", "next_due_date",
-        "paid_count", "installment_count", "auto_pay", "is_active", "user",
+        "description", "series_type", "kind", "amount", "frequency", "start_date",
+        "generated_count", "generated_until", "installment_count", "is_active", "user",
     ]
-    list_filter = ["plan_type", "kind", "frequency", "auto_pay", "is_active"]
+    list_filter = ["series_type", "kind", "frequency", "is_active"]
     search_fields = ["description", "user__username"]

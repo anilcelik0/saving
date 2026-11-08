@@ -42,31 +42,33 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 - [ ] (Later) Test a second ClientApp to verify the cross-app token rejection in practice
 
 ## Phase 2: saving_budget 🔄
-### 2a: Core budget (revised 2026-11-09 after user feedback)
-- [x] Models: Category, Account (name, type, opening_balance; balance computed), Transaction (plan, plan_sequence),
-      PaymentPlan (recurring | installment, income/expense, auto_pay)
-- [x] Removed: SavingGoal/GoalContribution ("goal" = total remaining money → summary), account bank/last4
-- [x] Shared helpers: `core.viewsets.OwnedModelViewSet`, `core.serializers.OwnedPrimaryKeyRelatedField`, ProtectedError → 409
-- [x] Default categories seeded on saving user registration (signal)
-- [x] APIs under `/api/v1/saving/budget/`: categories, accounts (+balance), transactions (account required, filters incl. plan),
-      plans (create = recurring/installment entry; installment total split by backend, remainder on last),
-      `plans/upcoming/`, `plans/{id}/pay/`, `summary/?month=YYYY-MM`
-- [x] Auto-pay: daily beat task 00:30 `process_due_plans_task` (catches up missed days); also runs right after plan creation
-- [x] Plan immutables after creation: plan_type, kind, total_amount, installment_count, start_date
-- [x] `?page_size=` support (max 100) via `core.pagination.DefaultPagination`
-- [x] Migration reset (user) + API smoke test (balances, installment split, auto-pay on create, immutables, summary)
-- [x] Summary money values serialized as strings (`MonthlySummarySerializer`)
-- [x] Account types reduced to bank/cash
+### 2a: Core budget — single Transaction model (redesign 2026-11-09)
+- [x] **Transaction is the only money-movement model**: date + status (pending/paid) + auto_pay. Only paid affects balance.
+- [x] `Series` = internal repeat rule grouping occurrences (never a separate screen):
+      installment → all N pending rows created upfront (total split, remainder on last);
+      recurring → rows generated 12 months ahead; daily task tops up when < 60 days remain
+- [x] One-time entry: date ≤ today → paid, future → pending
+- [x] Edit/delete series occurrences with `?scope=this|following` (following: shared fields to later pending rows +
+      series template; delete following stops the series, paid history kept)
+- [x] `transactions/upcoming/?days=30` (pending incl. overdue), `transactions/{id}/pay/` (amount may change), `/unpay/`
+- [x] `summary/?month=`: month income/expense split paid/pending (each month on its own), current balance,
+      overdue totals, projected month-end balance (all pending up to month end incl. overdue)
+- [x] Daily beat 00:30 `daily_budget_maintenance`: auto-pay settle + series extension
+- [x] Account: bank/cash + opening_balance; Removed: goals, PaymentPlan, account bank/last4
+- [x] Shared helpers: `core.viewsets.OwnedModelViewSet`, `core.serializers.OwnedPrimaryKeyRelatedField`, ProtectedError → 409,
+      `?page_size=` (max 100); default categories on saving registration
+- [x] Migration reset (user) + API smoke test (monthly totals non-cumulative, installments, scope edit/delete, pay/unpay, daily task simulated in rollback)
 
 ### 2a-mobile (logic only, minimal UI)
 - [x] Flet 1.1.2 project (`mobile/pyproject.toml`, `.venv`), async httpx `ApiClient`
 - [x] Auth: login, register, auto-login with stored tokens, logout, session-expired → login
 - [x] Auto refresh on 401 (single-flight lock, retries request once)
-- [x] 3 tabs: Summary (month nav, income/expense/net, account balances, total, pending plans, month-end projection),
-      Activity "Hareketler" (Upcoming plans with quick pay + History of transactions; one "+" = unified entry form:
-      one-time / recurring / installment + auto-pay), More (accounts, all payment plans, categories, profile, logout)
+- [x] 3 tabs: Summary (month nav, income/expense with paid/pending, account balances, overdue, month-end projection),
+      Activity "Hareketler" (Pending 30 days incl. overdue with quick pay + paid History; one "+" = entry form:
+      one-time / recurring / installment + auto-pay; edit/delete asks scope for series; mark paid / undo),
+      More (accounts, categories, profile, logout)
 - [x] Turkish money input: "300.000" = 300000, "1.234,50" = 1234.50
-- [x] Headless smoke test after migration (all flows, balances verified)
+- [x] Headless smoke test after migration (entry types, quick pay with changed amount, scope edit, summary per month)
 - [ ] Manual check in the real Flet window (date picker, dropdowns)
 - [ ] (Later) Payment reminder (push notification), "skip this period" action, transfer between accounts (bank ↔ cash)
 

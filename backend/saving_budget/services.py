@@ -8,11 +8,18 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import Account, Category, Kind, PaymentPlan, Transaction
+from .models import Account, Category, Kind, Series, Transaction
 
 ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
 MONEY_FIELD = DecimalField(max_digits=14, decimal_places=2)
+PAID, PENDING = Transaction.Status.PAID, Transaction.Status.PENDING
+
+HORIZON_DAYS = 365  # recurring series are generated this far ahead
+EXTEND_THRESHOLD_DAYS = 60  # extend when fewer days than this remain generated
+
+# Fields that "this and following" edits propagate across a series.
+SERIES_SHARED_FIELDS = ("amount", "description", "category", "account", "auto_pay", "note")
 
 DEFAULT_CATEGORIES = {
     Kind.EXPENSE: [
@@ -30,20 +37,24 @@ def create_default_categories(user):
     )
 
 
+def _sum(**filters):
+    return Coalesce(Sum("amount", filter=Q(**filters)), Value(ZERO), output_field=MONEY_FIELD)
+
+
 # ---------------------------------------------------------------- balances
 def with_balance(queryset):
-    """Annotate accounts with `balance` = opening_balance + income - expense."""
+    """Annotate accounts with `balance` = opening_balance + paid income - paid expense."""
 
-    def total(kind):
+    def paid_total(kind):
         sub = (
-            Transaction.objects.filter(account=OuterRef("pk"), kind=kind)
+            Transaction.objects.filter(account=OuterRef("pk"), kind=kind, status=PAID)
             .values("account")
             .annotate(s=Sum("amount"))
             .values("s")
         )
         return Coalesce(Subquery(sub, output_field=MONEY_FIELD), Value(ZERO), output_field=MONEY_FIELD)
 
-    return queryset.annotate(_income=total(Kind.INCOME), _expense=total(Kind.EXPENSE)).annotate(
+    return queryset.annotate(_income=paid_total(Kind.INCOME), _expense=paid_total(Kind.EXPENSE)).annotate(
         balance=F("opening_balance") + F("_income") - F("_expense")
     )
 
@@ -56,12 +67,12 @@ def add_months(d: date, months: int, anchor_day: int) -> date:
     return date(year, month, min(anchor_day, calendar.monthrange(year, month)[1]))
 
 
-def next_occurrence(plan: PaymentPlan, current: date) -> date:
-    step = plan.interval
-    if plan.frequency == PaymentPlan.Frequency.WEEKLY:
+def next_occurrence(series: Series, current: date) -> date:
+    step = series.interval
+    if series.frequency == Series.Frequency.WEEKLY:
         return current + timedelta(weeks=step)
-    months = step if plan.frequency == PaymentPlan.Frequency.MONTHLY else 12 * step
-    return add_months(current, months, plan.start_date.day)
+    months = step if series.frequency == Series.Frequency.MONTHLY else 12 * step
+    return add_months(current, months, series.start_date.day)
 
 
 def split_installments(total: Decimal, count: int) -> tuple[Decimal, Decimal]:
@@ -70,89 +81,140 @@ def split_installments(total: Decimal, count: int) -> tuple[Decimal, Decimal]:
     return base, total - base * (count - 1)
 
 
-def occurrence_amount(plan: PaymentPlan, sequence: int) -> Decimal:
-    if plan.plan_type == PaymentPlan.PlanType.INSTALLMENT and sequence == plan.installment_count:
-        return split_installments(plan.total_amount, plan.installment_count)[1]
-    return plan.amount
+def _occurrence_amount(series: Series, sequence: int) -> Decimal:
+    if series.series_type == Series.SeriesType.INSTALLMENT and sequence == series.installment_count:
+        return split_installments(series.total_amount, series.installment_count)[1]
+    return series.amount
 
 
-def iter_occurrences(plan: PaymentPlan, until: date):
-    """Yield (sequence, due_date, amount) of unpaid occurrences up to `until` (inclusive)."""
-    sequence, due = plan.paid_count + 1, plan.next_due_date
-    while plan.is_active and due <= until:
-        if plan.installment_count and sequence > plan.installment_count:
-            return
-        if plan.end_date and due > plan.end_date:
-            return
-        yield sequence, due, occurrence_amount(plan, sequence)
-        sequence, due = sequence + 1, next_occurrence(plan, due)
+def generate_occurrences(series: Series, until: date) -> list[Transaction]:
+    """Create pending transactions for the series up to `until` (respects end_date/installment_count)."""
+    sequence = series.generated_count
+    due = series.start_date if sequence == 0 else next_occurrence(series, series.generated_until)
+    rows = []
+    while due <= until:
+        if series.installment_count and sequence >= series.installment_count:
+            break
+        if series.end_date and due > series.end_date:
+            break
+        sequence += 1
+        rows.append(
+            Transaction(
+                user=series.user, kind=series.kind, amount=_occurrence_amount(series, sequence), date=due,
+                status=PENDING, auto_pay=series.auto_pay, description=series.description, note=series.note,
+                category=series.category, account=series.account, series=series, sequence=sequence,
+            )
+        )
+        series.generated_count, series.generated_until = sequence, due
+        due = next_occurrence(series, due)
+    if rows:
+        Transaction.objects.bulk_create(rows)
+        series.save(update_fields=["generated_count", "generated_until", "updated_at"])
+    return rows
 
 
-# ---------------------------------------------------------------- plan lifecycle
-@db_transaction.atomic
-def create_plan(**data) -> PaymentPlan:
-    if data["plan_type"] == PaymentPlan.PlanType.INSTALLMENT:
-        data["amount"], _ = split_installments(data["total_amount"], data["installment_count"])
-        data["end_date"] = None
-    data["next_due_date"] = data["start_date"]
-    plan = PaymentPlan.objects.create(**data)
-    if plan.auto_pay:
-        process_plan(plan.pk)
-        plan.refresh_from_db()
-    return plan
-
-
-def _record_occurrence(plan: PaymentPlan, *, amount=None, paid_on=None) -> Transaction:
-    """Create the next occurrence's transaction and advance the plan. Caller must hold a row lock."""
-    sequence = plan.paid_count + 1
-    txn = Transaction.objects.create(
-        user=plan.user,
-        kind=plan.kind,
-        amount=amount or occurrence_amount(plan, sequence),
-        date=paid_on or plan.next_due_date,
-        description=plan.description,
-        category=plan.category,
-        account=plan.account,
-        source=Transaction.Source.PLAN,
-        plan=plan,
-        plan_sequence=sequence,
+# ---------------------------------------------------------------- daily maintenance
+def settle_auto_pay(today: date | None = None, **filters) -> int:
+    """Mark due auto-pay pending transactions as paid on their date."""
+    today = today or timezone.localdate()
+    return Transaction.objects.filter(status=PENDING, auto_pay=True, date__lte=today, **filters).update(
+        status=PAID, paid_on=F("date"), updated_at=timezone.now()
     )
-    plan.paid_count = sequence
-    plan.next_due_date = next_occurrence(plan, plan.next_due_date)
-    installments_done = plan.installment_count and plan.paid_count >= plan.installment_count
-    past_end = plan.end_date and plan.next_due_date > plan.end_date
-    if installments_done or past_end:
-        plan.is_active = False
-    plan.save(update_fields=["paid_count", "next_due_date", "is_active", "updated_at"])
+
+
+def extend_series(today: date | None = None) -> int:
+    """Top up open-ended recurring series that have less than EXTEND_THRESHOLD_DAYS generated ahead."""
+    today = today or timezone.localdate()
+    qs = Series.objects.filter(
+        series_type=Series.SeriesType.RECURRING,
+        is_active=True,
+        generated_until__lt=today + timedelta(days=EXTEND_THRESHOLD_DAYS),
+    ).filter(Q(end_date__isnull=True) | Q(end_date__gt=F("generated_until")))
+    created = 0
+    for series in qs:
+        created += len(generate_occurrences(series, today + timedelta(days=HORIZON_DAYS)))
+    return created
+
+
+# ---------------------------------------------------------------- entry lifecycle
+@db_transaction.atomic
+def create_entry(*, user, repeat: str, data: dict, series_options: dict) -> Transaction:
+    """
+    Single entry point. repeat: 'none' | 'recurring' | 'installment'.
+    For installment, data['amount'] is the TOTAL amount. Returns the first created transaction.
+    """
+    today = timezone.localdate()
+    if repeat == "none":
+        is_paid = data["date"] <= today
+        return Transaction.objects.create(
+            user=user, status=PAID if is_paid else PENDING, paid_on=data["date"] if is_paid else None, **data
+        )
+
+    total = data["amount"] if repeat == Series.SeriesType.INSTALLMENT else None
+    count = series_options.get("installment_count") if total else None
+    series = Series.objects.create(
+        user=user,
+        series_type=repeat,
+        frequency=series_options.get("frequency", Series.Frequency.MONTHLY),
+        interval=series_options.get("interval", 1),
+        start_date=data["date"],
+        end_date=None if total else series_options.get("end_date"),
+        installment_count=count,
+        total_amount=total,
+        kind=data["kind"],
+        amount=split_installments(total, count)[0] if total else data["amount"],
+        description=data.get("description", ""),
+        category=data.get("category"),
+        account=data["account"],
+        auto_pay=data.get("auto_pay", False),
+        note=data.get("note", ""),
+    )
+    until = date.max if total else max(series.start_date, today) + timedelta(days=HORIZON_DAYS)
+    rows = generate_occurrences(series, until)
+    settle_auto_pay(today, series=series)
+    return Transaction.objects.get(pk=rows[0].pk)
+
+
+def mark_paid(txn: Transaction, *, amount=None, paid_on=None) -> Transaction:
+    if txn.status == PAID:
+        raise ValidationError({"detail": "Bu kayıt zaten ödendi olarak işaretli."})
+    txn.status = PAID
+    txn.paid_on = paid_on or timezone.localdate()
+    if amount:
+        txn.amount = amount
+    txn.save(update_fields=["status", "paid_on", "amount", "updated_at"])
     return txn
 
 
+def mark_unpaid(txn: Transaction) -> Transaction:
+    if txn.status == PENDING:
+        raise ValidationError({"detail": "Bu kayıt zaten bekliyor durumunda."})
+    txn.status, txn.paid_on = PENDING, None
+    txn.save(update_fields=["status", "paid_on", "updated_at"])
+    return txn
+
+
+def _following_pending(txn: Transaction):
+    return Transaction.objects.filter(series=txn.series, status=PENDING, date__gt=txn.date)
+
+
 @db_transaction.atomic
-def pay_plan(plan: PaymentPlan, *, amount=None, paid_on=None) -> Transaction:
-    """User marks the next occurrence as paid (default date: today)."""
-    plan = PaymentPlan.objects.select_for_update().get(pk=plan.pk)
-    if not plan.is_active:
-        raise ValidationError({"detail": "Bu ödeme planı aktif değil."})
-    return _record_occurrence(plan, amount=amount, paid_on=paid_on or timezone.localdate())
+def apply_to_following(txn: Transaction, changes: dict):
+    """Propagate shared-field changes to later pending occurrences and the series template."""
+    changes = {k: v for k, v in changes.items() if k in SERIES_SHARED_FIELDS}
+    if not changes or txn.series_id is None:
+        return
+    _following_pending(txn).update(**changes, updated_at=timezone.now())
+    Series.objects.filter(pk=txn.series_id).update(**changes, updated_at=timezone.now())
 
 
-def process_plan(plan_id, today: date | None = None) -> int:
-    """Create transactions for all due occurrences of an auto-pay plan (catches up missed days)."""
-    today = today or timezone.localdate()
-    created = 0
-    while True:
-        with db_transaction.atomic():
-            plan = PaymentPlan.objects.select_for_update().get(pk=plan_id)
-            if not (plan.is_active and plan.auto_pay and plan.next_due_date <= today):
-                return created
-            _record_occurrence(plan)
-            created += 1
-
-
-def process_due_plans(today: date | None = None) -> int:
-    today = today or timezone.localdate()
-    ids = PaymentPlan.objects.filter(is_active=True, auto_pay=True, next_due_date__lte=today).values_list("id", flat=True)
-    return sum(process_plan(plan_id, today) for plan_id in ids)
+@db_transaction.atomic
+def delete_with_following(txn: Transaction):
+    """Delete this occurrence and later pending ones; stop the series. Paid history is kept."""
+    if txn.series_id:
+        _following_pending(txn).delete()
+        Series.objects.filter(pk=txn.series_id).update(is_active=False, updated_at=timezone.now())
+    txn.delete()
 
 
 # ---------------------------------------------------------------- summary
@@ -163,32 +225,41 @@ def month_bounds(year: int, month: int) -> tuple[date, date]:
 def monthly_summary(user, year: int, month: int) -> dict:
     start, end = month_bounds(year, month)
     today = timezone.localdate()
+    txns = Transaction.objects.filter(user=user)
 
-    totals = Transaction.objects.filter(user=user, date__range=(start, end)).aggregate(
-        income=Coalesce(Sum("amount", filter=Q(kind=Kind.INCOME)), Value(ZERO), output_field=MONEY_FIELD),
-        expense=Coalesce(Sum("amount", filter=Q(kind=Kind.EXPENSE)), Value(ZERO), output_field=MONEY_FIELD),
+    m = txns.filter(date__range=(start, end)).aggregate(
+        income_paid=_sum(kind=Kind.INCOME, status=PAID),
+        income_pending=_sum(kind=Kind.INCOME, status=PENDING),
+        expense_paid=_sum(kind=Kind.EXPENSE, status=PAID),
+        expense_pending=_sum(kind=Kind.EXPENSE, status=PENDING),
     )
-
+    overdue = txns.filter(status=PENDING, date__lt=today).aggregate(
+        income=_sum(kind=Kind.INCOME), expense=_sum(kind=Kind.EXPENSE)
+    )
     accounts = list(with_balance(Account.objects.filter(user=user, is_archived=False)))
-    total_balance = sum((a.balance for a in accounts), ZERO)
+    current_balance = sum((a.balance for a in accounts), ZERO)
 
-    # Pending plan occurrences until month end (includes overdue unpaid ones). Only meaningful for current/future months.
-    planned = {Kind.INCOME: ZERO, Kind.EXPENSE: ZERO}
-    if end >= today:
-        for plan in PaymentPlan.objects.filter(user=user, is_active=True, next_due_date__lte=end):
-            for _, _, amount in iter_occurrences(plan, end):
-                planned[plan.kind] += amount
+    projected = None
+    if end >= today:  # all pending up to month end (incl. overdue) assumed to happen
+        upto = txns.filter(status=PENDING, date__lte=end).aggregate(
+            income=_sum(kind=Kind.INCOME), expense=_sum(kind=Kind.EXPENSE)
+        )
+        projected = current_balance + upto["income"] - upto["expense"]
 
+    income = m["income_paid"] + m["income_pending"]
+    expense = m["expense_paid"] + m["expense_pending"]
     return {
         "month": f"{year:04d}-{month:02d}",
-        "income": totals["income"],
-        "expense": totals["expense"],
-        "net": totals["income"] - totals["expense"],
-        "accounts": [
-            {"id": a.id, "name": a.name, "account_type": a.account_type, "balance": a.balance} for a in accounts
-        ],
-        "total_balance": total_balance,
-        "planned_income": planned[Kind.INCOME],
-        "planned_expense": planned[Kind.EXPENSE],
-        "projected_balance": total_balance + planned[Kind.INCOME] - planned[Kind.EXPENSE],
+        "income": income,
+        "income_paid": m["income_paid"],
+        "income_pending": m["income_pending"],
+        "expense": expense,
+        "expense_paid": m["expense_paid"],
+        "expense_pending": m["expense_pending"],
+        "net": income - expense,
+        "accounts": [{"id": a.id, "name": a.name, "account_type": a.account_type, "balance": a.balance} for a in accounts],
+        "current_balance": current_balance,
+        "overdue_income": overdue["income"],
+        "overdue_expense": overdue["expense"],
+        "projected_balance": projected,
     }

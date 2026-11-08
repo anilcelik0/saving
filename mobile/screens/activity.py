@@ -3,7 +3,6 @@ import asyncio
 import flet as ft
 
 from .choices import KINDS
-from .plans import plan_tile
 from .transactions import open_entry_form, transaction_tile
 from .ui import dropdown, empty_text, guarded
 
@@ -13,10 +12,9 @@ UPCOMING_DAYS = 30
 
 class ActivityTab:
     """
-    Single money-movement page:
-      - Upcoming: plan occurrences due within 30 days (incl. overdue), quick pay for manual ones
-      - History: realized transactions (kind filter, load more)
-    One "+" opens the unified entry form (one-time / recurring / installment).
+    One list of money movements (single Transaction model):
+      - Upcoming: pending within 30 days incl. overdue (oldest first), quick pay for manual ones
+      - History: paid transactions (newest first, kind filter, load more)
     """
 
     title = "Hareketler"
@@ -35,7 +33,7 @@ class ActivityTab:
         self.more_button = ft.TextButton("Daha fazla yükle", on_click=guarded(self.page, self._load_more))
         self.control = ft.ListView(
             [
-                self._header(f"Yaklaşan ({UPCOMING_DAYS} gün)"),
+                self._header(f"Bekleyen ({UPCOMING_DAYS} gün)"),
                 self.upcoming,
                 self._header("Geçmiş"),
                 ft.Container(self.kind, padding=ft.Padding.symmetric(horizontal=16)),
@@ -54,9 +52,11 @@ class ActivityTab:
         await guarded(self.page, self._fetch_all)()
 
     async def _fetch_all(self):
-        upcoming, _ = await asyncio.gather(self.state.budget.upcoming_plans(days=UPCOMING_DAYS), self._fetch_history())
-        self.upcoming.controls = [plan_tile(self.state, p, self.refresh) for p in upcoming] or \
-            [empty_text("Yaklaşan ödeme yok.")]
+        upcoming, _ = await asyncio.gather(
+            self.state.budget.transactions.upcoming(days=UPCOMING_DAYS), self._fetch_history()
+        )
+        self.upcoming.controls = [transaction_tile(self.state, t, self.refresh) for t in upcoming] or \
+            [empty_text("Bekleyen ödeme yok.")]
         self._render_history()
 
     async def _load_more(self):
@@ -66,13 +66,13 @@ class ActivityTab:
 
     async def _fetch_history(self):
         kind = None if self.kind.value == ALL else self.kind.value
-        data = await self.state.budget.transactions.list(page=self.page_no, kind=kind)
+        data = await self.state.budget.transactions.list(page=self.page_no, status="paid", kind=kind)
         self.items += data["results"]
         self.has_next = bool(data["next"])
 
     def _render_history(self):
         controls = [transaction_tile(self.state, t, self.refresh) for t in self.items] or \
-            [empty_text("Henüz hareket yok.")]
+            [empty_text("Henüz gerçekleşen hareket yok.")]
         if self.has_next:
             controls.append(self.more_button)
         self.history.controls = controls

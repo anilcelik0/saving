@@ -6,8 +6,6 @@ KINDS = [("expense", "Gider"), ("income", "Gelir")]
 
 REPEATS = [("none", "Tek seferlik"), ("recurring", "Düzenli (abonelik, kira, maaş...)"), ("installment", "Taksitli")]
 
-PLAN_TYPES = [("recurring", "Düzenli"), ("installment", "Taksitli")]
-
 FREQUENCIES = [("weekly", "Haftalık"), ("monthly", "Aylık"), ("yearly", "Yıllık")]
 
 ACCOUNT_TYPES = [("bank", "Banka"), ("cash", "Nakit")]

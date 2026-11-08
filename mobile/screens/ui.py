@@ -83,6 +83,27 @@ def confirm(page: ft.Page, message: str, on_yes):
     )
 
 
+def ask_scope(page: ft.Page, title: str, action, following_text="Bu ve sonraki bekleyenler"):
+    """For series occurrences: run action('this') or action('following')."""
+
+    def run(scope):
+        async def handler(e):
+            page.pop_dialog()
+            await guarded(page, lambda: action(scope))()
+        return handler
+
+    page.show_dialog(
+        ft.AlertDialog(
+            title=ft.Text(title),
+            actions=[
+                ft.TextButton("Vazgeç", on_click=lambda e: page.pop_dialog()),
+                ft.TextButton("Sadece bu kayıt", on_click=run("this")),
+                ft.TextButton(following_text, on_click=run("following")),
+            ],
+        )
+    )
+
+
 # ---------- inputs ----------
 def text_field(label, value="", **kwargs) -> ft.TextField:
     return ft.TextField(label=label, value=value or "", **kwargs)

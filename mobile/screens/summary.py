@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 import flet as ft
 
@@ -7,7 +8,7 @@ from .ui import empty_text, fmt_money, guarded
 
 
 class SummaryTab:
-    """Total remaining money, month totals and month-end projection (all computed by the backend)."""
+    """Month totals (each month on its own), current balances and month-end projection."""
 
     title = "Özet"
 
@@ -46,36 +47,38 @@ class SummaryTab:
     async def _fetch(self):
         self.month_label.value = f"{MONTHS[self.month - 1]} {self.year}"
         s = await self.state.budget.summary(f"{self.year:04d}-{self.month:02d}")
-        today = date.today()
-        is_current_or_future = (self.year, self.month) >= (today.year, today.month)
 
         rows = [
-            self._line("Gelir", s["income"]),
-            self._line("Gider", s["expense"]),
-            self._line("Bu ay artan", s["net"], bold=True),
+            self._line("Gelir", s["income"], bold=True),
+            self._detail(f"alınan {fmt_money(s['income_paid'])} · bekleyen {fmt_money(s['income_pending'])}"),
+            self._line("Gider", s["expense"], bold=True),
+            self._detail(f"ödenen {fmt_money(s['expense_paid'])} · bekleyen {fmt_money(s['expense_pending'])}"),
+            self._line("Ay net", s["net"], bold=True),
             ft.Divider(),
-            ft.Text("Hesaplar", weight=ft.FontWeight.BOLD),
+            ft.Text("Hesaplar (şu an)", weight=ft.FontWeight.BOLD),
         ]
         if s["accounts"]:
             rows += [self._line(f"{a['name']} ({label(ACCOUNT_TYPES, a['account_type'])})", a["balance"]) for a in s["accounts"]]
         else:
             rows.append(empty_text("Henüz hesap yok. Diğer > Hesaplar'dan açılış bakiyesiyle ekleyin."))
-        rows.append(self._line("Toplam kalan para", s["total_balance"], bold=True))
+        rows.append(self._line("Şu anki bakiye", s["current_balance"], bold=True))
 
-        if is_current_or_future:
-            rows += [
-                ft.Divider(),
-                ft.Text("Ay sonuna kadar bekleyen planlar", weight=ft.FontWeight.BOLD),
-                self._line("Bekleyen gider", s["planned_expense"]),
-                self._line("Bekleyen gelir", s["planned_income"]),
-                self._line("Ay sonu tahmini bakiye", s["projected_balance"], bold=True),
-            ]
+        if Decimal(s["overdue_expense"]) or Decimal(s["overdue_income"]):
+            rows.append(self._detail(
+                f"Geciken: gider {fmt_money(s['overdue_expense'])} · gelir {fmt_money(s['overdue_income'])}",
+                color=ft.Colors.RED_700,
+            ))
+        if s["projected_balance"] is not None:
+            rows.append(self._line("Ay sonu tahmini bakiye", s["projected_balance"], bold=True))
+
         self.body.controls = rows
         self.page.update()
 
     @staticmethod
     def _line(text, value, bold=False):
         weight = ft.FontWeight.BOLD if bold else None
-        return ft.Row(
-            [ft.Text(text, weight=weight, expand=True), ft.Text(fmt_money(value), weight=weight)],
-        )
+        return ft.Row([ft.Text(text, weight=weight, expand=True), ft.Text(fmt_money(value), weight=weight)])
+
+    @staticmethod
+    def _detail(text, color=None):
+        return ft.Text(text, size=12, color=color or ft.Colors.GREY_700)

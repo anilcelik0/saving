@@ -44,9 +44,8 @@ class Category(OwnedModel):
 
 class Account(OwnedModel):
     """
-    Balance = opening_balance + income - expense of its transactions (computed, never stored).
-    No separate credit card type: card spending is recorded as expense on the related bank account
-    (manually or via statement import), so balance means "money available to spend".
+    Balance = opening_balance + paid income - paid expense (computed, never stored).
+    No credit card type: card spending is an expense on the related bank account.
     """
 
     class AccountType(models.TextChoices):
@@ -55,7 +54,7 @@ class Account(OwnedModel):
 
     name = models.CharField(max_length=50)
     account_type = models.CharField(max_length=20, choices=AccountType.choices, default=AccountType.BANK)
-    opening_balance = models.DecimalField(**MONEY, default=Decimal("0"))  # negative allowed (overdraft)
+    opening_balance = models.DecimalField(**MONEY, default=Decimal("0"))
     is_archived = models.BooleanField(default=False)
 
     class Meta:
@@ -65,14 +64,15 @@ class Account(OwnedModel):
         return self.name
 
 
-class PaymentPlan(OwnedModel):
+class Series(OwnedModel):
     """
-    Repeating money movement: recurring (subscription, rent, salary) or installment purchase.
-    Each occurrence becomes a Transaction, either automatically on the due date (auto_pay)
-    or when the user marks it as paid.
+    Internal repeat rule that groups and generates Transactions (never shown as a separate screen).
+    Installment: all occurrences generated at creation.
+    Recurring: generated ~12 months ahead; a daily task extends open-ended series.
+    Template fields (kind..note) are used for occurrences generated later.
     """
 
-    class PlanType(models.TextChoices):
+    class SeriesType(models.TextChoices):
         RECURRING = "recurring", "Düzenli"
         INSTALLMENT = "installment", "Taksitli"
 
@@ -81,60 +81,70 @@ class PaymentPlan(OwnedModel):
         MONTHLY = "monthly", "Aylık"
         YEARLY = "yearly", "Yıllık"
 
-    plan_type = models.CharField(max_length=12, choices=PlanType.choices)
-    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.EXPENSE)
-    description = models.CharField(max_length=255)
-    amount = models.DecimalField(**MONEY, validators=[POSITIVE])  # per occurrence (installment: base share)
-    total_amount = models.DecimalField(**MONEY, validators=[POSITIVE], null=True, blank=True)  # installment only
-    installment_count = models.PositiveSmallIntegerField(null=True, blank=True)  # installment only
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
-    account = models.ForeignKey(Account, on_delete=models.PROTECT, null=True, blank=True)
+    series_type = models.CharField(max_length=12, choices=SeriesType.choices)
     frequency = models.CharField(max_length=10, choices=Frequency.choices, default=Frequency.MONTHLY)
-    interval = models.PositiveSmallIntegerField(default=1)  # every N periods
+    interval = models.PositiveSmallIntegerField(default=1)
     start_date = models.DateField()
-    next_due_date = models.DateField()
-    end_date = models.DateField(null=True, blank=True)  # recurring only
-    paid_count = models.PositiveSmallIntegerField(default=0)
+    end_date = models.DateField(null=True, blank=True)
+    installment_count = models.PositiveSmallIntegerField(null=True, blank=True)
+    total_amount = models.DecimalField(**MONEY, null=True, blank=True)
+    is_active = models.BooleanField(default=True)  # False = stopped, no more generation
+    generated_count = models.PositiveSmallIntegerField(default=0)
+    generated_until = models.DateField(null=True, blank=True)  # date of the last generated occurrence
+
+    # template for future occurrences
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    amount = models.DecimalField(**MONEY)
+    description = models.CharField(max_length=255)
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+    account = models.ForeignKey(Account, on_delete=models.PROTECT)
     auto_pay = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
     note = models.TextField(blank=True)
 
     class Meta:
-        ordering = ["next_due_date"]
-        indexes = [
-            models.Index(fields=["user", "is_active", "next_due_date"]),
-            models.Index(fields=["auto_pay", "is_active", "next_due_date"]),
-        ]
+        verbose_name_plural = "series"
+        indexes = [models.Index(fields=["series_type", "is_active", "generated_until"])]
 
     def __str__(self):
         return self.description
 
 
 class Transaction(OwnedModel):
+    """
+    The single money-movement model. `date` = when it happens (due date for future ones).
+    Only PAID transactions affect balances; PENDING ones are planned/upcoming (overdue if date < today).
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Bekliyor"
+        PAID = "paid", "Ödendi"
+
     class Source(models.TextChoices):
         MANUAL = "manual", "Manuel"
         STATEMENT = "statement", "Ekstre"
-        PLAN = "plan", "Ödeme Planı"
 
     kind = models.CharField(max_length=10, choices=Kind.choices)
     amount = models.DecimalField(**MONEY, validators=[POSITIVE])
     date = models.DateField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PAID)
+    paid_on = models.DateField(null=True, blank=True)
+    auto_pay = models.BooleanField(default=False)
     description = models.CharField(max_length=255, blank=True)
     note = models.TextField(blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
-    account = models.ForeignKey(Account, on_delete=models.PROTECT, null=True, blank=True)
+    account = models.ForeignKey(Account, on_delete=models.PROTECT)
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.MANUAL)
-    plan = models.ForeignKey(
-        PaymentPlan, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions"
-    )
-    plan_sequence = models.PositiveSmallIntegerField(null=True, blank=True)  # n-th occurrence of the plan
+    series = models.ForeignKey(Series, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions")
+    sequence = models.PositiveSmallIntegerField(null=True, blank=True)  # n-th occurrence in series
 
     class Meta:
         ordering = ["-date", "-created_at"]
         indexes = [
             models.Index(fields=["user", "-date"]),
-            models.Index(fields=["account", "kind"]),
+            models.Index(fields=["user", "status", "date"]),
+            models.Index(fields=["status", "auto_pay", "date"]),
+            models.Index(fields=["account", "status", "kind"]),
         ]
 
     def __str__(self):
-        return f"{self.date} {self.kind} {self.amount}"
+        return f"{self.date} {self.kind} {self.amount} ({self.status})"

@@ -1,7 +1,6 @@
 import flet as ft
 
 from .choices import ACCOUNT_TYPES, KINDS, label
-from .plans import PlansScreen
 from .ui import (
     FormError, confirm, dropdown, empty_text, fmt_money, form_view, guarded, money_input_value,
     parse_money, text_field,
@@ -21,9 +20,6 @@ class MoreTab:
                 ft.Container(self.user_text, padding=16),
                 ft.ListTile(leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE), title=ft.Text("Hesaplar"),
                             on_click=lambda e: self._push(AccountsScreen(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.EVENT_REPEAT), title=ft.Text("Ödeme Planları"),
-                            subtitle=ft.Text("Tüm düzenli ve taksitli planlar (bitenler dahil)"),
-                            on_click=lambda e: self._push(PlansScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.CATEGORY), title=ft.Text("Kategoriler"),
                             on_click=lambda e: self._push(CategoriesScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.PERSON), title=ft.Text("Profil"),
