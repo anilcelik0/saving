@@ -1,5 +1,6 @@
 """Small UI helpers shared by screens (formatting, inputs, form scaffold, error handling)."""
 
+import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -27,16 +28,18 @@ def fmt_date(iso: str | None) -> str:
     return f"{d}.{m}.{y}"
 
 
-def parse_money(text: str | None, allow_negative=False) -> str:
-    """Accepts '1.234,50', '1234,5' or '1234.50' and returns '1234.50'."""
+def parse_money(text: str | None, allow_negative=False, allow_zero=False) -> str:
+    """Turkish input: '1.234,50', '300.000', '1234,5' -> '1234.50' / '300000.00'. '1234.50' is also accepted."""
     raw = (text or "").strip().replace(" ", "")
     if "," in raw:
         raw = raw.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(\.\d{3})+", raw):
+        raw = raw.replace(".", "")  # dots are thousands separators
     try:
         value = Decimal(raw).quantize(Decimal("0.01"))
     except InvalidOperation:
         raise FormError("Geçerli bir tutar girin.")
-    if value == 0 or (value < 0 and not allow_negative):
+    if (value == 0 and not allow_zero) or (value < 0 and not allow_negative):
         raise FormError("Tutar sıfırdan büyük olmalı.")
     return str(value)
 

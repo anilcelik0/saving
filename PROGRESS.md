@@ -42,25 +42,33 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 - [ ] (Later) Test a second ClientApp to verify the cross-app token rejection in practice
 
 ## Phase 2: saving_budget 🔄
-### 2a: Core budget (code done, waiting on migration + smoke test)
-- [x] Models: Category, Account (bank/credit card/cash), Transaction, RecurringPayment (weekly/monthly/yearly, interval, installments), SavingGoal + GoalContribution (negative = withdrawal)
+### 2a: Core budget (revised 2026-11-09 after user feedback)
+- [x] Models: Category, Account (name, type, opening_balance; balance computed), Transaction (plan, plan_sequence),
+      PaymentPlan (recurring | installment, income/expense, auto_pay)
+- [x] Removed: SavingGoal/GoalContribution ("goal" = total remaining money → summary), account bank/last4
 - [x] Shared helpers: `core.viewsets.OwnedModelViewSet`, `core.serializers.OwnedPrimaryKeyRelatedField`, ProtectedError → 409
 - [x] Default categories seeded on saving user registration (signal)
-- [x] CRUD APIs under `/api/v1/saving/budget/`: categories, accounts, transactions (filters), recurring-payments, goals (current_amount, progress_percent), goal-contributions
-- [x] `recurring-payments/upcoming/?days=30` (incl. overdue), `recurring-payments/{id}/pay/` → expense transaction + next due date
-- [x] Migrations (user) + API smoke test
+- [x] APIs under `/api/v1/saving/budget/`: categories, accounts (+balance), transactions (account required, filters incl. plan),
+      plans (create = recurring/installment entry; installment total split by backend, remainder on last),
+      `plans/upcoming/`, `plans/{id}/pay/`, `summary/?month=YYYY-MM`
+- [x] Auto-pay: daily beat task 00:30 `process_due_plans_task` (catches up missed days); also runs right after plan creation
+- [x] Plan immutables after creation: plan_type, kind, total_amount, installment_count, start_date
 - [x] `?page_size=` support (max 100) via `core.pagination.DefaultPagination`
+- [x] Migration reset (user) + API smoke test (balances, installment split, auto-pay on create, immutables, summary)
+- [x] Summary money values serialized as strings (`MonthlySummarySerializer`)
+- [x] Account types reduced to bank/cash
 
-### 2a-mobile ✅ (logic only, minimal UI)
+### 2a-mobile (logic only, minimal UI)
 - [x] Flet 1.1.2 project (`mobile/pyproject.toml`, `.venv`), async httpx `ApiClient`
 - [x] Auth: login, register, auto-login with stored tokens, logout, session-expired → login
 - [x] Auto refresh on 401 (single-flight lock, retries request once)
-- [x] Tabs: Transactions (kind filter, load more, form), Recurring payments (upcoming/all, pay dialog, form),
-      Goals (progress, detail with deposits/withdrawals, form), More (accounts, categories, profile, logout)
-- [x] Headless smoke test of all flows against the backend (fake page; not committed)
+- [x] 3 tabs: Summary (month nav, income/expense/net, account balances, total, pending plans, month-end projection),
+      Activity "Hareketler" (Upcoming plans with quick pay + History of transactions; one "+" = unified entry form:
+      one-time / recurring / installment + auto-pay), More (accounts, all payment plans, categories, profile, logout)
+- [x] Turkish money input: "300.000" = 300000, "1.234,50" = 1234.50
+- [x] Headless smoke test after migration (all flows, balances verified)
 - [ ] Manual check in the real Flet window (date picker, dropdowns)
-- [ ] (Later) Payment reminder (Celery task + push notification)
-- [ ] (Later) Recurring income (e.g. salary), "skip this period" action
+- [ ] (Later) Payment reminder (push notification), "skip this period" action, transfer between accounts (bank ↔ cash)
 
 ### 2b: Statement parsing
 - [ ] Statement upload model + file storage
@@ -74,7 +82,7 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 - [ ] Portfolio holdings + valuation endpoints
 
 ## Phase 4: saving_reports
-- [ ] Monthly income/expense, category breakdown, savings progress, portfolio value
+- [ ] Category breakdown, monthly trends, portfolio value (basic month totals/balances already in `saving_budget` summary)
 
 ## Phase 5: Mobile finalization (per-phase mobile work is done inside each phase)
 - [ ] Secure token storage (SharedPreferences is not encrypted)
@@ -90,5 +98,7 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 - Android emulator reaches the host via `10.0.2.2:8080`.
 - Celery worker does not auto-reload: `docker compose restart celery_worker` after task code changes.
 - Login payload: `{"app": "saving", "identifier": "<username or email>", "password": "..."}`.
+- Account types are only bank/cash. No credit card accounts: card spending (manual or from card statement import)
+  is an expense on the related bank account; balance = money available to spend. Card installments = installment plan.
 - Accounts/categories referenced by transactions: account delete is PROTECTed (409, archive instead); category delete sets NULL.
 - A test account `smoketest` / `smoke@example.com` (app `saving`) exists from the smoke test; delete it from the admin if unwanted.

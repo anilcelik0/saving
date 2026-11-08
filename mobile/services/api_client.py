@@ -17,10 +17,13 @@ FIELD_LABELS = {
     "category": "Kategori",
     "account": "Hesap",
     "kind": "Tür",
-    "target_amount": "Hedef tutar",
+    "description": "Açıklama",
+    "total_amount": "Toplam tutar",
+    "installment_count": "Taksit sayısı",
+    "opening_balance": "Açılış bakiyesi",
     "start_date": "Başlangıç tarihi",
     "end_date": "Bitiş tarihi",
-    "last4": "Son 4 hane",
+    "month": "Ay",
 }
 
 

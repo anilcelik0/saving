@@ -23,7 +23,7 @@ app_manager/                          # repo root
 │   ├── manage.py
 │   ├── core/                    # Django project package: settings.py, urls.py, celery.py, wsgi/asgi, base_models.py
 │   ├── accounts/                # shared: ClientApp registry + app-scoped users + JWT auth
-│   ├── saving_budget/           # income/expense, categories, savings goals, recurring payments, bank statement parsing
+│   ├── saving_budget/           # accounts + computed balances, categories, transactions, payment plans (recurring/installment, auto-pay), monthly summary, statement parsing
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
 │   └── saving_reports/          # aggregated reporting endpoints
 └── mobile/                      # Flet 1.x Android client (pyproject.toml, own .venv)

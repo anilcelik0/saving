@@ -1,7 +1,11 @@
 import flet as ft
 
-from .choices import ACCOUNT_TYPES, BANKS, KINDS, label
-from .ui import FormError, confirm, dropdown, dropdown_value, empty_text, form_view, guarded, text_field
+from .choices import ACCOUNT_TYPES, KINDS, label
+from .plans import PlansScreen
+from .ui import (
+    FormError, confirm, dropdown, empty_text, fmt_money, form_view, guarded, money_input_value,
+    parse_money, text_field,
+)
 
 
 class MoreTab:
@@ -17,6 +21,9 @@ class MoreTab:
                 ft.Container(self.user_text, padding=16),
                 ft.ListTile(leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE), title=ft.Text("Hesaplar"),
                             on_click=lambda e: self._push(AccountsScreen(state).view)),
+                ft.ListTile(leading=ft.Icon(ft.Icons.EVENT_REPEAT), title=ft.Text("Ödeme Planları"),
+                            subtitle=ft.Text("Tüm düzenli ve taksitli planlar (bitenler dahil)"),
+                            on_click=lambda e: self._push(PlansScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.CATEGORY), title=ft.Text("Kategoriler"),
                             on_click=lambda e: self._push(CategoriesScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.PERSON), title=ft.Text("Profil"),
@@ -59,10 +66,8 @@ class AccountsScreen:
         self.list.controls = [
             ft.ListTile(
                 title=ft.Text(a["name"] + (" (arşiv)" if a["is_archived"] else "")),
-                subtitle=ft.Text(" · ".join(filter(None, [
-                    label(ACCOUNT_TYPES, a["account_type"]), label(BANKS, a["bank"]),
-                    f"**** {a['last4']}" if a["last4"] else "",
-                ]))),
+                subtitle=ft.Text(label(ACCOUNT_TYPES, a["account_type"])),
+                trailing=ft.Text(fmt_money(a["balance"])),
                 on_click=lambda e, a=a: self._open(a),
             )
             for a in self.state.accounts
@@ -78,18 +83,21 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
     is_edit = bool(a.get("id"))
     name = text_field("Ad", a.get("name"))
     account_type = dropdown("Tür", ACCOUNT_TYPES, a.get("account_type", "bank"))
-    bank = dropdown("Banka", BANKS, a.get("bank") or None, with_none=True)
-    last4 = text_field("Kart/hesap son 4 hane (opsiyonel)", a.get("last4"), keyboard_type=ft.KeyboardType.NUMBER)
+    opening = ft.TextField(
+        label="Açılış bakiyesi (bugünkü bakiye)",
+        value=money_input_value(a.get("opening_balance", "0")),
+        keyboard_type=ft.KeyboardType.NUMBER,
+    )
     archived = ft.Switch(label="Arşivlendi", value=a.get("is_archived", False))
 
     async def save():
         if not name.value:
             raise FormError("Ad gerekli.")
+        opening_value = parse_money(opening.value or "0", allow_negative=True, allow_zero=True)
         payload = {
             "name": name.value,
             "account_type": account_type.value,
-            "bank": dropdown_value(bank) or "",
-            "last4": last4.value,
+            "opening_balance": opening_value,
             "is_archived": archived.value,
         }
         if is_edit:
@@ -106,7 +114,7 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
 
     return form_view(
         state, "/account", "Hesabı düzenle" if is_edit else "Yeni hesap",
-        [name, account_type, bank, last4] + ([archived] if is_edit else []),
+        [name, account_type, opening] + ([archived] if is_edit else []),
         on_save=save, on_delete=delete if is_edit else None,
     )
 

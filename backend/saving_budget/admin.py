@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Account, Category, GoalContribution, RecurringPayment, SavingGoal, Transaction
+from .models import Account, Category, PaymentPlan, Transaction
 
 
 @admin.register(Category)
@@ -12,35 +12,25 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
-    list_display = ["name", "account_type", "bank", "user", "is_archived"]
-    list_filter = ["account_type", "bank"]
+    list_display = ["name", "account_type", "opening_balance", "user", "is_archived"]
+    list_filter = ["account_type"]
     search_fields = ["name", "user__username"]
 
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ["date", "kind", "amount", "description", "category", "account", "source", "user"]
+    list_display = ["date", "kind", "amount", "description", "category", "account", "source", "plan_sequence", "user"]
     list_filter = ["kind", "source", "date"]
     search_fields = ["description", "user__username"]
     list_select_related = ["category", "account", "user"]
     date_hierarchy = "date"
 
 
-@admin.register(RecurringPayment)
-class RecurringPaymentAdmin(admin.ModelAdmin):
-    list_display = ["name", "amount", "frequency", "next_due_date", "paid_count", "installment_count", "is_active", "user"]
-    list_filter = ["frequency", "is_active"]
-    search_fields = ["name", "user__username"]
-
-
-class GoalContributionInline(admin.TabularInline):
-    model = GoalContribution
-    extra = 0
-
-
-@admin.register(SavingGoal)
-class SavingGoalAdmin(admin.ModelAdmin):
-    list_display = ["name", "target_amount", "target_date", "status", "user"]
-    list_filter = ["status"]
-    search_fields = ["name", "user__username"]
-    inlines = [GoalContributionInline]
+@admin.register(PaymentPlan)
+class PaymentPlanAdmin(admin.ModelAdmin):
+    list_display = [
+        "description", "plan_type", "kind", "amount", "frequency", "next_due_date",
+        "paid_count", "installment_count", "auto_pay", "is_active", "user",
+    ]
+    list_filter = ["plan_type", "kind", "frequency", "auto_pay", "is_active"]
+    search_fields = ["description", "user__username"]

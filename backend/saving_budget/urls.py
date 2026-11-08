@@ -1,3 +1,4 @@
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from . import views
@@ -8,8 +9,9 @@ router = DefaultRouter()
 router.register("categories", views.CategoryViewSet)
 router.register("accounts", views.AccountViewSet)
 router.register("transactions", views.TransactionViewSet)
-router.register("recurring-payments", views.RecurringPaymentViewSet)
-router.register("goals", views.SavingGoalViewSet)
-router.register("goal-contributions", views.GoalContributionViewSet)
+router.register("plans", views.PaymentPlanViewSet)
 
-urlpatterns = router.urls
+urlpatterns = [
+    path("summary/", views.SummaryView.as_view(), name="summary"),
+    *router.urls,
+]

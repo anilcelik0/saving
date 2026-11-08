@@ -36,12 +36,14 @@ class BudgetService:
         self.categories = Resource(api, "categories/")  # not paginated
         self.accounts = Resource(api, "accounts/")  # not paginated
         self.transactions = Resource(api, "transactions/")  # paginated
-        self.recurring = Resource(api, "recurring-payments/")  # paginated
-        self.goals = Resource(api, "goals/")  # paginated
-        self.contributions = Resource(api, "goal-contributions/")  # paginated
+        self.plans = Resource(api, "plans/")  # paginated; create = recurring or installment entry
 
-    async def upcoming_payments(self, days: int = 30) -> list:
-        return await self.api.get(BASE + "recurring-payments/upcoming/", params={"days": days})
+    async def upcoming_plans(self, days: int = 30) -> list:
+        return await self.api.get(BASE + "plans/upcoming/", params={"days": days})
 
-    async def pay_recurring(self, payment_id, amount: str | None = None, date: str | None = None) -> dict:
-        return await self.api.post(f"{BASE}recurring-payments/{payment_id}/pay/", _clean({"amount": amount, "date": date}))
+    async def pay_plan(self, plan_id, amount: str | None = None, date: str | None = None) -> dict:
+        return await self.api.post(f"{BASE}plans/{plan_id}/pay/", _clean({"amount": amount, "date": date}))
+
+    async def summary(self, month: str | None = None) -> dict:
+        """month: 'YYYY-MM' (default current)."""
+        return await self.api.get(BASE + "summary/", params=_clean({"month": month}))

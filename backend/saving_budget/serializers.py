@@ -5,7 +5,8 @@ from rest_framework import serializers
 
 from core.serializers import OwnedPrimaryKeyRelatedField
 
-from .models import Account, Category, GoalContribution, Kind, RecurringPayment, SavingGoal, Transaction
+from .models import Account, Category, Kind, PaymentPlan, Transaction
+from .services import create_plan
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -27,15 +28,16 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class AccountSerializer(serializers.ModelSerializer):
+    balance = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+
     class Meta:
         model = Account
-        fields = ["id", "name", "account_type", "bank", "last4", "is_archived", "created_at"]
+        fields = ["id", "name", "account_type", "opening_balance", "balance", "is_archived", "created_at"]
         read_only_fields = ["id", "created_at"]
 
-    def validate_last4(self, value):
-        if value and (len(value) != 4 or not value.isdigit()):
-            raise serializers.ValidationError("Son 4 hane yalnızca 4 rakam olmalı.")
-        return value
+
+def _current(serializer, attrs, name):
+    return attrs.get(name, getattr(serializer.instance, name, None))
 
 
 def _check_category_kind(category, kind):
@@ -45,37 +47,51 @@ def _check_category_kind(category, kind):
 
 class TransactionSerializer(serializers.ModelSerializer):
     category = OwnedPrimaryKeyRelatedField(queryset=Category.objects.all(), allow_null=True, required=False)
-    account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all(), allow_null=True, required=False)
+    account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
+    plan_info = serializers.SerializerMethodField()
 
     class Meta:
         model = Transaction
         fields = [
-            "id", "kind", "amount", "date", "description", "note",
-            "category", "account", "source", "recurring_payment", "created_at",
+            "id", "kind", "amount", "date", "description", "note", "category", "account",
+            "source", "plan", "plan_sequence", "plan_info", "created_at",
         ]
-        read_only_fields = ["id", "source", "recurring_payment", "created_at"]
+        read_only_fields = ["id", "source", "plan", "plan_sequence", "created_at"]
+
+    def get_plan_info(self, obj):
+        """e.g. {"plan_type": "installment", "label": "2/6"} for list display."""
+        plan = obj.plan
+        if plan is None:
+            return None
+        if plan.plan_type == PaymentPlan.PlanType.INSTALLMENT:
+            label = f"{obj.plan_sequence}/{plan.installment_count}"
+        else:
+            label = plan.get_frequency_display()
+        return {"plan_type": plan.plan_type, "label": label}
 
     def validate(self, attrs):
-        _check_category_kind(
-            attrs.get("category", getattr(self.instance, "category", None)),
-            attrs.get("kind", getattr(self.instance, "kind", None)),
-        )
+        _check_category_kind(_current(self, attrs, "category"), _current(self, attrs, "kind"))
         return attrs
 
 
-class RecurringPaymentSerializer(serializers.ModelSerializer):
+class PaymentPlanSerializer(serializers.ModelSerializer):
+    """Create = one entry point for repeating expenses/incomes. Fields fixed after creation are read-only on update."""
+
+    IMMUTABLE = ("plan_type", "kind", "total_amount", "installment_count", "start_date")
+
     category = OwnedPrimaryKeyRelatedField(queryset=Category.objects.all(), allow_null=True, required=False)
-    account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all(), allow_null=True, required=False)
+    account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False)
     next_due_date = serializers.DateField(required=False)
     is_overdue = serializers.SerializerMethodField()
     remaining_installments = serializers.SerializerMethodField()
 
     class Meta:
-        model = RecurringPayment
+        model = PaymentPlan
         fields = [
-            "id", "name", "amount", "category", "account", "frequency", "interval",
-            "start_date", "next_due_date", "end_date", "installment_count", "paid_count",
-            "remaining_installments", "is_active", "is_overdue", "note", "created_at",
+            "id", "plan_type", "kind", "description", "amount", "total_amount", "installment_count",
+            "category", "account", "frequency", "interval", "start_date", "next_due_date", "end_date",
+            "paid_count", "remaining_installments", "auto_pay", "is_active", "is_overdue", "note", "created_at",
         ]
         read_only_fields = ["id", "paid_count", "created_at"]
 
@@ -93,47 +109,69 @@ class RecurringPaymentSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        _check_category_kind(attrs.get("category"), Kind.EXPENSE)
-        start = attrs.get("start_date", getattr(self.instance, "start_date", None))
-        end = attrs.get("end_date", getattr(self.instance, "end_date", None))
-        if start and end and end < start:
-            raise serializers.ValidationError({"end_date": "Bitiş tarihi başlangıçtan önce olamaz."})
-        if self.instance is None and "next_due_date" not in attrs:
-            attrs["next_due_date"] = start
+        if self.instance:
+            return self._validate_update(attrs)
+
+        plan_type = attrs.get("plan_type")
+        attrs.pop("next_due_date", None)  # always starts at start_date
+        if plan_type == PaymentPlan.PlanType.INSTALLMENT:
+            if attrs.get("kind", Kind.EXPENSE) != Kind.EXPENSE:
+                raise serializers.ValidationError({"kind": "Taksit yalnızca gider için kullanılabilir."})
+            if not attrs.get("total_amount"):
+                raise serializers.ValidationError({"total_amount": "Taksitli işlemde toplam tutar gerekli."})
+            if (attrs.get("installment_count") or 0) < 2:
+                raise serializers.ValidationError({"installment_count": "Taksit sayısı en az 2 olmalı."})
+            attrs.pop("amount", None)
+        else:
+            if not attrs.get("amount"):
+                raise serializers.ValidationError({"amount": "Tutar gerekli."})
+            attrs["total_amount"] = attrs["installment_count"] = None
+            start, end = attrs.get("start_date"), attrs.get("end_date")
+            if start and end and end < start:
+                raise serializers.ValidationError({"end_date": "Bitiş tarihi başlangıçtan önce olamaz."})
+
+        _check_category_kind(attrs.get("category"), attrs.get("kind", Kind.EXPENSE))
         return attrs
 
+    def _validate_update(self, attrs):
+        for name in self.IMMUTABLE:
+            if name in attrs and attrs[name] != getattr(self.instance, name):
+                raise serializers.ValidationError({name: "Bu alan plan oluşturulduktan sonra değiştirilemez."})
+        if self.instance.plan_type == PaymentPlan.PlanType.INSTALLMENT:
+            for name in ("amount", "end_date", "frequency", "interval"):
+                attrs.pop(name, None)
+        _check_category_kind(_current(self, attrs, "category"), self.instance.kind)
+        return attrs
 
-class PayRecurringSerializer(serializers.Serializer):
+    def create(self, validated_data):
+        return create_plan(**validated_data)
+
+
+def _money():
+    return serializers.DecimalField(max_digits=14, decimal_places=2)
+
+
+class SummaryAccountSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    account_type = serializers.CharField()
+    balance = _money()
+
+
+class MonthlySummarySerializer(serializers.Serializer):
+    """Output-only: keeps money as strings like every other endpoint."""
+
+    month = serializers.CharField()
+    income = _money()
+    expense = _money()
+    net = _money()
+    accounts = SummaryAccountSerializer(many=True)
+    total_balance = _money()
+    planned_income = _money()
+    planned_expense = _money()
+    projected_balance = _money()
+
+
+class PayPlanSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False)
     date = serializers.DateField(required=False)
-
-
-class SavingGoalSerializer(serializers.ModelSerializer):
-    current_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
-    progress_percent = serializers.SerializerMethodField()
-
-    class Meta:
-        model = SavingGoal
-        fields = [
-            "id", "name", "target_amount", "target_date", "status", "note",
-            "current_amount", "progress_percent", "created_at",
-        ]
-        read_only_fields = ["id", "created_at"]
-
-    def get_progress_percent(self, obj):
-        current = getattr(obj, "current_amount", None) or Decimal("0")
-        return float(min(current / obj.target_amount * 100, Decimal("100")).quantize(Decimal("0.1")))
-
-
-class GoalContributionSerializer(serializers.ModelSerializer):
-    goal = OwnedPrimaryKeyRelatedField(queryset=SavingGoal.objects.all())
-
-    class Meta:
-        model = GoalContribution
-        fields = ["id", "goal", "amount", "date", "note", "created_at"]
-        read_only_fields = ["id", "created_at"]
-
-    def validate_amount(self, value):
-        if value == 0:
-            raise serializers.ValidationError("Tutar sıfır olamaz.")
-        return value

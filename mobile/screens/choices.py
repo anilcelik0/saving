@@ -4,18 +4,16 @@ NONE = "__none__"  # Dropdown sentinel for "no selection"
 
 KINDS = [("expense", "Gider"), ("income", "Gelir")]
 
+REPEATS = [("none", "Tek seferlik"), ("recurring", "Düzenli (abonelik, kira, maaş...)"), ("installment", "Taksitli")]
+
+PLAN_TYPES = [("recurring", "Düzenli"), ("installment", "Taksitli")]
+
 FREQUENCIES = [("weekly", "Haftalık"), ("monthly", "Aylık"), ("yearly", "Yıllık")]
 
-ACCOUNT_TYPES = [("bank", "Banka Hesabı"), ("credit_card", "Kredi Kartı"), ("cash", "Nakit")]
+ACCOUNT_TYPES = [("bank", "Banka"), ("cash", "Nakit")]
 
-BANKS = [
-    ("ziraat", "Ziraat Bankası"), ("isbank", "İş Bankası"), ("garanti", "Garanti BBVA"),
-    ("yapikredi", "Yapı Kredi"), ("akbank", "Akbank"), ("halkbank", "Halkbank"),
-    ("vakifbank", "VakıfBank"), ("qnb", "QNB"), ("enpara", "Enpara"), ("denizbank", "DenizBank"),
-    ("teb", "TEB"), ("ing", "ING"), ("kuveytturk", "Kuveyt Türk"), ("other", "Diğer"),
-]
-
-GOAL_STATUSES = [("active", "Aktif"), ("completed", "Tamamlandı"), ("cancelled", "İptal")]
+MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+          "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
 
 
 def label(choices, key) -> str:
