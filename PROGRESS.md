@@ -101,6 +101,15 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 - [x] **Category never empty**: new defaults (Online Alışveriş, Ev & Elektronik, Kişisel Bakım, Para Transferi,
       Nakit Çekim, Banka Masrafı, Gelen Transfer, İade); rules: merchant → purpose → channel (ATM/FAST/fees)
       → online signals → card refund → fallback Diğer Gider/Gelir; seeded for 14 existing saving users
+- [x] **Category learning**: `MerchantCategoryRule` (user, kind, merchant_key → category, hits); `merchant_key()` strips
+      gateways/branch codes ("IYZICO/HEPSIBURADA.C" → hepsiburada, "BİM P226" → bim, "Uber Eats" → uber eats).
+      Learned on category change (preview line or transaction edit); applied before built-in rules; same-merchant
+      preview lines updated instantly; API `category-rules/` (list/delete); mobile More > Öğrenilen kategoriler
+- [x] **Refunds**: Transaction status `cancelled` (history only; excluded from balance/summary). Card refund with same
+      amount + same merchant → action `refund` cancels the purchase (same statement or paid within 90 days);
+      otherwise imported as income "İade". Manual `transactions/{id}/cancel|restore/` (also "skip this occurrence")
+- [x] Migration (user); E2E: QNB Steam refund cancels purchase in same statement, learned rule updates 7 same-merchant
+      lines and applies to next statement, tx edit learns, cancel/restore balance. (Refund of an earlier-imported purchase: not covered by samples)
 - **Adding a bank:** user drops samples into `docs/extre_example/` → add `parsers/<bank>.py` (`@register`, import it in
   `parsers/__init__.py` BEFORE `generic`), add label to `BANK_LABELS`, compare totals with the statement summary
 - [ ] (Later) Remember user's category choices per merchant; Garanti purchase rows sample; generic XLSX reader

@@ -17,12 +17,15 @@ def transaction_tile(state, t, on_changed) -> ft.ListTile:
         title += f" ({t['series_info']['label']})"
 
     details = [fmt_date(t["date"]), state.category_name(t["category"]), state.account_name(t["account"])]
+    cancelled = t["status"] == "cancelled"
     if t["status"] == "pending":
         details.insert(0, "Gecikti" if t["is_overdue"] else ("Otomatik" if t["auto_pay"] else "Bekliyor"))
+    elif cancelled:
+        details.insert(0, "İptal edildi")
 
     amount_text = ft.Text(
         ("-" if is_expense else "+") + fmt_money(t["amount"]),
-        color=ft.Colors.RED_700 if is_expense else ft.Colors.GREEN_700,
+        color=ft.Colors.GREY_500 if cancelled else (ft.Colors.RED_700 if is_expense else ft.Colors.GREEN_700),
     )
     if t["status"] == "pending" and not t["auto_pay"]:
         trailing = ft.Row(
@@ -33,9 +36,10 @@ def transaction_tile(state, t, on_changed) -> ft.ListTile:
     else:
         trailing = amount_text
 
+    subtitle_color = ft.Colors.RED_700 if t["is_overdue"] else (ft.Colors.GREY_500 if cancelled else None)
     return ft.ListTile(
-        title=ft.Text(title),
-        subtitle=ft.Text(" · ".join(filter(None, details)), color=ft.Colors.RED_700 if t["is_overdue"] else None),
+        title=ft.Text(title, color=ft.Colors.GREY_500 if cancelled else None),
+        subtitle=ft.Text(" · ".join(filter(None, details)), color=subtitle_color),
         trailing=trailing,
         on_click=lambda e: open_entry_form(state, t, on_changed),
     )
@@ -200,16 +204,33 @@ def entry_form(state, txn: dict | None, on_saved) -> ft.View:
         else:
             pay_dialog(state, txn, done)
 
+    async def toggle_cancel():
+        if txn["status"] == "cancelled":
+            await state.budget.transactions.restore(txn["id"])
+        else:
+            await state.budget.transactions.cancel(txn["id"])
+        await done()
+
     if is_edit:
-        status_text = "Ödendi" + (f" ({fmt_date(txn['paid_on'])})" if txn.get("paid_on") else "") \
-            if txn["status"] == "paid" else ("Gecikti" if txn["is_overdue"] else "Bekliyor")
+        status = txn["status"]
+        if status == "paid":
+            status_text = "Ödendi" + (f" ({fmt_date(txn['paid_on'])})" if txn.get("paid_on") else "")
+        elif status == "cancelled":
+            status_text = "İptal edildi (bakiyeye ve özete dahil değil)"
+        else:
+            status_text = "Gecikti" if txn["is_overdue"] else "Bekliyor"
         header = [ft.Text(f"Durum: {status_text}" + (f" · Seri {txn['series_info']['label']}" if in_series else ""),
                           color=ft.Colors.GREY_700)]
-        toggle = ft.OutlinedButton(
-            "Ödenmedi olarak geri al" if txn["status"] == "paid" else "Ödendi işaretle",
-            on_click=guarded(page, toggle_paid),
-        )
-        controls = header + [kind, amount, day.control, description, category, account, auto_pay, note, toggle]
+        buttons = []
+        if status != "cancelled":
+            buttons.append(ft.OutlinedButton(
+                "Ödenmedi olarak geri al" if status == "paid" else "Ödendi işaretle",
+                on_click=guarded(page, toggle_paid),
+            ))
+        cancel_text = "İptali geri al" if status == "cancelled" else (
+            "İptal et (iade edildi)" if status == "paid" else "Bu seferlik atla (iptal et)")
+        buttons.append(ft.OutlinedButton(cancel_text, on_click=guarded(page, toggle_cancel)))
+        controls = header + [kind, amount, day.control, description, category, account, auto_pay, note, *buttons]
     else:
         controls = [kind, repeat, amount, day.control, description, category, account,
                     frequency, end.control, installments, auto_pay, note]

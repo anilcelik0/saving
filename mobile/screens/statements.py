@@ -53,7 +53,7 @@ class StatementsScreen:
         if s["period_start"]:
             parts.append(f"{fmt_date(s['period_start'])} - {fmt_date(s['period_end'])}")
         if s["status"] == "imported":
-            parts.append(f"{s['imported_count']} aktarıldı, {s['matched_count']} eşleşti")
+            parts.append(f"{s['imported_count']} aktarıldı, {s['matched_count']} eşleşti, {s['cancelled_count']} iade")
         if s["error"]:
             parts.append(s["error"])
         return ft.ListTile(
@@ -164,7 +164,13 @@ class StatementReview:
         if line["installment"]:
             notes.append(f"Taksit: {line['installment']}")
         color = None
-        if line["action"] == "match" and line["matched_info"]:
+        if line["action"] == "refund" and line["refund_info"]:
+            r = line["refund_info"]
+            where = "bu ekstredeki" if r["in_statement"] else "daha önce aktarılan"
+            notes = [fmt_date(line["date"]),
+                     f"İade: {where} {fmt_date(r['date'])} tarihli '{r['description']}' harcamasını iptal edecek"]
+            color = ft.Colors.ORANGE_800
+        elif line["action"] == "match" and line["matched_info"]:
             m = line["matched_info"]
             notes.append(f"Bekleyen kayıtla eşleşecek: {m['description']} ({fmt_date(m['date'])})")
             color = ft.Colors.BLUE_700
@@ -191,25 +197,39 @@ class StatementReview:
         self.lines = [updated if x["id"] == line["id"] else x for x in self.lines]
         self._render()
 
+    @staticmethod
+    def _has_refund_target(line):
+        return bool(line["refund_target_line"] or (line["refund_info"] and not line["refund_info"]["in_statement"]))
+
     async def _toggle(self, line, include):
-        if include:
-            action = "match" if line["matched_transaction"] else "import"
-        else:
+        if not include:
             action = "skip"
+        elif self._has_refund_target(line):
+            action = "refund"
+        else:
+            action = "match" if line["matched_transaction"] else "import"
         await self._update(line, {"action": action})
 
     def _edit_dialog(self, line):
         page = self.page
-        actions = [("import", "Yeni kayıt olarak aktar"), ("skip", "Aktarma")]
-        if line["matched_transaction"]:
+        actions = [("import", "Gelir/gider olarak aktar"), ("skip", "Aktarma")]
+        if self._has_refund_target(line):
+            actions.insert(0, ("refund", "İade: ilgili harcamayı iptal et"))
+        elif line["matched_transaction"]:
             actions.insert(0, ("match", "Bekleyen kayıtla eşleştir (ödendi yap)"))
         action = dropdown("İşlem", actions, line["action"])
         category = dropdown("Kategori", category_options(self.state, line["kind"], line["category"]),
                             line["category"], with_none=True)
 
         async def save():
-            await self._update(line, {"action": action.value, "category": dropdown_value(category)})
+            new_category = dropdown_value(category)
+            await self._update(line, {"action": action.value, "category": new_category})
             page.pop_dialog()
+            if new_category != line["category"]:
+                # backend learned merchant -> category and updated same-merchant lines: reload them
+                self.lines = await self.state.budget.statements.lines(self.statement_id)
+                self._render()
+                toast(page, "Kategori hatırlanacak; aynı işyerinin diğer satırları da güncellendi.")
 
         page.show_dialog(
             ft.AlertDialog(
@@ -223,7 +243,11 @@ class StatementReview:
 
     async def _confirm(self):
         self.statement = await self.state.budget.statements.confirm(self.statement_id)
-        toast(self.page, f"{self.statement['imported_count']} kayıt aktarıldı, {self.statement['matched_count']} kayıt eşleşti.")
+        s = self.statement
+        message = f"{s['imported_count']} kayıt aktarıldı, {s['matched_count']} kayıt eşleşti."
+        if s["cancelled_count"]:
+            message += f" {s['cancelled_count']} harcama iade nedeniyle iptal edildi."
+        toast(self.page, message)
         self.state.router.pop()
         await self.on_done()
 

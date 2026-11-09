@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import Account, Category, Series, StatementImport, StatementLine, Transaction
+from .models import Account, Category, MerchantCategoryRule, Series, StatementImport, StatementLine, Transaction
+
+
+@admin.register(MerchantCategoryRule)
+class MerchantCategoryRuleAdmin(admin.ModelAdmin):
+    list_display = ["merchant_key", "kind", "category", "hits", "user", "updated_at"]
+    list_filter = ["kind"]
+    search_fields = ["merchant_key", "user__username"]
 
 
 class StatementLineInline(admin.TabularInline):

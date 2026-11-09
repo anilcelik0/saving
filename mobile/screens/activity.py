@@ -66,7 +66,7 @@ class ActivityTab:
 
     async def _fetch_history(self):
         kind = None if self.kind.value == ALL else self.kind.value
-        data = await self.state.budget.transactions.list(page=self.page_no, status="paid", kind=kind)
+        data = await self.state.budget.transactions.list(page=self.page_no, status="paid,cancelled", kind=kind)
         self.items += data["results"]
         self.has_next = bool(data["next"])
 

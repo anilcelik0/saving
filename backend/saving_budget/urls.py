@@ -11,6 +11,7 @@ router.register("accounts", views.AccountViewSet)
 router.register("transactions", views.TransactionViewSet)
 router.register("statements", views.StatementImportViewSet)
 router.register("statement-lines", views.StatementLineViewSet)
+router.register("category-rules", views.MerchantCategoryRuleViewSet)
 
 urlpatterns = [
     path("summary/", views.SummaryView.as_view(), name="summary"),

@@ -8,12 +8,12 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import Account, Category, Kind, Series, Transaction
+from .models import Account, Category, Kind, MerchantCategoryRule, Series, Transaction
 
 ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
 MONEY_FIELD = DecimalField(max_digits=14, decimal_places=2)
-PAID, PENDING = Transaction.Status.PAID, Transaction.Status.PENDING
+PAID, PENDING, CANCELLED = Transaction.Status.PAID, Transaction.Status.PENDING, Transaction.Status.CANCELLED
 
 HORIZON_DAYS = 365  # recurring series are generated this far ahead
 EXTEND_THRESHOLD_DAYS = 60  # extend when fewer days than this remain generated
@@ -186,6 +186,37 @@ def mark_paid(txn: Transaction, *, amount=None, paid_on=None) -> Transaction:
         txn.amount = amount
     txn.save(update_fields=["status", "paid_on", "amount", "updated_at"])
     return txn
+
+
+def cancel_transaction(txn: Transaction) -> Transaction:
+    """Cancel (refunded purchase / skipped occurrence). Kept for history, excluded from balances and totals."""
+    if txn.status == CANCELLED:
+        raise ValidationError({"detail": "Bu kayıt zaten iptal edilmiş."})
+    txn.status, txn.paid_on = CANCELLED, None
+    txn.save(update_fields=["status", "paid_on", "updated_at"])
+    return txn
+
+
+def restore_transaction(txn: Transaction) -> Transaction:
+    if txn.status != CANCELLED:
+        raise ValidationError({"detail": "Bu kayıt iptal edilmemiş."})
+    is_paid = txn.date <= timezone.localdate()
+    txn.status, txn.paid_on = (PAID, txn.date) if is_paid else (PENDING, None)
+    txn.save(update_fields=["status", "paid_on", "updated_at"])
+    return txn
+
+
+def learn_category(user, kind: str, description: str, category) -> str | None:
+    """Remember merchant -> category from a user's choice. Returns the merchant key (or None)."""
+    from .statements.classify import merchant_key
+
+    key = merchant_key(description)
+    if not key or category is None:
+        return None
+    MerchantCategoryRule.objects.update_or_create(
+        user=user, kind=kind, merchant_key=key, defaults={"category": category}
+    )
+    return key
 
 
 def mark_unpaid(txn: Transaction) -> Transaction:

@@ -7,8 +7,11 @@ from rest_framework import serializers
 
 from core.serializers import OwnedPrimaryKeyRelatedField
 
-from .models import Account, Category, Kind, Series, StatementImport, StatementLine, Transaction
+from .models import (
+    Account, Category, Kind, MerchantCategoryRule, Series, StatementImport, StatementLine, Transaction,
+)
 from .services import create_entry
+from .statement_services import apply_learned_category
 from .statements.registry import BANK_LABELS
 
 
@@ -130,11 +133,11 @@ class StatementImportSerializer(serializers.ModelSerializer):
         fields = [
             "id", "account", "file", "original_name", "status", "error", "bank", "bank_label", "is_generic",
             "statement_type", "period_start", "period_end", "closing_balance", "imported_count", "matched_count",
-            "counts", "created_at",
+            "cancelled_count", "counts", "created_at",
         ]
         read_only_fields = [
             "id", "original_name", "status", "error", "bank", "is_generic", "statement_type", "period_start",
-            "period_end", "closing_balance", "imported_count", "matched_count", "created_at",
+            "period_end", "closing_balance", "imported_count", "matched_count", "cancelled_count", "created_at",
         ]
 
     def get_bank_label(self, obj):
@@ -166,21 +169,33 @@ class StatementLineSerializer(serializers.ModelSerializer):
         queryset=Transaction.objects.filter(status=Transaction.Status.PENDING), allow_null=True, required=False
     )
     matched_info = serializers.SerializerMethodField()
+    refund_info = serializers.SerializerMethodField()
 
     class Meta:
         model = StatementLine
         fields = [
             "id", "line_no", "date", "description", "kind", "amount", "installment", "action", "skip_reason",
-            "category", "matched_transaction", "matched_info", "result_transaction",
+            "category", "matched_transaction", "matched_info", "refund_target_line", "refund_info",
+            "result_transaction",
         ]
         read_only_fields = [
             "id", "line_no", "date", "description", "kind", "amount", "installment", "skip_reason",
-            "result_transaction",
+            "refund_target_line", "result_transaction",
         ]
 
     def get_matched_info(self, obj):
         t = obj.matched_transaction
-        return {"description": t.description, "date": t.date, "amount": t.amount} if t else None
+        if t is None or obj.action == StatementLine.Action.REFUND:
+            return None
+        return {"description": t.description, "date": t.date, "amount": t.amount}
+
+    def get_refund_info(self, obj):
+        """The purchase this refund will cancel (a line in this statement or an existing transaction)."""
+        target = obj.refund_target_line or (obj.matched_transaction if obj.action == StatementLine.Action.REFUND else None)
+        if target is None:
+            return None
+        return {"description": target.description, "date": target.date, "amount": target.amount,
+                "in_statement": obj.refund_target_line_id is not None}
 
     def validate(self, attrs):
         line = self.instance
@@ -190,6 +205,8 @@ class StatementLineSerializer(serializers.ModelSerializer):
         if action != StatementLine.Action.SKIP and line.skip_reason == StatementLine.SkipReason.DUPLICATE:
             raise serializers.ValidationError({"action": "Bu satır daha önce aktarılmış."})
         match = attrs.get("matched_transaction", line.matched_transaction)
+        if action == StatementLine.Action.REFUND and not (line.refund_target_line_id or line.matched_transaction_id):
+            raise serializers.ValidationError({"action": "Bu satır için iptal edilecek bir harcama bulunamadı."})
         if action == StatementLine.Action.MATCH:
             if match is None:
                 raise serializers.ValidationError({"matched_transaction": "Eşleştirilecek bekleyen kaydı seçin."})
@@ -206,7 +223,20 @@ class StatementLineSerializer(serializers.ModelSerializer):
             validated_data["skip_reason"] = StatementLine.SkipReason.USER
         elif action != StatementLine.Action.SKIP:
             validated_data["skip_reason"] = ""
-        return super().update(instance, validated_data)
+        category_changed = "category" in validated_data and validated_data["category"] != instance.category
+        line = super().update(instance, validated_data)
+        if category_changed:
+            apply_learned_category(line)  # remember merchant -> category, update same-merchant lines
+        return line
+
+
+class MerchantCategoryRuleSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+
+    class Meta:
+        model = MerchantCategoryRule
+        fields = ["id", "kind", "merchant_key", "category", "category_name", "hits", "updated_at"]
+        read_only_fields = fields
 
 
 class PaySerializer(serializers.Serializer):

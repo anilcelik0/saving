@@ -11,11 +11,12 @@ from rest_framework.views import APIView
 
 from core.viewsets import OwnedModelViewSet
 
-from .models import Account, Category, StatementImport, StatementLine, Transaction
+from .models import Account, Category, MerchantCategoryRule, StatementImport, StatementLine, Transaction
 from .permissions import IsSavingUser
 from .serializers import (
     AccountSerializer,
     CategorySerializer,
+    MerchantCategoryRuleSerializer,
     MonthlySummarySerializer,
     PaySerializer,
     StatementImportSerializer,
@@ -23,7 +24,10 @@ from .serializers import (
     TransactionCreateSerializer,
     TransactionSerializer,
 )
-from .services import apply_to_following, delete_with_following, mark_paid, mark_unpaid, monthly_summary, with_balance
+from .services import (
+    apply_to_following, cancel_transaction, delete_with_following, learn_category, mark_paid, mark_unpaid,
+    monthly_summary, restore_transaction, with_balance,
+)
 from .statement_services import confirm_statement
 from .tasks import parse_statement_task
 
@@ -101,9 +105,11 @@ class TransactionViewSet(SavingViewSet):
             qs = qs.filter(date__gte=date_from)
         if date_to := _query_date(self.request, "date_to"):
             qs = qs.filter(date__lte=date_to)
-        for field in ("kind", "status", "category", "account", "source", "series"):
+        for field in ("kind", "category", "account", "source", "series"):
             if value := params.get(field):
                 qs = qs.filter(**{field: value})
+        if status_param := params.get("status"):  # "paid" or "paid,cancelled"
+            qs = qs.filter(status__in=status_param.split(","))
         if search := params.get("search"):
             qs = qs.filter(description__icontains=search)
         if params.get("ordering") == "date":
@@ -112,9 +118,23 @@ class TransactionViewSet(SavingViewSet):
 
     def perform_update(self, serializer):
         scope = _scope(self.request)
+        old_category_id = serializer.instance.category_id
         txn = serializer.save()
         if scope == "following":
             apply_to_following(txn, serializer.validated_data)
+        if txn.category_id != old_category_id and txn.description:
+            learn_category(txn.user, txn.kind, txn.description, txn.category)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        """Cancel a purchase (e.g. refunded) or skip a planned occurrence. Kept in history, excluded from totals."""
+        txn = cancel_transaction(self.get_object())
+        return Response(TransactionSerializer(txn, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def restore(self, request, pk=None):
+        txn = restore_transaction(self.get_object())
+        return Response(TransactionSerializer(txn, context={"request": request}).data)
 
     def perform_destroy(self, instance):
         if _scope(self.request) == "following":
@@ -178,6 +198,15 @@ class StatementImportViewSet(SavingViewSet):
     def confirm(self, request, pk=None):
         statement = confirm_statement(self.get_object())
         return Response(self.get_serializer(statement).data)
+
+
+class MerchantCategoryRuleViewSet(SavingViewSet):
+    """Learned merchant -> category rules: list and delete (rules are created by the user's category choices)."""
+
+    queryset = MerchantCategoryRule.objects.select_related("category")
+    serializer_class = MerchantCategoryRuleSerializer
+    pagination_class = None
+    http_method_names = ["get", "delete"]
 
 
 class StatementLineViewSet(SavingViewSet):

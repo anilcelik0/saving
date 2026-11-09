@@ -48,6 +48,13 @@ class Transactions(Resource):
     async def unpay(self, obj_id) -> dict:
         return await self.api.post(f"{self.path}{obj_id}/unpay/", {})
 
+    async def cancel(self, obj_id) -> dict:
+        """Refunded purchase / skipped occurrence: kept in history, excluded from totals."""
+        return await self.api.post(f"{self.path}{obj_id}/cancel/", {})
+
+    async def restore(self, obj_id) -> dict:
+        return await self.api.post(f"{self.path}{obj_id}/restore/", {})
+
 
 CONTENT_TYPES = {
     "pdf": "application/pdf",
@@ -80,6 +87,7 @@ class BudgetService:
         self.accounts = Resource(api, "accounts/")  # not paginated
         self.transactions = Transactions(api, "transactions/")  # paginated
         self.statements = Statements(api, "statements/")  # paginated
+        self.category_rules = Resource(api, "category-rules/")  # learned merchant -> category; list/delete
 
     async def summary(self, month: str | None = None) -> dict:
         """month: 'YYYY-MM' (default current)."""

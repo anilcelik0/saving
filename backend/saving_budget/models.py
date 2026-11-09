@@ -118,6 +118,7 @@ class Transaction(OwnedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Bekliyor"
         PAID = "paid", "Ödendi"
+        CANCELLED = "cancelled", "İptal edildi"  # refunded / skipped: kept for history, ignored in totals
 
     class Source(models.TextChoices):
         MANUAL = "manual", "Manuel"
@@ -192,6 +193,7 @@ class StatementImport(OwnedModel):
     closing_balance = models.DecimalField(**MONEY, null=True, blank=True)  # account statements
     imported_count = models.PositiveIntegerField(default=0)
     matched_count = models.PositiveIntegerField(default=0)
+    cancelled_count = models.PositiveIntegerField(default=0)  # purchases cancelled by refunds
 
     class Meta:
         ordering = ["-created_at"]
@@ -204,6 +206,7 @@ class StatementLine(BaseModel):
     class Action(models.TextChoices):
         IMPORT = "import", "Yeni kayıt olarak aktar"
         MATCH = "match", "Bekleyen kayıtla eşleştir"
+        REFUND = "refund", "İlgili harcamayı iptal et (iade)"
         SKIP = "skip", "Aktarma"
 
     class SkipReason(models.TextChoices):
@@ -228,10 +231,31 @@ class StatementLine(BaseModel):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     matched_transaction = models.ForeignKey(
         Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
-    )  # pending candidate (action=match)
+    )  # action=match: pending candidate; action=refund: existing paid purchase to cancel
+    refund_target_line = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )  # action=refund: purchase line in the same statement to cancel
     result_transaction = models.ForeignKey(
         Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
-    )  # created/updated on confirm
+    )  # created/updated/cancelled on confirm
 
     class Meta:
         ordering = ["line_no"]
+
+
+class MerchantCategoryRule(OwnedModel):
+    """Learned from the user's category choices: merchant key -> category (applied before built-in rules)."""
+
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    merchant_key = models.CharField(max_length=60)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="merchant_rules")
+    hits = models.PositiveIntegerField(default=0)  # times applied to statement lines
+
+    class Meta:
+        ordering = ["merchant_key"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "kind", "merchant_key"], name="uniq_merchant_rule_per_user_kind"),
+        ]
+
+    def __str__(self):
+        return f"{self.merchant_key} -> {self.category}"

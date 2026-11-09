@@ -95,6 +95,34 @@ def _pattern(keyword: str) -> re.Pattern:
 COMPILED_RULES = [(tuple(_pattern(k) for k in keywords), kind, name) for keywords, kind, name in CATEGORY_RULES]
 
 
+# Words that never identify a merchant (payment gateways, transfer boilerplate, legal suffixes).
+NOISE_TOKENS = {
+    "iyzico", "paytr", "hepsipay", "hep", "moneypay", "paycell", "sipay", "param", "craftgate", "www", "com", "tr",
+    "fast", "eft", "havale", "anlik", "odeme", "odemesi", "gelen", "giden", "otomatik", "yatan", "islem",
+    "as", "a", "s", "ltd", "sti", "san", "tic", "ve", "ile", "the",
+}
+# Tokens with digits are usually branch/terminal codes ("p226", "9906") except these brands.
+DIGIT_BRANDS = {"a101", "n11", "d1", "s1"}
+# Too generic alone -> keep the next word too ("uber eats", "yeni istanbul", "google youtubepremium").
+WEAK_TOKENS = {"uber", "google", "apple", "yeni", "turk", "ankara", "istanbul", "izmir", "market", "cafe", "the", "mobil"}
+
+
+def merchant_key(description: str) -> str:
+    """
+    Stable merchant identifier for learning categories:
+    'IYZICO/HEPSIBURADA.C' -> 'hepsiburada', 'BİM P226 - GAZİLER' -> 'bim', 'Uber Eats Yemek' -> 'uber eats',
+    'FAST Anlık Ödeme · Koray önalp' -> 'koray'.
+    """
+    tokens = [
+        t for t in re.split(r"[^a-z0-9]+", fold(description))
+        if len(t) >= 2 and t not in NOISE_TOKENS and (t in DIGIT_BRANDS or not any(c.isdigit() for c in t))
+    ]
+    if not tokens:
+        return ""
+    key = tokens[:2] if tokens[0] in WEAK_TOKENS and len(tokens) > 1 else tokens[:1]
+    return " ".join(key)[:60]
+
+
 def _compact(text: str) -> str:
     return normalize(text).replace(" ", "")
 

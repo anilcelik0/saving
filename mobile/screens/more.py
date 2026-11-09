@@ -26,6 +26,9 @@ class MoreTab:
                             on_click=lambda e: self._push(StatementsScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.CATEGORY), title=ft.Text("Kategoriler"),
                             on_click=lambda e: self._push(CategoriesScreen(state).view)),
+                ft.ListTile(leading=ft.Icon(ft.Icons.AUTO_FIX_HIGH), title=ft.Text("Öğrenilen kategoriler"),
+                            subtitle=ft.Text("İşyeri → kategori eşleştirmeleri (ekstrede otomatik uygulanır)"),
+                            on_click=lambda e: self._push(CategoryRulesScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.PERSON), title=ft.Text("Profil"),
                             on_click=lambda e: self._push(profile_form(state, on_saved=self.refresh))),
                 ft.ListTile(leading=ft.Icon(ft.Icons.LOGOUT), title=ft.Text("Çıkış yap"),
@@ -185,6 +188,40 @@ def category_form(state, c: dict | None, on_saved) -> ft.View:
         on_save=save, on_delete=delete if is_edit else None,
         delete_message="Kategori silinecek; bu kategorideki işlemler kategorisiz kalır.",
     )
+
+
+# ---------- learned category rules ----------
+class CategoryRulesScreen:
+    """Merchant -> category rules learned from the user's choices; delete wrong ones."""
+
+    def __init__(self, state):
+        self.state = state
+        self.page = state.page
+        self.list = ft.ListView(expand=True)
+        self.view = ft.View(route="/category-rules", appbar=ft.AppBar(title=ft.Text("Öğrenilen kategoriler")),
+                            controls=[self.list])
+        self.page.run_task(self.refresh)
+
+    async def refresh(self):
+        await guarded(self.page, self._fetch)()
+
+    async def _fetch(self):
+        rules = await self.state.budget.category_rules.list()
+        self.list.controls = [
+            ft.ListTile(
+                title=ft.Text(r["merchant_key"]),
+                subtitle=ft.Text(f"{r['category_name']} · {label(KINDS, r['kind'])} · {r['hits']} kez uygulandı"),
+                trailing=ft.IconButton(ft.Icons.DELETE_OUTLINE, on_click=lambda e, r=r: confirm(
+                    self.page, f"'{r['merchant_key']}' eşleştirmesi silinecek.", lambda: self._delete(r))),
+            )
+            for r in rules
+        ] or [empty_text("Henüz öğrenilen eşleştirme yok. Ekstre önizlemesinde veya bir kayıtta kategori "
+                         "değiştirdiğinizde burada görünür.")]
+        self.page.update()
+
+    async def _delete(self, rule):
+        await self.state.budget.category_rules.delete(rule["id"])
+        await self.refresh()
 
 
 # ---------- profile ----------
