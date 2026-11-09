@@ -12,8 +12,11 @@ router.register("transactions", views.TransactionViewSet)
 router.register("statements", views.StatementImportViewSet)
 router.register("statement-lines", views.StatementLineViewSet)
 router.register("category-rules", views.MerchantCategoryRuleViewSet)
+router.register("series", views.SeriesViewSet)
 
 urlpatterns = [
     path("summary/", views.SummaryView.as_view(), name="summary"),
+    path("activity/", views.ActivityView.as_view(), name="activity"),
+    path("activity/upcoming/", views.ActivityUpcomingView.as_view(), name="activity-upcoming"),
     *router.urls,
 ]

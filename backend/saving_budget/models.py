@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -55,6 +55,12 @@ class Account(OwnedModel):
     name = models.CharField(max_length=50)
     account_type = models.CharField(max_length=20, choices=AccountType.choices, default=AccountType.BANK)
     opening_balance = models.DecimalField(**MONEY, default=Decimal("0"))
+    # Credit card statement cut-off day (1-31) of the card linked to this account. Card transactions are
+    # counted in monthly summaries by statement cycle: day=15 -> Jan 16..Feb 15 belongs to February.
+    statement_day = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(31)]
+    )
+    card_name = models.CharField(max_length=60, blank=True)  # e.g. "Enpara Kredi Kartı" (bank name only, editable)
     is_archived = models.BooleanField(default=False)
 
     class Meta:
@@ -99,6 +105,7 @@ class Series(OwnedModel):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     account = models.ForeignKey(Account, on_delete=models.PROTECT)
     auto_pay = models.BooleanField(default=False)
+    is_card = models.BooleanField(default=False)
     note = models.TextField(blank=True)
 
     class Meta:
@@ -130,6 +137,13 @@ class Transaction(OwnedModel):
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PAID)
     paid_on = models.DateField(null=True, blank=True)
     auto_pay = models.BooleanField(default=False)
+    # Paid by the account's credit card: monthly summaries use the card statement cycle instead of the calendar month.
+    is_card = models.BooleanField(default=False)
+    # False for history-only imports (old statements uploaded for reports): counted in summaries, not in balances.
+    in_balance = models.BooleanField(default=True)
+    # Card transactions imported from a statement: that statement's cut-off date. Cycle grouping uses it, so a
+    # purchase the bank billed in a later statement (e.g. made on the cut-off day) is counted where the bank put it.
+    cycle_end = models.DateField(null=True, blank=True)
     description = models.CharField(max_length=255, blank=True)
     note = models.TextField(blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
@@ -187,6 +201,8 @@ class StatementImport(OwnedModel):
     error = models.CharField(max_length=255, blank=True)
     bank = models.CharField(max_length=30, blank=True)  # bank slug, e.g. "vakifbank"
     is_generic = models.BooleanField(default=False)  # read by the fallback parser -> user should double-check
+    # History-only upload (e.g. old statements for reports): transactions don't affect account balances.
+    exclude_from_balance = models.BooleanField(default=False)
     statement_type = models.CharField(max_length=10, choices=StatementType.choices, blank=True)
     period_start = models.DateField(null=True, blank=True)
     period_end = models.DateField(null=True, blank=True)

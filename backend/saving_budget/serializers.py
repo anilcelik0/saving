@@ -38,8 +38,14 @@ class AccountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Account
-        fields = ["id", "name", "account_type", "opening_balance", "balance", "is_archived", "created_at"]
+        fields = ["id", "name", "account_type", "opening_balance", "statement_day", "card_name", "balance",
+                  "is_archived", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+    def validate_statement_day(self, value):
+        if value is not None and not 1 <= value <= 31:
+            raise serializers.ValidationError("Kesim günü 1 ile 31 arasında olmalı.")
+        return value
 
 
 def _current(serializer, attrs, name):
@@ -57,11 +63,11 @@ class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
         fields = [
-            "id", "kind", "amount", "date", "status", "paid_on", "auto_pay", "is_overdue",
+            "id", "kind", "amount", "date", "status", "paid_on", "auto_pay", "is_card", "in_balance", "is_overdue",
             "description", "note", "category", "account", "source", "series", "sequence",
             "series_info", "created_at",
         ]
-        read_only_fields = ["id", "status", "paid_on", "source", "series", "sequence", "created_at"]
+        read_only_fields = ["id", "status", "paid_on", "in_balance", "source", "series", "sequence", "created_at"]
 
     def get_is_overdue(self, obj):
         return obj.status == Transaction.Status.PENDING and obj.date < timezone.localdate()
@@ -131,9 +137,9 @@ class StatementImportSerializer(serializers.ModelSerializer):
     class Meta:
         model = StatementImport
         fields = [
-            "id", "account", "file", "original_name", "status", "error", "bank", "bank_label", "is_generic",
-            "statement_type", "period_start", "period_end", "closing_balance", "imported_count", "matched_count",
-            "cancelled_count", "counts", "created_at",
+            "id", "account", "file", "exclude_from_balance", "original_name", "status", "error", "bank",
+            "bank_label", "is_generic", "statement_type", "period_start", "period_end", "closing_balance",
+            "imported_count", "matched_count", "cancelled_count", "counts", "created_at",
         ]
         read_only_fields = [
             "id", "original_name", "status", "error", "bank", "is_generic", "statement_type", "period_start",
@@ -239,6 +245,75 @@ class MerchantCategoryRuleSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class CardCycleItemSerializer(serializers.Serializer):
+    """One card statement cycle of an account, shown as a single row in activity lists."""
+
+    type = serializers.CharField()
+    date = serializers.DateField()
+    account = serializers.UUIDField()
+    account_name = serializers.CharField()
+    card_name = serializers.CharField()
+    statement_day = serializers.IntegerField(allow_null=True)
+    start = serializers.DateField()
+    end = serializers.DateField()
+    count = serializers.IntegerField()
+    expense = serializers.DecimalField(max_digits=14, decimal_places=2)
+    income = serializers.DecimalField(max_digits=14, decimal_places=2)
+    net = serializers.DecimalField(max_digits=14, decimal_places=2)
+    pending_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    status = serializers.CharField()  # paid | pending | partial | cancelled
+    in_balance = serializers.BooleanField()
+
+
+def serialize_activity(items, context) -> list[dict]:
+    out = []
+    for item in items:
+        if item["type"] == "transaction":
+            out.append({"type": "transaction", "date": item["date"],
+                        "transaction": TransactionSerializer(item["transaction"], context=context).data})
+        else:
+            out.append(CardCycleItemSerializer(item).data)
+    return out
+
+
+class BulkStatusSerializer(serializers.Serializer):
+    account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
+    date_from = serializers.DateField()
+    date_to = serializers.DateField()
+    status = serializers.ChoiceField(choices=[Transaction.Status.PAID, Transaction.Status.PENDING])
+    paid_on = serializers.DateField(required=False)
+
+
+class SeriesSerializer(serializers.ModelSerializer):
+    """Recurring / installment payments ('Otomatik ödemelerim'). Edited through their next pending occurrence."""
+
+    next_occurrence = serializers.SerializerMethodField()
+    paid_count = serializers.SerializerMethodField()
+    pending_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Series
+        fields = [
+            "id", "series_type", "kind", "description", "amount", "total_amount", "installment_count", "frequency",
+            "interval", "start_date", "end_date", "account", "category", "auto_pay", "is_card", "is_active",
+            "next_occurrence", "paid_count", "pending_count",
+        ]
+        read_only_fields = fields
+
+    def _occurrences(self, obj):
+        return [t for t in obj.transactions.all()]
+
+    def get_next_occurrence(self, obj):
+        pending = sorted((t for t in self._occurrences(obj) if t.status == Transaction.Status.PENDING), key=lambda t: t.date)
+        return TransactionSerializer(pending[0], context=self.context).data if pending else None
+
+    def get_paid_count(self, obj):
+        return sum(1 for t in self._occurrences(obj) if t.status == Transaction.Status.PAID)
+
+    def get_pending_count(self, obj):
+        return sum(1 for t in self._occurrences(obj) if t.status == Transaction.Status.PENDING)
+
+
 class PaySerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"), required=False)
     date = serializers.DateField(required=False)
@@ -246,6 +321,13 @@ class PaySerializer(serializers.Serializer):
 
 def _money():
     return serializers.DecimalField(max_digits=14, decimal_places=2)
+
+
+class CardCycleSerializer(serializers.Serializer):
+    account = serializers.UUIDField()
+    name = serializers.CharField()
+    start = serializers.DateField()
+    end = serializers.DateField()
 
 
 class SummaryAccountSerializer(serializers.Serializer):
@@ -267,6 +349,7 @@ class MonthlySummarySerializer(serializers.Serializer):
     expense_pending = _money()
     net = _money()
     accounts = SummaryAccountSerializer(many=True)
+    card_cycles = CardCycleSerializer(many=True)  # card statement cycles counted in this month
     current_balance = _money()
     overdue_income = _money()
     overdue_expense = _money()

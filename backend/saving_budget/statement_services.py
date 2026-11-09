@@ -86,15 +86,21 @@ def _link_refunds(statement, lines, taken_ids):
             continue
         existing = [
             t for t in Transaction.objects.filter(
-                account=statement.account, kind=Kind.EXPENSE, status=Transaction.Status.PAID, amount=refund.amount,
+                account=statement.account, kind=Kind.EXPENSE, amount=refund.amount,
+                status__in=(Transaction.Status.PAID, Transaction.Status.CANCELLED),
                 date__range=(refund.date - timedelta(days=REFUND_WINDOW_DAYS), refund.date),
             ).exclude(pk__in=taken_ids)
             if merchant_key(t.description) == key
         ]
-        if existing:
-            target = max(existing, key=lambda t: t.date)
+        paid = [t for t in existing if t.status == Transaction.Status.PAID]
+        if paid:
+            target = max(paid, key=lambda t: t.date)
             refund.action, refund.matched_transaction = Action.REFUND, target
             taken_ids.add(target.pk)
+        elif existing:
+            # purchase already cancelled by this refund in an earlier import (statement data may be deleted)
+            refund.action, refund.skip_reason = Action.SKIP, SkipReason.DUPLICATE
+            taken_ids.add(existing[0].pk)
 
 
 def parse_statement(statement_id) -> None:
@@ -157,7 +163,7 @@ def _build_lines(statement, parsed):
         reason = "duplicate" if key in existing_keys else skip_reason(p, parsed.holder_name)
         if reason:
             line.action, line.skip_reason = Action.SKIP, reason
-        elif match := _find_pending_match(statement, line, taken):
+        elif not statement.exclude_from_balance and (match := _find_pending_match(statement, line, taken)):
             line.action, line.matched_transaction = Action.MATCH, match
             taken.add(match.pk)
         lines.append(line)
@@ -192,11 +198,18 @@ def apply_learned_category(line: StatementLine) -> int:
     return StatementLine.objects.filter(pk__in=same).update(category=line.category, updated_at=timezone.now())
 
 
-def _create_from_line(statement, line, kind=None, category=None):
+def _is_card(statement) -> bool:
+    return statement.statement_type == StatementImport.StatementType.CARD
+
+
+def _create_from_line(statement, line):
+    is_card = _is_card(statement)
     return Transaction.objects.create(
-        user=statement.user, account=statement.account, kind=kind or line.kind, amount=line.amount,
+        user=statement.user, account=statement.account, kind=line.kind, amount=line.amount,
         date=line.date, status=Transaction.Status.PAID, paid_on=line.date,
-        description=line.description, category=category or line.category,
+        description=line.description, category=line.category,
+        is_card=is_card, cycle_end=statement.period_end if is_card else None,
+        in_balance=not statement.exclude_from_balance,
         source=Transaction.Source.STATEMENT, external_key=line.external_key,
     )
 
@@ -236,7 +249,10 @@ def confirm_statement(statement: StatementImport) -> StatementImport:
             pending = line.matched_transaction
             pending.status, pending.paid_on = Transaction.Status.PAID, line.date
             pending.amount, pending.external_key = line.amount, line.external_key
-            pending.save(update_fields=["status", "paid_on", "amount", "external_key", "updated_at"])
+            if _is_card(statement):
+                pending.is_card, pending.cycle_end = True, statement.period_end
+            pending.save(update_fields=["status", "paid_on", "amount", "external_key", "is_card", "cycle_end",
+                                        "updated_at"])
             line.result_transaction = pending
             matched += 1
         else:
@@ -245,7 +261,44 @@ def confirm_statement(statement: StatementImport) -> StatementImport:
         existing_keys.add(line.external_key)
         line.save(update_fields=["result_transaction", "updated_at"])
 
+    # first card statement for this account: remember its cut-off day and card name
+    account = statement.account
+    if statement.statement_type == StatementImport.StatementType.CARD:
+        fields = []
+        if statement.period_end and not account.statement_day:
+            account.statement_day = statement.period_end.day
+            fields.append("statement_day")
+        if not account.card_name:
+            from .statements.registry import BANK_LABELS
+
+            account.card_name = f"{BANK_LABELS.get(statement.bank, account.name)} Kredi Kartı"[:60]
+            fields.append("card_name")
+        if fields:
+            account.save(update_fields=[*fields, "updated_at"])
+
     statement.status = StatementImport.Status.IMPORTED
     statement.imported_count, statement.matched_count, statement.cancelled_count = imported, matched, cancelled
     statement.save(update_fields=["status", "imported_count", "matched_count", "cancelled_count", "updated_at"])
+    # raw statement text (counterparty names, references) is only needed for parsing/classification
+    statement.lines.update(raw_text="")
     return statement
+
+
+def delete_statement_data(statement: StatementImport) -> None:
+    """Remove the statement record, its preview lines and any leftover file. Imported transactions stay."""
+    if statement.file:
+        statement.file.delete(save=False)
+    statement.delete()
+
+
+def cleanup_stale_statement_files(max_age_hours: int = 1) -> int:
+    """Safety net: delete files that were never parsed (e.g. worker was down). Returns number of files removed."""
+    cutoff = timezone.now() - timedelta(hours=max_age_hours)
+    removed = 0
+    for statement in StatementImport.objects.filter(created_at__lt=cutoff).exclude(file=""):
+        statement.file.delete(save=False)
+        StatementImport.objects.filter(pk=statement.pk).update(
+            file="", status=StatementImport.Status.FAILED, error="Ekstre zamanında işlenemedi, lütfen tekrar yükleyin."
+        )
+        removed += 1
+    return removed

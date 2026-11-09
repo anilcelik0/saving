@@ -19,7 +19,7 @@ HORIZON_DAYS = 365  # recurring series are generated this far ahead
 EXTEND_THRESHOLD_DAYS = 60  # extend when fewer days than this remain generated
 
 # Fields that "this and following" edits propagate across a series.
-SERIES_SHARED_FIELDS = ("amount", "description", "category", "account", "auto_pay", "note")
+SERIES_SHARED_FIELDS = ("amount", "description", "category", "account", "auto_pay", "is_card", "note")
 
 DEFAULT_CATEGORIES = {
     Kind.EXPENSE: [
@@ -45,11 +45,11 @@ def _sum(**filters):
 
 # ---------------------------------------------------------------- balances
 def with_balance(queryset):
-    """Annotate accounts with `balance` = opening_balance + paid income - paid expense."""
+    """Annotate accounts with `balance` = opening_balance + paid income - paid expense (history-only rows excluded)."""
 
     def paid_total(kind):
         sub = (
-            Transaction.objects.filter(account=OuterRef("pk"), kind=kind, status=PAID)
+            Transaction.objects.filter(account=OuterRef("pk"), kind=kind, status=PAID, in_balance=True)
             .values("account")
             .annotate(s=Sum("amount"))
             .values("s")
@@ -103,7 +103,8 @@ def generate_occurrences(series: Series, until: date) -> list[Transaction]:
         rows.append(
             Transaction(
                 user=series.user, kind=series.kind, amount=_occurrence_amount(series, sequence), date=due,
-                status=PENDING, auto_pay=series.auto_pay, description=series.description, note=series.note,
+                status=PENDING, auto_pay=series.auto_pay, is_card=series.is_card,
+                description=series.description, note=series.note,
                 category=series.category, account=series.account, series=series, sequence=sequence,
             )
         )
@@ -169,6 +170,7 @@ def create_entry(*, user, repeat: str, data: dict, series_options: dict) -> Tran
         category=data.get("category"),
         account=data["account"],
         auto_pay=data.get("auto_pay", False),
+        is_card=data.get("is_card", False),
         note=data.get("note", ""),
     )
     until = date.max if total else max(series.start_date, today) + timedelta(days=HORIZON_DAYS)
@@ -255,18 +257,57 @@ def month_bounds(year: int, month: int) -> tuple[date, date]:
     return date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
 
 
+def _cut_off(year: int, month: int, day: int) -> date:
+    return date(year, month, min(day, calendar.monthrange(year, month)[1]))
+
+
+def card_cycle(year: int, month: int, statement_day: int) -> tuple[date, date]:
+    """Card statement cycle counted in (year, month): day after previous cut-off .. this month's cut-off.
+    statement_day=15, Feb 2026 -> (2026-01-16, 2026-02-15)."""
+    prev_year, prev_month = (year - 1, 12) if month == 1 else (year, month - 1)
+    return _cut_off(prev_year, prev_month, statement_day) + timedelta(days=1), _cut_off(year, month, statement_day)
+
+
+def card_cycle_q(account_id, start: date, end: date) -> Q:
+    """Card transactions of an account in cycle [start, end]: statement imports by the statement's cut-off
+    (cycle_end, exactly as the bank billed them), others (manual/pending) by their own date."""
+    return Q(is_card=True, account_id=account_id) & (
+        Q(cycle_end__range=(start, end)) | Q(cycle_end__isnull=True, date__range=(start, end))
+    )
+
+
+def month_scope(user, year: int, month: int):
+    """
+    Q for transactions counted in a summary month + the card cycles used.
+    Non-card transactions: calendar month. Card transactions: their account's statement cycle
+    (accounts without a statement day fall back to the calendar month). Each account is evaluated on its own.
+    """
+    start, end = month_bounds(year, month)
+    scope = Q(is_card=False, date__range=(start, end))
+    cycles = []
+    for account_id, name, day in Account.objects.filter(user=user).values_list("id", "name", "statement_day"):
+        if day:
+            cycle_start, cycle_end = card_cycle(year, month, day)
+            cycles.append({"account": account_id, "name": name, "start": cycle_start, "end": cycle_end})
+        else:
+            cycle_start, cycle_end = start, end
+        scope |= card_cycle_q(account_id, cycle_start, cycle_end)
+    return scope, cycles
+
+
 def monthly_summary(user, year: int, month: int) -> dict:
     start, end = month_bounds(year, month)
     today = timezone.localdate()
     txns = Transaction.objects.filter(user=user)
+    scope, cycles = month_scope(user, year, month)
 
-    m = txns.filter(date__range=(start, end)).aggregate(
+    m = txns.filter(scope).aggregate(
         income_paid=_sum(kind=Kind.INCOME, status=PAID),
         income_pending=_sum(kind=Kind.INCOME, status=PENDING),
         expense_paid=_sum(kind=Kind.EXPENSE, status=PAID),
         expense_pending=_sum(kind=Kind.EXPENSE, status=PENDING),
     )
-    overdue = txns.filter(status=PENDING, date__lt=today).aggregate(
+    overdue = txns.filter(status=PENDING, in_balance=True, date__lt=today).aggregate(
         income=_sum(kind=Kind.INCOME), expense=_sum(kind=Kind.EXPENSE)
     )
     accounts = list(with_balance(Account.objects.filter(user=user, is_archived=False)))
@@ -274,7 +315,7 @@ def monthly_summary(user, year: int, month: int) -> dict:
 
     projected = None
     if end >= today:  # all pending up to month end (incl. overdue) assumed to happen
-        upto = txns.filter(status=PENDING, date__lte=end).aggregate(
+        upto = txns.filter(status=PENDING, in_balance=True, date__lte=end).aggregate(
             income=_sum(kind=Kind.INCOME), expense=_sum(kind=Kind.EXPENSE)
         )
         projected = current_balance + upto["income"] - upto["expense"]
@@ -291,8 +332,89 @@ def monthly_summary(user, year: int, month: int) -> dict:
         "expense_pending": m["expense_pending"],
         "net": income - expense,
         "accounts": [{"id": a.id, "name": a.name, "account_type": a.account_type, "balance": a.balance} for a in accounts],
+        "card_cycles": cycles,
         "current_balance": current_balance,
         "overdue_income": overdue["income"],
         "overdue_expense": overdue["expense"],
         "projected_balance": projected,
     }
+
+
+# ---------------------------------------------------------------- activity feed (account-based history)
+def cycle_containing(d: date, statement_day: int | None) -> tuple[date, date]:
+    """Card cycle (or calendar month when no statement day) that contains date d."""
+    if not statement_day:
+        return month_bounds(d.year, d.month)
+    if d <= _cut_off(d.year, d.month, statement_day):
+        return card_cycle(d.year, d.month, statement_day)
+    year, month = (d.year + 1, 1) if d.month == 12 else (d.year, d.month + 1)
+    return card_cycle(year, month, statement_day)
+
+
+def _cycle_item(account, start, end, txns) -> dict:
+    active = [t for t in txns if t.status != CANCELLED]
+    statuses = {t.status for t in active}
+    if not active:
+        status = "cancelled"
+    elif statuses == {PAID}:
+        status = "paid"
+    elif statuses == {PENDING}:
+        status = "pending"
+    else:
+        status = "partial"
+    expense = sum((t.amount for t in active if t.kind == Kind.EXPENSE), ZERO)
+    income = sum((t.amount for t in active if t.kind == Kind.INCOME), ZERO)
+    pending = sum((t.amount if t.kind == Kind.EXPENSE else -t.amount for t in active if t.status == PENDING), ZERO)
+    return {
+        "type": "card_cycle", "date": end, "account": account.id, "account_name": account.name,
+        "card_name": account.card_name or f"{account.name} kartı",
+        "statement_day": account.statement_day, "start": start, "end": end, "count": len(txns),
+        "expense": expense, "income": income, "net": income - expense, "pending_amount": pending,
+        "status": status, "in_balance": all(t.in_balance for t in txns),
+    }
+
+
+def activity_month(user, year: int, month: int) -> list[dict]:
+    """
+    Movements of a month, same scope as the summary: non-card transactions one by one (paid, pending,
+    cancelled), card transactions grouped per account statement cycle. Newest first.
+    """
+    start, end = month_bounds(year, month)
+    items = [
+        {"type": "transaction", "date": t.date, "transaction": t}
+        for t in Transaction.objects.filter(user=user, is_card=False, date__range=(start, end)).select_related("series")
+    ]
+    for account in Account.objects.filter(user=user):
+        cycle_start, cycle_end = card_cycle(year, month, account.statement_day) if account.statement_day else (start, end)
+        txns = list(Transaction.objects.filter(card_cycle_q(account.id, cycle_start, cycle_end)))
+        if txns:
+            items.append(_cycle_item(account, cycle_start, cycle_end, txns))
+    return sorted(items, key=lambda i: (i["date"], i["type"] == "card_cycle"), reverse=True)
+
+
+def activity_upcoming(user, days: int = 30) -> list[dict]:
+    """Pending within `days` (incl. overdue), oldest first: non-card one by one, card ones grouped per cycle."""
+    until = timezone.localdate() + timedelta(days=days)
+    pending = Transaction.objects.filter(
+        user=user, status=PENDING, in_balance=True, date__lte=until
+    ).select_related("series", "account")
+    items, groups = [], {}
+    for t in pending:
+        if t.is_card:
+            cycle = cycle_containing(t.cycle_end or t.date, t.account.statement_day)
+            groups.setdefault((t.account, cycle), []).append(t)
+        else:
+            items.append({"type": "transaction", "date": t.date, "transaction": t})
+    for (account, (cycle_start, cycle_end)), _ in groups.items():
+        cycle_txns = list(Transaction.objects.filter(card_cycle_q(account.id, cycle_start, cycle_end)))
+        items.append(_cycle_item(account, cycle_start, cycle_end, cycle_txns))
+    return sorted(items, key=lambda i: i["date"])
+
+
+def bulk_set_status(user, *, account, date_from, date_to, status, paid_on=None) -> int:
+    """Mark all card transactions of an account in a cycle as paid / pending (cancelled ones untouched)."""
+    qs = Transaction.objects.filter(card_cycle_q(account.id, date_from, date_to), user=user).exclude(status=CANCELLED)
+    if status == PAID:
+        return qs.filter(status=PENDING).update(status=PAID, paid_on=paid_on or timezone.localdate(),
+                                                 updated_at=timezone.now())
+    return qs.filter(status=PAID).update(status=PENDING, paid_on=None, updated_at=timezone.now())

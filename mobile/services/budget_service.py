@@ -48,6 +48,12 @@ class Transactions(Resource):
     async def unpay(self, obj_id) -> dict:
         return await self.api.post(f"{self.path}{obj_id}/unpay/", {})
 
+    async def bulk_status(self, account_id, date_from: str, date_to: str, status: str) -> dict:
+        """Mark all card transactions of an account cycle as 'paid' or 'pending'."""
+        return await self.api.post(self.path + "bulk-status/", {
+            "account": account_id, "date_from": date_from, "date_to": date_to, "status": status,
+        })
+
     async def cancel(self, obj_id) -> dict:
         """Refunded purchase / skipped occurrence: kept in history, excluded from totals."""
         return await self.api.post(f"{self.path}{obj_id}/cancel/", {})
@@ -65,10 +71,11 @@ CONTENT_TYPES = {
 class Statements(Resource):
     """Upload -> poll get() until status 'ready' -> lines() / update_line() -> confirm()."""
 
-    async def upload(self, account_id, filename: str, content: bytes) -> dict:
+    async def upload(self, account_id, filename: str, content: bytes, exclude_from_balance=False) -> dict:
         ext = filename.rsplit(".", 1)[-1].lower()
         files = {"file": (filename, content, CONTENT_TYPES.get(ext, "application/octet-stream"))}
-        return await self.api.upload(self.path, data={"account": account_id}, files=files)
+        data = {"account": account_id, "exclude_from_balance": "true" if exclude_from_balance else "false"}
+        return await self.api.upload(self.path, data=data, files=files)
 
     async def lines(self, statement_id) -> list:
         return await self.api.get(f"{self.path}{statement_id}/lines/")
@@ -76,8 +83,9 @@ class Statements(Resource):
     async def update_line(self, line_id, data: dict) -> dict:
         return await self.api.patch(f"{BASE}statement-lines/{line_id}/", data)
 
-    async def confirm(self, statement_id) -> dict:
-        return await self.api.post(f"{self.path}{statement_id}/confirm/", {})
+    async def confirm(self, statement_id, delete_after: bool = True) -> dict:
+        """delete_after: remove statement record + lines after importing (imported transactions stay)."""
+        return await self.api.post(f"{self.path}{statement_id}/confirm/", {"delete_after": delete_after})
 
 
 class BudgetService:
@@ -88,6 +96,17 @@ class BudgetService:
         self.transactions = Transactions(api, "transactions/")  # paginated
         self.statements = Statements(api, "statements/")  # paginated
         self.category_rules = Resource(api, "category-rules/")  # learned merchant -> category; list/delete
+
+    async def series(self, active: bool = True) -> list:
+        """Recurring/installment plans with their next pending occurrence."""
+        return await self.api.get(BASE + "series/", params={"active": "true" if active else "false"})
+
+    async def activity(self, month: str) -> list:
+        """History items for 'YYYY-MM': transaction rows + one row per card statement cycle."""
+        return await self.api.get(BASE + "activity/", params={"month": month})
+
+    async def activity_upcoming(self, days: int = 30) -> list:
+        return await self.api.get(BASE + "activity/upcoming/", params={"days": days})
 
     async def summary(self, month: str | None = None) -> dict:
         """month: 'YYYY-MM' (default current)."""

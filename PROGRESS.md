@@ -7,6 +7,7 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 
 ## ⏳ Waiting on user (pending commands)
 
+_Nothing pending._
 - [ ] Try the mobile app on desktop: `cd mobile; .venv\Scripts\flet run` (backend must be up)
 
 ---
@@ -41,7 +42,7 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
       refresh checks user/app still active (`AppTokenRefreshSerializer`); daily `flushexpiredtokens` beat task (04:00)
 - [ ] (Later) Test a second ClientApp to verify the cross-app token rejection in practice
 
-## Phase 2: saving_budget 🔄
+## Phase 2: saving_budget ✅
 ### 2a: Core budget — single Transaction model (redesign 2026-11-09)
 - [x] **Transaction is the only money-movement model**: date + status (pending/paid) + auto_pay. Only paid affects balance.
 - [x] `Series` = internal repeat rule grouping occurrences (never a separate screen):
@@ -110,6 +111,35 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
       otherwise imported as income "İade". Manual `transactions/{id}/cancel|restore/` (also "skip this occurrence")
 - [x] Migration (user); E2E: QNB Steam refund cancels purchase in same statement, learned rule updates 7 same-merchant
       lines and applies to next statement, tx edit learns, cancel/restore balance. (Refund of an earlier-imported purchase: not covered by samples)
+- [x] **Card statement cycles** (decision: no estimates, no interim uploads — statements only):
+      `Account.statement_day` (1-31, auto-filled from first card statement), `Transaction.is_card` (card statement
+      lines, matched pendings, manual "Kredi kartıyla"). Lists show real dates; monthly summary counts card
+      transactions by their account's cycle (day 15 → Jan 16–Feb 15 = February), non-card by calendar month,
+      each account evaluated separately (`services.month_scope`, `card_cycle`); summary returns `card_cycles`
+- [x] Migration 0005 (user). Note: card transactions imported before this change are not flagged `is_card`
+- [x] **History-only upload**: checkbox "Bu ekstre bakiyeden düşülmesin" (default off) → `exclude_from_balance`,
+      transactions `in_balance=False`: counted in summaries/reports, excluded from balances, overdue, projection;
+      no pending-match suggestions
+- [x] **Account-based activity**: `activity/?month=` (non-card movements one by one + one row per card statement cycle
+      per account, same scope as summary), `activity/upcoming/` (card pendings grouped per cycle),
+      `transactions/bulk-status/` (mark a cycle paid/unpaid); mobile Hareketler: month-navigated history,
+      card cycle rows → detail view with "Tümünü ödendi / ödenmedi"
+- [x] Hareketler = month view only (pending section removed; this month's pendings inline with quick pay;
+      navigation up to +1 month). More > **Otomatik ödemelerim** (`series/` API): recurring/installment plans with next
+      occurrence; edit via next occurrence (scope dialog), + adds a recurring payment
+- [x] **Card names**: `Account.card_name` auto-filled from the bank name only ("Enpara Kredi Kartı", editable);
+      shown on card cycle rows and card transactions. **Decision: no card numbers are read from statements.**
+      `backfill_card_flags` command (flags older card imports) kept for reference
+- [x] **Statement data privacy**: file deleted right after parsing (+ nightly cleanup of never-parsed files > 1h);
+      raw statement text cleared on confirm; preview checkbox "Aktardıktan sonra ekstre bilgilerini sil" (default on)
+      deletes statement record + lines after import (transactions stay); delete button on statement list.
+      Re-upload dedupe works without statement records (transaction keys; refunds detected via cancelled purchase)
+- [x] `reset_budget_data --yes`: wipes all budget data (keeps users), re-seeds default categories
+- [x] Migration + data reset (user) → full E2E: 18/19 OK. Found: purchases on the cut-off day billed by the bank
+      in the NEXT statement (Enpara 15.01 rows in 15.02 statement) fell into the previous cycle
+- [x] Fix: `Transaction.cycle_end` = statement cut-off for imported card rows; cycle grouping/summary/bulk use it
+      (`card_cycle_q`), manual card rows still use the statement-day rule; cycle totals now equal bank statements
+- [x] Migration for `cycle_end` + data reset (user) → final E2E 19/19 OK (Enpara cycle = statement: 25 / 13.647,32) → Phase 2 closed
 - **Adding a bank:** user drops samples into `docs/extre_example/` → add `parsers/<bank>.py` (`@register`, import it in
   `parsers/__init__.py` BEFORE `generic`), add label to `BANK_LABELS`, compare totals with the statement summary
 - [ ] (Later) Remember user's category choices per merchant; Garanti purchase rows sample; generic XLSX reader

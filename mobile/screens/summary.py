@@ -4,7 +4,7 @@ from decimal import Decimal
 import flet as ft
 
 from .choices import ACCOUNT_TYPES, MONTHS, label
-from .ui import empty_text, fmt_money, guarded
+from .ui import empty_text, fmt_date, fmt_money, guarded
 
 
 class SummaryTab:
@@ -54,6 +54,11 @@ class SummaryTab:
             self._line("Gider", s["expense"], bold=True),
             self._detail(f"ödenen {fmt_money(s['expense_paid'])} · bekleyen {fmt_money(s['expense_pending'])}"),
             self._line("Ay net", s["net"], bold=True),
+        ]
+        if s["card_cycles"]:
+            cycles = ", ".join(f"{c['name']} {fmt_date(c['start'])}–{fmt_date(c['end'])}" for c in s["card_cycles"])
+            rows.append(self._detail(f"Kart harcamaları ekstre dönemine göre: {cycles}"))
+        rows += [
             ft.Divider(),
             ft.Text("Hesaplar (şu an)", weight=ft.FontWeight.BOLD),
         ]

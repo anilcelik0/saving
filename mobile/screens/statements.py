@@ -4,7 +4,7 @@ import flet as ft
 
 from .choices import label
 from .transactions import account_options, category_options
-from .ui import FormError, dropdown, dropdown_value, empty_text, fmt_date, fmt_money, guarded, toast
+from .ui import FormError, confirm, dropdown, dropdown_value, empty_text, fmt_date, fmt_money, guarded, toast
 
 GENERIC_WARNING = "Bu banka için özel okuyucu yok, genel okuyucu kullanıldı. Satırları kontrol edin."
 STATUSES = [("pending", "Sırada"), ("parsing", "Okunuyor"), ("ready", "Onay bekliyor"),
@@ -54,14 +54,23 @@ class StatementsScreen:
             parts.append(f"{fmt_date(s['period_start'])} - {fmt_date(s['period_end'])}")
         if s["status"] == "imported":
             parts.append(f"{s['imported_count']} aktarıldı, {s['matched_count']} eşleşti, {s['cancelled_count']} iade")
+        if s["exclude_from_balance"]:
+            parts.append("Bakiyeye dahil değil")
         if s["error"]:
             parts.append(s["error"])
+        parts.append(self.state.account_name(s["account"]))
         return ft.ListTile(
             title=ft.Text(s["original_name"]),
             subtitle=ft.Text(" · ".join(parts), color=ft.Colors.RED_700 if s["status"] == "failed" else None),
-            trailing=ft.Text(self.state.account_name(s["account"])),
+            trailing=ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="Ekstre bilgilerini sil", on_click=lambda e: confirm(
+                self.page, "Ekstre kaydı ve satırları silinecek. Aktarılmış harcamalar kalır.",
+                lambda: self._delete(s))),
             on_click=lambda e: self.state.router.push(StatementReview(self.state, s["id"], on_done=self.refresh).view),
         )
+
+    async def _delete(self, s):
+        await self.state.budget.statements.delete(s["id"])
+        await self.refresh()
 
     def _upload_dialog(self):
         page = self.page
@@ -72,6 +81,9 @@ class StatementsScreen:
         account = dropdown("Hangi hesaba aktarılsın?", accounts, accounts[0][0])
         hint = ft.Text("Kart ekstresindeki harcamalar, kartın bağlı olduğu banka hesabına gider olarak eklenir.",
                        size=12, color=ft.Colors.GREY_700)
+        history_only = ft.Checkbox(
+            label="Bu ekstre bakiyeden düşülmesin (eski ekstre, sadece rapor için)", value=False,
+        )
 
         async def pick_and_upload():
             files = await self.picker.pick_files(
@@ -84,13 +96,15 @@ class StatementsScreen:
             if not f.bytes:
                 raise FormError("Dosya okunamadı.")
             page.pop_dialog()
-            statement = await self.state.budget.statements.upload(account.value, f.name, f.bytes)
+            statement = await self.state.budget.statements.upload(
+                account.value, f.name, f.bytes, exclude_from_balance=bool(history_only.value)
+            )
             self.state.router.push(StatementReview(self.state, statement["id"], on_done=self.refresh).view)
 
         page.show_dialog(
             ft.AlertDialog(
                 title=ft.Text("Ekstre yükle"),
-                content=ft.Column([account, hint], tight=True),
+                content=ft.Column([account, hint, history_only], tight=True),
                 actions=[
                     ft.TextButton("Vazgeç", on_click=lambda e: page.pop_dialog()),
                     ft.FilledButton("Dosya seç", on_click=guarded(page, pick_and_upload)),
@@ -112,11 +126,14 @@ class StatementReview:
         self.header = ft.Text("Ekstre okunuyor...")
         self.list = ft.ListView(expand=True)
         self.confirm_button = ft.FilledButton("Aktar", visible=False, on_click=guarded(self.page, self._confirm))
+        self.delete_after = ft.Checkbox(
+            label="Aktardıktan sonra ekstre bilgilerini sil (harcamalar kalır)", value=True, visible=False,
+        )
         self.view = ft.View(
             route="/statement",
             appbar=ft.AppBar(title=ft.Text("Ekstre önizleme")),
             controls=[ft.Container(self.header, padding=ft.Padding.symmetric(horizontal=16)), self.list,
-                      ft.Container(self.confirm_button, padding=16)],
+                      ft.Container(ft.Column([self.delete_after, self.confirm_button], tight=True), padding=16)],
             padding=0,
         )
         self.page.run_task(guarded(self.page, self._load))
@@ -154,7 +171,7 @@ class StatementReview:
             + ("" if editable else f"\nAktarıldı: {s['imported_count']} yeni, {s['matched_count']} eşleşti")
         )
         self.list.controls = [self._tile(line, editable) for line in self.lines] or [empty_text("Satır yok.")]
-        self.confirm_button.visible = editable
+        self.confirm_button.visible = self.delete_after.visible = editable
         self.confirm_button.content = f"{len(selected)} satırı aktar"
         self.page.update()
 
@@ -242,11 +259,15 @@ class StatementReview:
         )
 
     async def _confirm(self):
-        self.statement = await self.state.budget.statements.confirm(self.statement_id)
+        self.statement = await self.state.budget.statements.confirm(
+            self.statement_id, delete_after=bool(self.delete_after.value)
+        )
         s = self.statement
         message = f"{s['imported_count']} kayıt aktarıldı, {s['matched_count']} kayıt eşleşti."
         if s["cancelled_count"]:
             message += f" {s['cancelled_count']} harcama iade nedeniyle iptal edildi."
+        if s["deleted"]:
+            message += " Ekstre bilgileri silindi."
         toast(self.page, message)
         self.state.router.pop()
         await self.on_done()

@@ -73,3 +73,9 @@ class AppState:
 
     def account_name(self, account_id) -> str:
         return next((a["name"] for a in self.accounts if a["id"] == account_id), "")
+
+    def card_name(self, account_id) -> str:
+        account = next((a for a in self.accounts if a["id"] == account_id), None)
+        if account is None:
+            return "Kart"
+        return account.get("card_name") or f"{account['name']} kartı"

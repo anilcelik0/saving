@@ -16,7 +16,8 @@ def transaction_tile(state, t, on_changed) -> ft.ListTile:
     if t["series_info"]:
         title += f" ({t['series_info']['label']})"
 
-    details = [fmt_date(t["date"]), state.category_name(t["category"]), state.account_name(t["account"])]
+    where = state.card_name(t["account"]) if t.get("is_card") else state.account_name(t["account"])
+    details = [fmt_date(t["date"]), state.category_name(t["category"]), where]
     cancelled = t["status"] == "cancelled"
     if t["status"] == "pending":
         details.insert(0, "Gecikti" if t["is_overdue"] else ("Otomatik" if t["auto_pay"] else "Bekliyor"))
@@ -87,14 +88,14 @@ def set_category_options(category: ft.Dropdown, state, kind):
     category.value = NONE
 
 
-def open_entry_form(state, txn, on_saved):
+def open_entry_form(state, txn, on_saved, repeat="none"):
     if not account_options(state, txn and txn.get("account")):
         toast(state.page, "Önce Diğer > Hesaplar bölümünden bir hesap ekleyin.", error=True)
         return
-    state.router.push(entry_form(state, txn, on_saved))
+    state.router.push(entry_form(state, txn, on_saved, repeat))
 
 
-def entry_form(state, txn: dict | None, on_saved) -> ft.View:
+def entry_form(state, txn: dict | None, on_saved, default_repeat="none") -> ft.View:
     """
     New entry: one-time / recurring / installment (backend creates the dated transactions).
     Existing entry: edit; for series occurrences ask "only this" or "this and following".
@@ -107,7 +108,7 @@ def entry_form(state, txn: dict | None, on_saved) -> ft.View:
 
     kind = dropdown("Tür", KINDS, txn.get("kind", "expense"))
     kind.disabled = in_series
-    repeat = dropdown("Tekrar", REPEATS, "none")
+    repeat = dropdown("Tekrar", REPEATS, default_repeat)
     amount = money_field("Tutar", txn.get("amount"))
     day = DateInput(page, "Tarih", txn.get("date") or date.today())
     description = text_field("Açıklama", txn.get("description"))
@@ -119,7 +120,11 @@ def entry_form(state, txn: dict | None, on_saved) -> ft.View:
     end = DateInput(page, "Bitiş tarihi (boş = süresiz)", optional=True)
     installments = int_field("Taksit sayısı")
     auto_pay = ft.Switch(label="Vade gününde otomatik ödendi say", value=txn.get("auto_pay", False))
+    is_card = ft.Switch(label="Kredi kartıyla (özette ekstre dönemine göre sayılır)", value=txn.get("is_card", False))
     note = text_field("Not", txn.get("note"), multiline=True)
+
+    def account_has_card():
+        return any(a["id"] == account.value and a.get("statement_day") for a in state.accounts)
 
     def refresh_visibility():
         mode = repeat.value
@@ -127,6 +132,13 @@ def entry_form(state, txn: dict | None, on_saved) -> ft.View:
         day.text.label = "Tarih" if mode == "none" else "İlk ödeme tarihi"
         frequency.visible = end.control.visible = mode == "recurring"
         installments.visible = mode == "installment"
+        is_card.visible = account_has_card() or is_card.value
+
+    def account_changed(e):
+        refresh_visibility()
+        page.update()
+
+    account.on_select = account_changed
 
     def kind_changed(e):
         set_category_options(category, state, kind.value)
@@ -149,6 +161,7 @@ def entry_form(state, txn: dict | None, on_saved) -> ft.View:
             "category": dropdown_value(category),
             "account": account.value,
             "auto_pay": auto_pay.value,
+            "is_card": bool(is_card.value and account_has_card()),
             "note": note.value,
         }
 
@@ -230,9 +243,10 @@ def entry_form(state, txn: dict | None, on_saved) -> ft.View:
         cancel_text = "İptali geri al" if status == "cancelled" else (
             "İptal et (iade edildi)" if status == "paid" else "Bu seferlik atla (iptal et)")
         buttons.append(ft.OutlinedButton(cancel_text, on_click=guarded(page, toggle_cancel)))
-        controls = header + [kind, amount, day.control, description, category, account, auto_pay, note, *buttons]
+        controls = header + [kind, amount, day.control, description, category, account, is_card, auto_pay, note,
+                             *buttons]
     else:
-        controls = [kind, repeat, amount, day.control, description, category, account,
+        controls = [kind, repeat, amount, day.control, description, category, account, is_card,
                     frequency, end.control, installments, auto_pay, note]
 
     return form_view(

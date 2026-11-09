@@ -11,24 +11,28 @@ from rest_framework.views import APIView
 
 from core.viewsets import OwnedModelViewSet
 
-from .models import Account, Category, MerchantCategoryRule, StatementImport, StatementLine, Transaction
+from .models import Account, Category, MerchantCategoryRule, Series, StatementImport, StatementLine, Transaction
 from .permissions import IsSavingUser
 from .serializers import (
     AccountSerializer,
     CategorySerializer,
+    BulkStatusSerializer,
     MerchantCategoryRuleSerializer,
     MonthlySummarySerializer,
     PaySerializer,
+    SeriesSerializer,
     StatementImportSerializer,
     StatementLineSerializer,
     TransactionCreateSerializer,
     TransactionSerializer,
+    serialize_activity,
 )
 from .services import (
-    apply_to_following, cancel_transaction, delete_with_following, learn_category, mark_paid, mark_unpaid,
-    monthly_summary, restore_transaction, with_balance,
+    activity_month, activity_upcoming, apply_to_following, bulk_set_status, cancel_transaction, card_cycle_q,
+    delete_with_following, learn_category, mark_paid, mark_unpaid, monthly_summary, restore_transaction,
+    with_balance,
 )
-from .statement_services import confirm_statement
+from .statement_services import confirm_statement, delete_statement_data
 from .tasks import parse_statement_task
 
 
@@ -108,6 +112,12 @@ class TransactionViewSet(SavingViewSet):
         for field in ("kind", "category", "account", "source", "series"):
             if value := params.get(field):
                 qs = qs.filter(**{field: value})
+        if (is_card := params.get("is_card")) in ("true", "false"):
+            qs = qs.filter(is_card=is_card == "true")
+        # card cycle of an account (same rule as summaries): ?account=..&cycle_start=..&cycle_end=..
+        cycle_start, cycle_end = _query_date(self.request, "cycle_start"), _query_date(self.request, "cycle_end")
+        if cycle_start and cycle_end and (account := params.get("account")):
+            qs = qs.filter(card_cycle_q(account, cycle_start, cycle_end))
         if status_param := params.get("status"):  # "paid" or "paid,cancelled"
             qs = qs.filter(status__in=status_param.split(","))
         if search := params.get("search"):
@@ -124,6 +134,14 @@ class TransactionViewSet(SavingViewSet):
             apply_to_following(txn, serializer.validated_data)
         if txn.category_id != old_category_id and txn.description:
             learn_category(txn.user, txn.kind, txn.description, txn.category)
+
+    @action(detail=False, methods=["post"], url_path="bulk-status")
+    def bulk_status(self, request):
+        """Mark a card cycle (account + date range) as paid or unpaid in one go."""
+        serializer = BulkStatusSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        updated = bulk_set_status(request.user, **serializer.validated_data)
+        return Response({"updated": updated})
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
@@ -196,8 +214,31 @@ class StatementImportViewSet(SavingViewSet):
 
     @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):
+        """Body: {"delete_after": true} removes the statement record and lines after importing (transactions stay)."""
         statement = confirm_statement(self.get_object())
-        return Response(self.get_serializer(statement).data)
+        data = dict(self.get_serializer(statement).data, deleted=False)
+        if str(request.data.get("delete_after", "")).lower() in ("true", "1"):
+            delete_statement_data(statement)
+            data["deleted"] = True
+        return Response(data)
+
+    def perform_destroy(self, instance):
+        delete_statement_data(instance)
+
+
+class SeriesViewSet(SavingViewSet):
+    """GET: recurring/installment payments with their next pending occurrence (?active=false for all)."""
+
+    queryset = Series.objects.prefetch_related("transactions__series")
+    serializer_class = SeriesSerializer
+    pagination_class = None
+    http_method_names = ["get"]
+
+    def get_queryset(self):
+        qs = super().get_queryset().order_by("description")
+        if self.request.query_params.get("active", "true") == "true":
+            qs = qs.filter(is_active=True, transactions__status=Transaction.Status.PENDING).distinct()
+        return qs
 
 
 class MerchantCategoryRuleViewSet(SavingViewSet):
@@ -218,18 +259,50 @@ class StatementLineViewSet(SavingViewSet):
     http_method_names = ["patch"]
 
 
+def _query_month(request):
+    raw = request.query_params.get("month")
+    today = timezone.localdate()
+    try:
+        year, month = (int(p) for p in raw.split("-")) if raw else (today.year, today.month)
+        if not 1 <= month <= 12:
+            raise ValueError
+    except ValueError:
+        raise ValidationError({"month": "Ay YYYY-AA formatında olmalı."})
+    return year, month
+
+
 class SummaryView(APIView):
     """GET ?month=YYYY-MM (default: current month)."""
 
     permission_classes = [IsSavingUser]
 
     def get(self, request):
-        raw = request.query_params.get("month")
-        today = timezone.localdate()
-        try:
-            year, month = (int(p) for p in raw.split("-")) if raw else (today.year, today.month)
-            if not 1 <= month <= 12:
-                raise ValueError
-        except ValueError:
-            raise ValidationError({"month": "Ay YYYY-AA formatında olmalı."})
+        year, month = _query_month(request)
         return Response(MonthlySummarySerializer(monthly_summary(request.user, year, month)).data)
+
+
+class ActivityView(APIView):
+    """
+    GET ?month=YYYY-MM -> history items (same scope as the summary), newest first:
+      {"type": "transaction", "transaction": {...}} for non-card movements,
+      {"type": "card_cycle", ...} one row per card statement cycle of each account.
+    """
+
+    permission_classes = [IsSavingUser]
+
+    def get(self, request):
+        year, month = _query_month(request)
+        return Response(serialize_activity(activity_month(request.user, year, month), {"request": request}))
+
+
+class ActivityUpcomingView(APIView):
+    """GET ?days=30 -> pending items (non-card one by one, card ones grouped per cycle), oldest first."""
+
+    permission_classes = [IsSavingUser]
+
+    def get(self, request):
+        try:
+            days = int(request.query_params.get("days", 30))
+        except ValueError:
+            raise ValidationError({"days": "Gün sayısı tam sayı olmalı."})
+        return Response(serialize_activity(activity_upcoming(request.user, days), {"request": request}))

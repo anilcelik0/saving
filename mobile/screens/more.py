@@ -1,10 +1,11 @@
 import flet as ft
 
+from .autopay import AutoPaymentsScreen
 from .choices import ACCOUNT_TYPES, KINDS, label
 from .statements import StatementsScreen
 from .ui import (
-    FormError, confirm, dropdown, empty_text, fmt_money, form_view, guarded, money_input_value,
-    parse_money, text_field,
+    FormError, confirm, dropdown, empty_text, fmt_money, form_view, guarded, int_field, money_input_value,
+    parse_int, parse_money, text_field,
 )
 
 
@@ -21,6 +22,9 @@ class MoreTab:
                 ft.Container(self.user_text, padding=16),
                 ft.ListTile(leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE), title=ft.Text("Hesaplar"),
                             on_click=lambda e: self._push(AccountsScreen(state).view)),
+                ft.ListTile(leading=ft.Icon(ft.Icons.AUTORENEW), title=ft.Text("Otomatik ödemelerim"),
+                            subtitle=ft.Text("Düzenli ve taksitli ödemeler"),
+                            on_click=lambda e: self._push(AutoPaymentsScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.UPLOAD_FILE), title=ft.Text("Ekstreler"),
                             subtitle=ft.Text("PDF/Excel hesap veya kart ekstresi yükle"),
                             on_click=lambda e: self._push(StatementsScreen(state).view)),
@@ -69,7 +73,11 @@ class AccountsScreen:
         self.list.controls = [
             ft.ListTile(
                 title=ft.Text(a["name"] + (" (arşiv)" if a["is_archived"] else "")),
-                subtitle=ft.Text(label(ACCOUNT_TYPES, a["account_type"])),
+                subtitle=ft.Text(" · ".join(filter(None, [
+                    label(ACCOUNT_TYPES, a["account_type"]),
+                    a.get("card_name") or "",
+                    f"kesim günü {a['statement_day']}" if a["statement_day"] else "",
+                ]))),
                 trailing=ft.Text(fmt_money(a["balance"])),
                 on_click=lambda e, a=a: self._open(a),
             )
@@ -91,16 +99,23 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
         value=money_input_value(a.get("opening_balance", "0")),
         keyboard_type=ft.KeyboardType.NUMBER,
     )
+    statement_day = int_field("Kredi kartı ekstre kesim günü (1-31, kart yoksa boş)", a.get("statement_day"))
+    card_name = text_field("Kart adı (ör. Enpara Kredi Kartı)", a.get("card_name"))
     archived = ft.Switch(label="Arşivlendi", value=a.get("is_archived", False))
 
     async def save():
         if not name.value:
             raise FormError("Ad gerekli.")
         opening_value = parse_money(opening.value or "0", allow_negative=True, allow_zero=True)
+        day = parse_int(statement_day, "Kesim günü")
+        if day is not None and day > 31:
+            raise FormError("Kesim günü 1 ile 31 arasında olmalı.")
         payload = {
             "name": name.value,
             "account_type": account_type.value,
             "opening_balance": opening_value,
+            "statement_day": day,
+            "card_name": card_name.value,
             "is_archived": archived.value,
         }
         if is_edit:
@@ -117,7 +132,10 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
 
     return form_view(
         state, "/account", "Hesabı düzenle" if is_edit else "Yeni hesap",
-        [name, account_type, opening] + ([archived] if is_edit else []),
+        [name, account_type, opening, statement_day, card_name,
+         ft.Text("Kart harcamaları aylık özette ekstre dönemine göre sayılır (ör. kesim 15 → 16 Ocak-15 Şubat "
+                 "harcamaları Şubat'a). Kart ekstresi yüklenince boşsa otomatik doldurulur.",
+                 size=12, color=ft.Colors.GREY_700)] + ([archived] if is_edit else []),
         on_save=save, on_delete=delete if is_edit else None,
     )
 

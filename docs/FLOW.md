@@ -3,7 +3,7 @@
 Sistemin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 2b (ekstre aktarma) — 2026-11-09
+**Son güncelleme:** Faz 2 tamamlandı (bütçe + ekstre + kart dönemleri) — 2026-11-09
 
 ---
 
@@ -159,11 +159,12 @@ flowchart TD
 flowchart LR
     T[(İşlemler)] --> P[ÖDENDİ olanlar]
     T --> W[BEKLİYOR olanlar]
+    T --> X[İPTAL olanlar<br/>iade / atlanan<br/>hiçbir toplama girmez]
 
-    P --> BAL["Hesap bakiyesi =<br/>açılış bakiyesi + ödenen gelir − ödenen gider"]
+    P --> BAL["Hesap bakiyesi =<br/>açılış bakiyesi + ödenen gelir − ödenen gider<br/>(bakiyeden düşülmesin işaretli ekstreler hariç)"]
     BAL --> NOW[Şu anki bakiye<br/>= tüm hesapların toplamı]
 
-    T --> MONTH["Seçili ay (sadece o ayın tarihleri)<br/>Gelir: alınan + bekleyen<br/>Gider: ödenen + bekleyen<br/>Ay net = gelir − gider"]
+    T --> MONTH["Seçili ay — her hesap kendi içinde, sonra toplanır<br/>Kart dışı kayıtlar: takvim ayı<br/>Kart kayıtları: hesabın ekstre döngüsü<br/>(kesim 15 → 16 Ocak–15 Şubat = Şubat)<br/>ekstreden gelenler: bankanın koyduğu ekstreye göre<br/>Gelir: alınan + bekleyen · Gider: ödenen + bekleyen<br/>Ay net = gelir − gider"]
 
     NOW --> PROJ["Ay sonu tahmini =<br/>şu anki bakiye + ay sonuna kadarki<br/>bekleyen gelir − bekleyen gider<br/>(gecikenler dahil)"]
     W --> PROJ
@@ -186,15 +187,20 @@ flowchart TD
     HOME --> H[Hareketler]
     HOME --> D[Diğer]
 
-    H --> HB[Bekleyen 30 gün + gecikenler<br/>Öde butonu]
-    H --> HG[Geçmiş: ödenenler<br/>tür filtresi · daha fazla yükle]
-    H --> NEW[+ Yeni kayıt formu]
-    HB --> EDIT[Kayıt düzenle<br/>Ödendi işaretle / geri al<br/>kapsam: sadece bu / sonrakiler]
-    HG --> EDIT
+    H --> HM["Ay görünümü (en fazla +1 ay ileri)<br/>Özet ile aynı kapsam"]
+    HM --> HT[Kart dışı hareketler tek tek<br/>bekleyenlerde Öde butonu]
+    HM --> HC["Kart dönemi satırı (hesap bazlı)<br/>Enpara Kredi Kartı · Ekstre 15.02<br/>toplam · Ödendi / Ödenmedi / Kısmen"]
+    HC --> CYC[Dönem detayı<br/>harcamalar · Tümünü ödendi / ödenmedi]
+    H --> NEW[+ Yeni kayıt formu<br/>tek seferlik / düzenli / taksitli<br/>kredi kartıyla]
+    HT --> EDIT[Kayıt düzenle<br/>Ödendi / geri al · İptal et / geri al<br/>kapsam: sadece bu / sonrakiler]
+    CYC --> EDIT
 
-    D --> ACC[Hesaplar<br/>banka/nakit · açılış bakiyesi]
-    D --> STM[Ekstreler<br/>yükle · önizle · aktar]
+    D --> AUTO[Otomatik ödemelerim<br/>düzenli + taksitli planlar<br/>sıradaki ödeme üzerinden düzenle]
+    AUTO --> EDIT
+    D --> ACC[Hesaplar<br/>banka/nakit · açılış bakiyesi<br/>kart kesim günü · kart adı]
+    D --> STM[Ekstreler<br/>yükle · önizle · aktar · sil]
     D --> CAT[Kategoriler]
+    D --> RULE[Öğrenilen kategoriler]
     D --> PRO[Profil]
     D --> OUT[Çıkış] --> LOGIN
 
@@ -208,7 +214,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    UP([Diğer > Ekstreler > Yükle<br/>hesap seç + PDF/Excel]) --> V{Uzantı pdf/xlsx<br/>ve ≤ 10 MB?}
+    UP([Diğer > Ekstreler > Yükle<br/>hesap seç + PDF/Excel<br/>☐ bakiyeden düşülmesin]) --> V{Uzantı pdf/xlsx<br/>ve ≤ 10 MB?}
     V -- Hayır --> E400[400: Türkçe hata]
     V -- Evet --> SAVE[Dosya gizli klasöre<br/>/vol/private · nginx sunmaz]
     SAVE --> TASK[Celery: parse_statement_task]
@@ -235,13 +241,23 @@ flowchart TD
     end
 
     RULES --> READY[Durum: Onay bekliyor]
-    READY --> REVIEW[Önizleme: işaretle / kaldır<br/>kategori · eşleştir ya da yeni kayıt]
-    REVIEW --> CONF[Aktar]
-    CONF --> T1[Yeni kayıtlar: ÖDENDİ<br/>kaynak=ekstre]
+    READY --> REVIEW[Önizleme: işaretle / kaldır<br/>kategori değişince öğrenilir ve<br/>aynı işyerinin satırlarına uygulanır<br/>eşleştir / iade / yeni kayıt]
+    REVIEW --> CONF["Aktar<br/>☑ aktardıktan sonra ekstre bilgilerini sil"]
+    CONF --> T1[Yeni kayıtlar: ÖDENDİ<br/>kaynak=ekstre · kartsa ekstre kesim tarihi]
     CONF --> T2[Eşleşen bekleyen kayıt: ÖDENDİ<br/>ekstre tarihi ve tutarıyla]
-    T1 --> DONE[Durum: Aktarıldı]
+    CONF --> T3[İade: ilgili harcama İPTAL]
+    T1 --> DONE[Durum: Aktarıldı<br/>ham ekstre metni temizlenir]
     T2 --> DONE
+    T3 --> DONE
+    DONE --> DEL{Silme seçili mi?}
+    DEL -- Evet --> GONE[Ekstre kaydı + satırlar silinir<br/>harcamalar kalır]
+    DEL -- Hayır --> KEEP[Ekstreler listesinde kalır<br/>istenirse sonradan silinir]
 ```
+
+**Gizlilik**
+- Ekstre dosyası okunduktan hemen sonra silinir; okunamamış dosyalar gece görevinde (1 saatten eski) silinir.
+- Kart numarası ve kişisel bilgiler ekstreden okunmaz/saklanmaz. Kart adı sadece banka adından oluşur.
+- Aynı ekstre tekrar yüklenirse (ekstre kaydı silinmiş olsa bile) aktarılan harcamaların anahtarlarıyla mükerrer yakalanır.
 
 **Kart ekstresi kuralları**
 - Önceki dönem bakiyesi, toplam ve "ödemeniz için teşekkürler" satırları hiç gelmez; harcamalar tek tek gelir.
