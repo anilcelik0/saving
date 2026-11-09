@@ -32,6 +32,9 @@ ROW = re.compile(
 ROW_AMOUNT_FIRST = re.compile(rf"^({DATE})(?:\s+\d{{2}}:\d{{2}})?(?:\s+\d{{6,}})?\s+({AMOUNT})\s+({AMOUNT})\s+(\D.*)$")
 CUT_OFF = re.compile(rf"(?:hesap kesim tarihi|ekstre tarihi|kesim tarihi)\s*:?\s*({DATE})", re.I)
 AMOUNT_NOTE = re.compile(r"\s*\([^()]*(?:tutar|TL|₺)[^()]*\)", re.I)  # "(İşlem tutarı: 485,01 TL)"
+INSTALLMENT_PLAN = re.compile(r"\s*[\d.,]+x(\d+)=[\d.,]+")  # "1.799,88x12=21.598,56"
+DESC_TRAILING_AMOUNTS = re.compile(r"(?:\s+-?[\d.,]*\d[.,]\d{2}(?:\s?(?:TL|USD|EUR|GBP))?)+$")  # bonus/original amount
+TRAILING_FILLER = re.compile(r"\s+[a-zçğıöşü]{3,}$")  # layout filler word after the amount, e.g. "bosluk"
 
 CARD_HINTS = ("ekstre borcu", "donem borcu", "son odeme tarihi", "hesap kesim", "kart limiti", "asgari odeme")
 BANK_NAMES = [
@@ -83,10 +86,14 @@ class GenericPdf(BaseParser):
 
         for raw in lines:
             raw = raw.strip()
-            if m := ROW.match(raw):
+            m = ROW.match(raw) or ROW.match(TRAILING_FILLER.sub("", raw))
+            if m:
                 date_text, description, installment, first_amount, second = m.groups()
                 if second and "/" in second:
                     installment = second  # "amount n/m" layout
+                elif second and is_card:
+                    # card: "bonus amount" -> the last amount is the transaction; account: "amount balance"
+                    description, first_amount = f"{description} {first_amount}", second
             elif not is_card and (m := ROW_AMOUNT_FIRST.match(raw)):
                 date_text, first_amount, _balance, description = m.groups()
                 installment = None
@@ -103,7 +110,11 @@ class GenericPdf(BaseParser):
                 description, first_amount = description[:-2], "-" + first_amount
             description = AMOUNT_NOTE.sub("", description).strip(" -")
             if not installment and (t := re.search(r"(\d+)\.\s?taksit", fold(description))):
-                installment = f"{t.group(1)}. taksit"
+                plan = INSTALLMENT_PLAN.search(description)
+                installment = f"{t.group(1)}/{plan.group(1)}" if plan else f"{t.group(1)}. taksit"
+                description = re.sub(r"\s*\d+\.\s?taksit", "", description, flags=re.I)
+            description = INSTALLMENT_PLAN.sub("", description)
+            description = DESC_TRAILING_AMOUNTS.sub("", description).strip(" -")
             amount = parse_amount(first_amount)
             is_credit = amount < 0 or first_amount.strip().endswith("+") or first_amount.strip().startswith("+")
 

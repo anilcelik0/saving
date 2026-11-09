@@ -23,11 +23,13 @@ SERIES_SHARED_FIELDS = ("amount", "description", "category", "account", "auto_pa
 
 DEFAULT_CATEGORIES = {
     Kind.EXPENSE: [
-        "Market", "Faturalar", "Kira", "Ulaşım", "Yeme-İçme", "Sağlık",
-        "Eğitim", "Giyim", "Eğlence", "Abonelikler", "Kredi/Borç", "Diğer Gider",
+        "Market", "Yeme-İçme", "Faturalar", "Kira", "Ulaşım", "Sağlık", "Eğitim", "Giyim", "Eğlence",
+        "Abonelikler", "Online Alışveriş", "Ev & Elektronik", "Kişisel Bakım", "Para Transferi", "Nakit Çekim",
+        "Banka Masrafı", "Kredi/Borç", "Diğer Gider",
     ],
-    Kind.INCOME: ["Maaş", "Ek Gelir", "Faiz/Getiri", "Diğer Gelir"],
+    Kind.INCOME: ["Maaş", "Ek Gelir", "Gelen Transfer", "İade", "Faiz/Getiri", "Diğer Gelir"],
 }
+FALLBACK_CATEGORY = {Kind.EXPENSE: "Diğer Gider", Kind.INCOME: "Diğer Gelir"}
 
 
 def create_default_categories(user):

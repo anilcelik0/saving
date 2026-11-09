@@ -95,6 +95,12 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 - [x] **cid font decoder** (`statements/cid.py`): learns cid→letter per PDF from common statement words
 - [x] Migration for `is_generic` (user)
 - [x] **Enpara card parser** (`parsers/enpara.py`); E2E upload → enpara/card, not generic, 25 lines imported
+- [x] Garanti card parser verified with a purchase sample (11 lines, 39,286.19 = statement): "bosluk" filler,
+      bonus column, "x12=... 11.Taksit" installments, original-currency column
+- [x] Generic reader: card "bonus amount" → last amount, filler words, installment plans; equals dedicated parsers on all PDFs
+- [x] **Category never empty**: new defaults (Online Alışveriş, Ev & Elektronik, Kişisel Bakım, Para Transferi,
+      Nakit Çekim, Banka Masrafı, Gelen Transfer, İade); rules: merchant → purpose → channel (ATM/FAST/fees)
+      → online signals → card refund → fallback Diğer Gider/Gelir; seeded for 14 existing saving users
 - **Adding a bank:** user drops samples into `docs/extre_example/` → add `parsers/<bank>.py` (`@register`, import it in
   `parsers/__init__.py` BEFORE `generic`), add label to `BANK_LABELS`, compare totals with the statement summary
 - [ ] (Later) Remember user's category choices per merchant; Garanti purchase rows sample; generic XLSX reader

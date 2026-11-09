@@ -230,7 +230,7 @@ flowchart TD
         K2 -- Hayır --> K3{Aynı hesap + tutar,<br/>±7 gün bekleyen kayıt?<br/>taksitte: ekstre dönemi}
         K3 -- Evet --> MT[Eşleştir önerisi]
         K3 -- Hayır --> IM[Yeni kayıt]
-        IM --> CAT[Anahtar kelimeyle kategori önerisi<br/>Migros→Market, Uber Eats→Yeme-İçme...]
+        IM --> CAT["Kategori önerisi (asla boş kalmaz)<br/>1 bilinen işyeri: Migros→Market, Uber Eats→Yeme-İçme<br/>2 amaç: kira bedeli/aidat→Kira, maaş→Maaş<br/>3 kanal: ATM→Nakit Çekim, FAST/EFT→Para Transferi,<br/>masraf/ücret→Banka Masrafı<br/>4 online: .com, iyzico, paytr→Online Alışveriş<br/>5 kart iadesi→İade<br/>6 yedek: Diğer Gider / Diğer Gelir"]
         MT --> CAT
     end
 

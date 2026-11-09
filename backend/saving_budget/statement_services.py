@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from .models import Category, Kind, StatementImport, StatementLine, Transaction
+from .services import FALLBACK_CATEGORY
 from .statements import StatementParseError, detect_and_parse
 from .statements.classify import skip_reason, suggest_category_name
 from .statements.utils import normalize
@@ -89,8 +90,10 @@ def _build_lines(statement, parsed):
             statement=statement, line_no=no, date=p.date, description=p.description[:255],
             raw_text=p.raw_text, kind=kind, amount=abs(p.amount), installment=p.installment, external_key=key,
         )
-        name = suggest_category_name(p)
-        line.category = categories.get((kind, name.casefold())) if name else None
+        name = suggest_category_name(p, parsed.statement_type)
+        line.category = categories.get((kind, name.casefold())) or categories.get(
+            (kind, FALLBACK_CATEGORY[kind].casefold())
+        )
 
         reason = "duplicate" if key in existing_keys else skip_reason(p, parsed.holder_name)
         if reason:
