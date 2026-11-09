@@ -9,6 +9,8 @@ router = DefaultRouter()
 router.register("categories", views.CategoryViewSet)
 router.register("accounts", views.AccountViewSet)
 router.register("transactions", views.TransactionViewSet)
+router.register("statements", views.StatementImportViewSet)
+router.register("statement-lines", views.StatementLineViewSet)
 
 urlpatterns = [
     path("summary/", views.SummaryView.as_view(), name="summary"),

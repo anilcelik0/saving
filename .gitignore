@@ -28,6 +28,7 @@ mobile/storage/
 
 # Real bank statements (personal data) - never commit
 statement_samples/
+docs/extre_example/
 
 # IDE / OS
 .vscode/

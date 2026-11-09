@@ -78,23 +78,29 @@ class ApiClient:
     async def delete(self, path):
         return await self.request("DELETE", path)
 
-    async def request(self, method, path, *, json=None, params=None, auth=True):
+    async def upload(self, path, *, data: dict, files: dict):
+        """Multipart POST. files: {"field": (filename, bytes, content_type)}."""
+        return await self.request("POST", path, data=data, files=files)
+
+    async def request(self, method, path, *, json=None, params=None, auth=True, data=None, files=None):
+        body = {"json": json, "params": params, "data": data, "files": files}
         sent_access = self.tokens.access
-        response = await self._send(method, path, json, params, sent_access if auth else None)
+        response = await self._send(method, path, body, sent_access if auth else None)
 
         if response.status_code == 401 and auth:
             if not await self._refresh(sent_access):
                 await self._expire()
-            response = await self._send(method, path, json, params, self.tokens.access)
+            response = await self._send(method, path, body, self.tokens.access)
             if response.status_code == 401:
                 await self._expire()
 
         return self._parse(response)
 
-    async def _send(self, method, path, json, params, access):
+    async def _send(self, method, path, body: dict, access):
         headers = {"Authorization": f"Bearer {access}"} if access else {}
+        kwargs = {k: v for k, v in body.items() if v is not None}
         try:
-            return await self._http.request(method, path, json=json, params=params, headers=headers)
+            return await self._http.request(method, path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
             raise ApiError(0, NETWORK_ERROR) from exc
 
@@ -105,7 +111,7 @@ class ApiClient:
                 return True  # another request already refreshed
             if not self.tokens.refresh:
                 return False
-            response = await self._send("POST", "auth/refresh/", {"refresh": self.tokens.refresh}, None, None)
+            response = await self._send("POST", "auth/refresh/", {"json": {"refresh": self.tokens.refresh}}, None)
             if response.status_code != 200:
                 return False
             data = response.json()

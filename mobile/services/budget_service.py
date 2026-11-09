@@ -49,12 +49,37 @@ class Transactions(Resource):
         return await self.api.post(f"{self.path}{obj_id}/unpay/", {})
 
 
+CONTENT_TYPES = {
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+class Statements(Resource):
+    """Upload -> poll get() until status 'ready' -> lines() / update_line() -> confirm()."""
+
+    async def upload(self, account_id, filename: str, content: bytes) -> dict:
+        ext = filename.rsplit(".", 1)[-1].lower()
+        files = {"file": (filename, content, CONTENT_TYPES.get(ext, "application/octet-stream"))}
+        return await self.api.upload(self.path, data={"account": account_id}, files=files)
+
+    async def lines(self, statement_id) -> list:
+        return await self.api.get(f"{self.path}{statement_id}/lines/")
+
+    async def update_line(self, line_id, data: dict) -> dict:
+        return await self.api.patch(f"{BASE}statement-lines/{line_id}/", data)
+
+    async def confirm(self, statement_id) -> dict:
+        return await self.api.post(f"{self.path}{statement_id}/confirm/", {})
+
+
 class BudgetService:
     def __init__(self, api: ApiClient):
         self.api = api
         self.categories = Resource(api, "categories/")  # not paginated
         self.accounts = Resource(api, "accounts/")  # not paginated
         self.transactions = Transactions(api, "transactions/")  # paginated
+        self.statements = Statements(api, "statements/")  # paginated
 
     async def summary(self, month: str | None = None) -> dict:
         """month: 'YYYY-MM' (default current)."""

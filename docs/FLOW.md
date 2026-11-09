@@ -3,7 +3,7 @@
 Sistemin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 2a (tek İşlem modeli) — 2026-11-09
+**Son güncelleme:** Faz 2b (ekstre aktarma) — 2026-11-09
 
 ---
 
@@ -37,7 +37,7 @@ flowchart LR
 
     subgraph Apps["Django uygulamaları"]
         ACC[accounts<br/>ortak: ClientApp, User, JWT]
-        BUD[saving_budget<br/>hesap, kategori, işlem, seri, özet]
+        BUD[saving_budget<br/>hesap, kategori, işlem, seri, özet, ekstre]
         INV[saving_invest]:::todo
         REP[saving_reports]:::todo
     end
@@ -142,9 +142,11 @@ flowchart TD
     subgraph G2["04:00 · flush_expired_tokens"]
         B1[Süresi dolmuş refresh token<br/>kayıtlarını temizle]
     end
-    subgraph G3["Planlanan"]
+    subgraph G3["İstek üzerine"]
+        C2[parse_statement_task<br/>ekstre yüklenince çalışır]
+    end
+    subgraph G4["Planlanan"]
         C1[Günlük altın/gümüş/döviz fiyatı çek]:::todo
-        C2[Ekstre parse görevi]:::todo
     end
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```
@@ -191,25 +193,66 @@ flowchart TD
     HG --> EDIT
 
     D --> ACC[Hesaplar<br/>banka/nakit · açılış bakiyesi]
+    D --> STM[Ekstreler<br/>yükle · önizle · aktar]
     D --> CAT[Kategoriler]
     D --> PRO[Profil]
     D --> OUT[Çıkış] --> LOGIN
 
     D -.-> INVS[Yatırımlar]:::todo
-    D -.-> STM[Ekstre yükle]:::todo
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```
 
 ---
 
-## 8. Planlanan fazlar (henüz yok)
+## 8. Ekstre aktarma
+
+```mermaid
+flowchart TD
+    UP([Diğer > Ekstreler > Yükle<br/>hesap seç + PDF/Excel]) --> V{Uzantı pdf/xlsx<br/>ve ≤ 10 MB?}
+    V -- Hayır --> E400[400: Türkçe hata]
+    V -- Evet --> SAVE[Dosya gizli klasöre<br/>/vol/private · nginx sunmaz]
+    SAVE --> TASK[Celery: parse_statement_task]
+    TASK --> DET{Banka/format tanındı mı?}
+    DET -- Hayır --> FAIL[Durum: Hata<br/>'Bu ekstre formatı henüz desteklenmiyor']
+    DET -- Evet --> PARSE["Parser<br/>VakıfBank hesap (PDF/Excel) · VakıfBank kart<br/>QNB kart · Garanti kart"]
+    PARSE --> DEL[Dosya silinir<br/>sadece satırlar kalır]
+    PARSE --> RULES
+
+    subgraph RULES["Her satır için kurallar"]
+        K1{Daha önce aktarıldı mı?<br/>banka ref no / hash} -- Evet --> SK1[Atla: mükerrer]
+        K1 -- Hayır --> K2{Kart borcu ödemesi /<br/>kendi hesabına virman /<br/>fon, vadeli, yatırım?}
+        K2 -- Evet --> SK2[Atla önerisi<br/>işaretsiz gelir]
+        K2 -- Hayır --> K3{Aynı hesap + tutar,<br/>±7 gün bekleyen kayıt?<br/>taksitte: ekstre dönemi}
+        K3 -- Evet --> MT[Eşleştir önerisi]
+        K3 -- Hayır --> IM[Yeni kayıt]
+        IM --> CAT[Anahtar kelimeyle kategori önerisi<br/>Migros→Market, Uber Eats→Yeme-İçme...]
+        MT --> CAT
+    end
+
+    RULES --> READY[Durum: Onay bekliyor]
+    READY --> REVIEW[Önizleme: işaretle / kaldır<br/>kategori · eşleştir ya da yeni kayıt]
+    REVIEW --> CONF[Aktar]
+    CONF --> T1[Yeni kayıtlar: ÖDENDİ<br/>kaynak=ekstre]
+    CONF --> T2[Eşleşen bekleyen kayıt: ÖDENDİ<br/>ekstre tarihi ve tutarıyla]
+    T1 --> DONE[Durum: Aktarıldı]
+    T2 --> DONE
+```
+
+**Kart ekstresi kuralları**
+- Önceki dönem bakiyesi, toplam ve "ödemeniz için teşekkürler" satırları hiç gelmez; harcamalar tek tek gelir.
+- Hesap ekstresindeki "Kredi Kartı Borç Ödeme" satırı atlanır (çift sayım olmasın).
+- Önceki dönemde başlamış taksit (ekstrede eski alışveriş tarihiyle görünür) → ekstre kesim tarihine yazılır.
+- İade (eksi tutar) → gelir.
+
+---
+
+## 9. Planlanan fazlar (henüz yok)
 
 ```mermaid
 flowchart LR
-    F2B["2b · Ekstre<br/>PDF/Excel yükle → banka parser → Celery<br/>→ İşlem (source=statement), mükerrer kontrol"]:::todo
     F3["3 · saving_invest<br/>günlük fiyat (altın, gümüş, USD, EUR)<br/>portföy + değerleme"]:::todo
     F4["4 · saving_reports<br/>kategori dağılımı, aylık trend"]:::todo
     F5["5 · Mobil son<br/>güvenli token, APK, tasarım"]:::todo
-    F2B --> F3 --> F4 --> F5
+    F3 --> F4 --> F5
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```

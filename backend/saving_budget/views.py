@@ -1,26 +1,31 @@
 from datetime import timedelta
 
+from django.db import transaction as db_transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.viewsets import OwnedModelViewSet
 
-from .models import Account, Category, Transaction
+from .models import Account, Category, StatementImport, StatementLine, Transaction
 from .permissions import IsSavingUser
 from .serializers import (
     AccountSerializer,
     CategorySerializer,
     MonthlySummarySerializer,
     PaySerializer,
+    StatementImportSerializer,
+    StatementLineSerializer,
     TransactionCreateSerializer,
     TransactionSerializer,
 )
 from .services import apply_to_following, delete_with_following, mark_paid, mark_unpaid, monthly_summary, with_balance
+from .statement_services import confirm_statement
+from .tasks import parse_statement_task
 
 
 def _query_date(request, name):
@@ -147,6 +152,41 @@ class TransactionViewSet(SavingViewSet):
     def unpay(self, request, pk=None):
         txn = mark_unpaid(self.get_object())
         return Response(TransactionSerializer(txn, context={"request": request}).data)
+
+
+class StatementImportViewSet(SavingViewSet):
+    """
+    POST (multipart: file, account) -> parsed in background; poll GET until status=ready.
+    GET {id}/lines/ -> preview; PATCH statement-lines/{id}/ -> review; POST {id}/confirm/ -> import.
+    """
+
+    queryset = StatementImport.objects.select_related("account")
+    serializer_class = StatementImportSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    http_method_names = ["get", "post", "delete"]
+
+    def perform_create(self, serializer):
+        statement = serializer.save(user=self.request.user)
+        db_transaction.on_commit(lambda: parse_statement_task.delay(str(statement.pk)))
+
+    @action(detail=True, methods=["get"])
+    def lines(self, request, pk=None):
+        lines = self.get_object().lines.select_related("matched_transaction")
+        return Response(StatementLineSerializer(lines, many=True, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def confirm(self, request, pk=None):
+        statement = confirm_statement(self.get_object())
+        return Response(self.get_serializer(statement).data)
+
+
+class StatementLineViewSet(SavingViewSet):
+    """Review a preview line: action (import/match/skip), category, matched_transaction."""
+
+    queryset = StatementLine.objects.select_related("statement", "matched_transaction")
+    serializer_class = StatementLineSerializer
+    owner_field = "statement__user"
+    http_method_names = ["patch"]
 
 
 class SummaryView(APIView):

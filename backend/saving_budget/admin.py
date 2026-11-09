@@ -1,6 +1,23 @@
 from django.contrib import admin
 
-from .models import Account, Category, Series, Transaction
+from .models import Account, Category, Series, StatementImport, StatementLine, Transaction
+
+
+class StatementLineInline(admin.TabularInline):
+    model = StatementLine
+    extra = 0
+    fields = ["line_no", "date", "description", "kind", "amount", "action", "skip_reason", "category"]
+    readonly_fields = fields
+    can_delete = False
+
+
+@admin.register(StatementImport)
+class StatementImportAdmin(admin.ModelAdmin):
+    list_display = ["original_name", "bank", "statement_type", "status", "period_start", "period_end",
+                    "imported_count", "matched_count", "user", "created_at"]
+    list_filter = ["status", "bank", "statement_type"]
+    search_fields = ["original_name", "user__username"]
+    inlines = [StatementLineInline]
 
 
 @admin.register(Category)

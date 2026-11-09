@@ -136,6 +136,7 @@ class Transaction(OwnedModel):
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.MANUAL)
     series = models.ForeignKey(Series, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions")
     sequence = models.PositiveSmallIntegerField(null=True, blank=True)  # n-th occurrence in series
+    external_key = models.CharField(max_length=80, blank=True, db_index=True)  # statement dedupe key
 
     class Meta:
         ordering = ["-date", "-created_at"]
@@ -148,3 +149,88 @@ class Transaction(OwnedModel):
 
     def __str__(self):
         return f"{self.date} {self.kind} {self.amount} ({self.status})"
+
+
+def statement_upload_path(instance, filename):
+    ext = filename.rsplit(".", 1)[-1].lower()
+    return f"statements/{instance.user_id}/{instance.id}.{ext}"
+
+
+def private_storage():
+    from django.core.files.storage import storages
+
+    return storages["private"]
+
+
+class StatementImport(OwnedModel):
+    """
+    An uploaded bank statement. Parsed asynchronously into StatementLines (preview),
+    reviewed by the user, then confirmed into Transactions. The file is deleted after parsing.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Sırada"
+        PARSING = "parsing", "Okunuyor"
+        READY = "ready", "Önizleme hazır"
+        FAILED = "failed", "Hata"
+        IMPORTED = "imported", "Aktarıldı"
+
+    class StatementType(models.TextChoices):
+        ACCOUNT = "account", "Hesap ekstresi"
+        CARD = "card", "Kredi kartı ekstresi"
+
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name="statements")
+    file = models.FileField(upload_to=statement_upload_path, storage=private_storage, blank=True)
+    original_name = models.CharField(max_length=255)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    error = models.CharField(max_length=255, blank=True)
+    bank = models.CharField(max_length=30, blank=True)  # parser key, e.g. "vakifbank"
+    statement_type = models.CharField(max_length=10, choices=StatementType.choices, blank=True)
+    period_start = models.DateField(null=True, blank=True)
+    period_end = models.DateField(null=True, blank=True)
+    closing_balance = models.DecimalField(**MONEY, null=True, blank=True)  # account statements
+    imported_count = models.PositiveIntegerField(default=0)
+    matched_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.original_name
+
+
+class StatementLine(BaseModel):
+    class Action(models.TextChoices):
+        IMPORT = "import", "Yeni kayıt olarak aktar"
+        MATCH = "match", "Bekleyen kayıtla eşleştir"
+        SKIP = "skip", "Aktarma"
+
+    class SkipReason(models.TextChoices):
+        NONE = "", "-"
+        DUPLICATE = "duplicate", "Daha önce aktarılmış"
+        CARD_PAYMENT = "card_payment", "Kredi kartı borç ödemesi"
+        TRANSFER = "transfer", "Kendi hesabına virman"
+        INVESTMENT = "investment", "Yatırım / mevduat hareketi"
+        USER = "user", "Kullanıcı seçimi"
+
+    statement = models.ForeignKey(StatementImport, on_delete=models.CASCADE, related_name="lines")
+    line_no = models.PositiveIntegerField()
+    date = models.DateField()
+    description = models.CharField(max_length=255)
+    raw_text = models.TextField(blank=True)
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    amount = models.DecimalField(**MONEY, validators=[POSITIVE])
+    installment = models.CharField(max_length=30, blank=True)  # e.g. "1/3", "kalan 2"
+    external_key = models.CharField(max_length=80)
+    action = models.CharField(max_length=10, choices=Action.choices, default=Action.IMPORT)
+    skip_reason = models.CharField(max_length=15, choices=SkipReason.choices, blank=True)
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+    matched_transaction = models.ForeignKey(
+        Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )  # pending candidate (action=match)
+    result_transaction = models.ForeignKey(
+        Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )  # created/updated on confirm
+
+    class Meta:
+        ordering = ["line_no"]

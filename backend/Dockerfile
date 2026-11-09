@@ -14,7 +14,7 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /vol/static /vol/media && chown -R app:app /vol /app
+RUN mkdir -p /vol/static /vol/media /vol/private && chown -R app:app /vol /app
 
 USER app
 

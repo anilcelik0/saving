@@ -72,11 +72,23 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 - [ ] Manual check in the real Flet window (date picker, dropdowns)
 - [ ] (Later) Payment reminder (push notification), "skip this period" action, transfer between accounts (bank ↔ cash)
 
-### 2b: Statement parsing
-- [ ] Statement upload model + file storage
-- [ ] Parser registry + normalized transaction DTO
-- [ ] First bank parsers (PDF/Excel) — need sample statements from user
-- [ ] Celery parse task, import into transactions, duplicate detection
+### 2b: Statement parsing ✅
+- [x] `StatementImport` + `StatementLine` (preview) models; files in private storage (`/vol/private`, not served by nginx),
+      deleted right after parsing; samples folder `docs/extre_example/` git-ignored (personal data)
+- [x] `saving_budget/statements/`: `ParsedLine/ParsedStatement`, registry + auto-detect, utils (TR/US amounts, dates)
+- [x] Parsers: VakıfBank account (PDF + XLSX), VakıfBank card (PDF), QNB card (PDF, broken-font cid fix),
+      Garanti BBVA card (PDF — sample had only payments, purchase rows unverified)
+- [x] Card rules: payment/summary rows dropped, refunds → income, earlier-period installments booked on cut-off date
+- [x] Classification: skip card payment / own-account transfer / investment & deposit; keyword category suggestion
+- [x] Dedupe key (bank ref or hash) on `Transaction.external_key`; pending-match suggestion (±7 days, installments: statement period)
+- [x] API: `statements/` (multipart upload, poll, `lines/`, `confirm/`), `statement-lines/{id}/` (action/category/match)
+- [x] Celery `parse_statement_task`; verified parsers on samples (card totals match statement: 15,166.39 / 5,328.93)
+- [x] Mobile: More > Ekstreler (list, upload with account choice), preview (checkbox, edit action/category, confirm)
+- [x] Migrations + rebuild (user); E2E: xlsx import (12 new / 1 rent match / 7 skipped), re-upload as pdf → duplicates,
+      card import (23), garanti → failed message, txt → 400, files deleted after parse; mobile review/confirm headless test
+- [x] `seed_default_categories` command (idempotent) — run for 10 existing saving users without categories
+- [x] `docs/FLOW.md` updated (statement import diagram)
+- [ ] (Later) Remember user's category choices per merchant; more banks as samples arrive; Garanti purchase rows sample
 
 ## Phase 3: saving_invest
 - [ ] Pick free price API (gold, silver, USD, EUR) + adapter

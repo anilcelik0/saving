@@ -1,11 +1,13 @@
 from decimal import Decimal
 
+from django.conf import settings
+from django.db.models import Count
 from django.utils import timezone
 from rest_framework import serializers
 
 from core.serializers import OwnedPrimaryKeyRelatedField
 
-from .models import Account, Category, Kind, Series, Transaction
+from .models import Account, Category, Kind, Series, StatementImport, StatementLine, Transaction
 from .services import create_entry
 
 
@@ -114,6 +116,91 @@ class TransactionCreateSerializer(TransactionSerializer):
         repeat = validated_data.pop("repeat")
         user = validated_data.pop("user")
         return create_entry(user=user, repeat=repeat, data=validated_data, series_options=options)
+
+
+class StatementImportSerializer(serializers.ModelSerializer):
+    account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
+    file = serializers.FileField(write_only=True)
+    counts = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StatementImport
+        fields = [
+            "id", "account", "file", "original_name", "status", "error", "bank", "statement_type",
+            "period_start", "period_end", "closing_balance", "imported_count", "matched_count", "counts", "created_at",
+        ]
+        read_only_fields = [
+            "id", "original_name", "status", "error", "bank", "statement_type", "period_start", "period_end",
+            "closing_balance", "imported_count", "matched_count", "created_at",
+        ]
+
+    def get_counts(self, obj):
+        """Lines per action, e.g. {"import": 18, "match": 1, "skip": 4}."""
+        counts = {action: 0 for action in StatementLine.Action.values}
+        for row in obj.lines.values("action").annotate(n=Count("id")):
+            counts[row["action"]] = row["n"]
+        return counts
+
+    def validate_file(self, file):
+        ext = file.name.rsplit(".", 1)[-1].lower() if "." in file.name else ""
+        if ext not in ("pdf", "xlsx"):
+            raise serializers.ValidationError("Yalnızca PDF veya Excel (.xlsx) ekstre yüklenebilir.")
+        if file.size > settings.STATEMENT_MAX_UPLOAD_MB * 1024 * 1024:
+            raise serializers.ValidationError(f"Dosya en fazla {settings.STATEMENT_MAX_UPLOAD_MB} MB olabilir.")
+        return file
+
+    def create(self, validated_data):
+        validated_data["original_name"] = validated_data["file"].name[:255]
+        return super().create(validated_data)
+
+
+class StatementLineSerializer(serializers.ModelSerializer):
+    category = OwnedPrimaryKeyRelatedField(queryset=Category.objects.all(), allow_null=True, required=False)
+    matched_transaction = OwnedPrimaryKeyRelatedField(
+        queryset=Transaction.objects.filter(status=Transaction.Status.PENDING), allow_null=True, required=False
+    )
+    matched_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StatementLine
+        fields = [
+            "id", "line_no", "date", "description", "kind", "amount", "installment", "action", "skip_reason",
+            "category", "matched_transaction", "matched_info", "result_transaction",
+        ]
+        read_only_fields = [
+            "id", "line_no", "date", "description", "kind", "amount", "installment", "skip_reason",
+            "result_transaction",
+        ]
+
+    def get_matched_info(self, obj):
+        t = obj.matched_transaction
+        return {"description": t.description, "date": t.date, "amount": t.amount} if t else None
+
+    def validate(self, attrs):
+        line = self.instance
+        if line.statement.status != StatementImport.Status.READY:
+            raise serializers.ValidationError({"detail": "Aktarılmış ekstre satırları değiştirilemez."})
+        action = attrs.get("action", line.action)
+        if action != StatementLine.Action.SKIP and line.skip_reason == StatementLine.SkipReason.DUPLICATE:
+            raise serializers.ValidationError({"action": "Bu satır daha önce aktarılmış."})
+        match = attrs.get("matched_transaction", line.matched_transaction)
+        if action == StatementLine.Action.MATCH:
+            if match is None:
+                raise serializers.ValidationError({"matched_transaction": "Eşleştirilecek bekleyen kaydı seçin."})
+            if match.account_id != line.statement.account_id or match.kind != line.kind:
+                raise serializers.ValidationError({"matched_transaction": "Seçilen kayıt bu satırla uyuşmuyor."})
+        category = attrs.get("category", line.category)
+        if category and category.kind != line.kind:
+            raise serializers.ValidationError({"category": "Kategori türü işlem türüyle uyuşmuyor."})
+        return attrs
+
+    def update(self, instance, validated_data):
+        action = validated_data.get("action", instance.action)
+        if action == StatementLine.Action.SKIP and not instance.skip_reason:
+            validated_data["skip_reason"] = StatementLine.SkipReason.USER
+        elif action != StatementLine.Action.SKIP:
+            validated_data["skip_reason"] = ""
+        return super().update(instance, validated_data)
 
 
 class PaySerializer(serializers.Serializer):

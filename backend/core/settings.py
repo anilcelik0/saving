@@ -163,6 +163,18 @@ STATIC_URL = "/static/"
 STATIC_ROOT = env("STATIC_ROOT", default="/vol/static")
 MEDIA_URL = "/media/"
 MEDIA_ROOT = env("MEDIA_ROOT", default="/vol/media")
+# Private files (e.g. bank statements): never served by nginx, only read by Django/Celery.
+PRIVATE_MEDIA_ROOT = env("PRIVATE_MEDIA_ROOT", default="/vol/private")
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "private": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {"location": PRIVATE_MEDIA_ROOT, "base_url": None},
+    },
+}
+STATEMENT_MAX_UPLOAD_MB = 10
 
 # --- Logging ---
 LOGGING = {
