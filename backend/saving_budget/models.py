@@ -184,7 +184,8 @@ class StatementImport(OwnedModel):
     original_name = models.CharField(max_length=255)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     error = models.CharField(max_length=255, blank=True)
-    bank = models.CharField(max_length=30, blank=True)  # parser key, e.g. "vakifbank"
+    bank = models.CharField(max_length=30, blank=True)  # bank slug, e.g. "vakifbank"
+    is_generic = models.BooleanField(default=False)  # read by the fallback parser -> user should double-check
     statement_type = models.CharField(max_length=10, choices=StatementType.choices, blank=True)
     period_start = models.DateField(null=True, blank=True)
     period_end = models.DateField(null=True, blank=True)

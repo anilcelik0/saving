@@ -30,7 +30,21 @@ def detect_and_parse(path: str) -> ParsedStatement:
     for parser in PARSERS:
         if ext in parser.extensions and parser.detect(source):
             result = parser.parse(path)
+            result.parser_key, result.generic = parser.key, parser.generic
             if not result.lines:
+                if parser.generic:
+                    raise StatementParseError(
+                        "Bu ekstreden hareket okunamadı. Bankanız için özel destek eklenmesi gerekebilir."
+                    )
                 raise StatementParseError("Ekstrede aktarılacak hareket bulunamadı.")
             return result
     raise StatementParseError("Bu ekstre formatı henüz desteklenmiyor.")
+
+
+BANK_LABELS = {
+    "vakifbank": "VakıfBank", "qnb": "QNB", "garanti": "Garanti BBVA", "enpara": "Enpara", "akbank": "Akbank",
+    "ziraat": "Ziraat Bankası", "isbank": "İş Bankası", "yapikredi": "Yapı Kredi", "halkbank": "Halkbank",
+    "denizbank": "DenizBank", "kuveytturk": "Kuveyt Türk", "ing": "ING", "teb": "TEB", "fibabanka": "Fibabanka",
+    "sekerbank": "Şekerbank", "albaraka": "Albaraka", "odeabank": "Odeabank", "papara": "Papara",
+    "other": "Diğer banka",
+}

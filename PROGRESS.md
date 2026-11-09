@@ -88,7 +88,16 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
       card import (23), garanti → failed message, txt → 400, files deleted after parse; mobile review/confirm headless test
 - [x] `seed_default_categories` command (idempotent) — run for 10 existing saving users without categories
 - [x] `docs/FLOW.md` updated (statement import diagram)
-- [ ] (Later) Remember user's category choices per merchant; more banks as samples arrive; Garanti purchase rows sample
+- [x] **Generic reader** (`parsers/generic.py`, registered last): date-first + amount-last rows (TR/US amounts,
+      n/m installments, trailing extras), account "amount balance description" layout, card/account by header hints,
+      bank name detection, `is_generic` flag → mobile warning. Matches dedicated parsers on all 4 sample formats;
+      Enpara card works through it (25 lines, total 13,647.32 = statement)
+- [x] **cid font decoder** (`statements/cid.py`): learns cid→letter per PDF from common statement words
+- [x] Migration for `is_generic` (user)
+- [x] **Enpara card parser** (`parsers/enpara.py`); E2E upload → enpara/card, not generic, 25 lines imported
+- **Adding a bank:** user drops samples into `docs/extre_example/` → add `parsers/<bank>.py` (`@register`, import it in
+  `parsers/__init__.py` BEFORE `generic`), add label to `BANK_LABELS`, compare totals with the statement summary
+- [ ] (Later) Remember user's category choices per merchant; Garanti purchase rows sample; generic XLSX reader
 
 ## Phase 3: saving_invest
 - [ ] Pick free price API (gold, silver, USD, EUR) + adapter

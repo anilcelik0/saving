@@ -6,7 +6,7 @@ from .choices import label
 from .transactions import account_options, category_options
 from .ui import FormError, dropdown, dropdown_value, empty_text, fmt_date, fmt_money, guarded, toast
 
-BANKS = [("vakifbank", "VakıfBank"), ("qnb", "QNB"), ("garanti", "Garanti BBVA")]
+GENERIC_WARNING = "Bu banka için özel okuyucu yok, genel okuyucu kullanıldı. Satırları kontrol edin."
 STATUSES = [("pending", "Sırada"), ("parsing", "Okunuyor"), ("ready", "Onay bekliyor"),
             ("failed", "Hata"), ("imported", "Aktarıldı")]
 TYPES = [("account", "Hesap ekstresi"), ("card", "Kart ekstresi")]
@@ -49,7 +49,7 @@ class StatementsScreen:
     def _tile(self, s):
         parts = [label(STATUSES, s["status"])]
         if s["bank"]:
-            parts.append(f"{label(BANKS, s['bank'])} · {label(TYPES, s['statement_type'])}")
+            parts.append(f"{s['bank_label']} · {label(TYPES, s['statement_type'])}")
         if s["period_start"]:
             parts.append(f"{fmt_date(s['period_start'])} - {fmt_date(s['period_end'])}")
         if s["status"] == "imported":
@@ -147,7 +147,8 @@ class StatementReview:
         expense = sum(float(line["amount"]) for line in selected if line["kind"] == "expense")
         income = sum(float(line["amount"]) for line in selected if line["kind"] == "income")
         self.header.value = (
-            f"{label(BANKS, s['bank'])} · {label(TYPES, s['statement_type'])} · "
+            (f"⚠ {GENERIC_WARNING}\n" if s["is_generic"] else "")
+            + f"{s['bank_label']} · {label(TYPES, s['statement_type'])} · "
             f"{fmt_date(s['period_start'])} - {fmt_date(s['period_end'])}\n"
             f"Seçili {len(selected)}/{len(self.lines)} satır · gider {fmt_money(expense)} · gelir {fmt_money(income)}"
             + ("" if editable else f"\nAktarıldı: {s['imported_count']} yeni, {s['matched_count']} eşleşti")

@@ -212,10 +212,15 @@ flowchart TD
     V -- Hayır --> E400[400: Türkçe hata]
     V -- Evet --> SAVE[Dosya gizli klasöre<br/>/vol/private · nginx sunmaz]
     SAVE --> TASK[Celery: parse_statement_task]
-    TASK --> DET{Banka/format tanındı mı?}
-    DET -- Hayır --> FAIL[Durum: Hata<br/>'Bu ekstre formatı henüz desteklenmiyor']
-    DET -- Evet --> PARSE["Parser<br/>VakıfBank hesap (PDF/Excel) · VakıfBank kart<br/>QNB kart · Garanti kart"]
+    TASK --> DET{Bankaya özel parser<br/>tanıdı mı?}
+    DET -- Evet --> PARSE["Özel parser<br/>VakıfBank hesap (PDF/Excel) · VakıfBank kart<br/>QNB kart · Garanti kart · Enpara kart"]
+    DET -- "Hayır (PDF)" --> GEN["Genel okuyucu (son çare)<br/>bozuk karakter çözücü (cid) +<br/>'tarih ... tutar' satır kalıpları"]
+    GEN --> GENOK{Satır bulundu mu?}
+    GENOK -- Hayır --> FAIL[Durum: Hata<br/>'Bu ekstreden hareket okunamadı']
+    GENOK -- Evet --> WARN[Önizlemede uyarı:<br/>'genel okuyucu kullanıldı, kontrol edin']
+    WARN --> RULES
     PARSE --> DEL[Dosya silinir<br/>sadece satırlar kalır]
+    GEN --> DEL
     PARSE --> RULES
 
     subgraph RULES["Her satır için kurallar"]

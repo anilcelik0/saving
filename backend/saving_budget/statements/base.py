@@ -27,6 +27,8 @@ class ParsedStatement:
     period_end: date | None = None
     closing_balance: Decimal | None = None
     holder_name: str = ""
+    parser_key: str = ""  # set by the registry
+    generic: bool = False  # parsed by the fallback reader -> user should double-check lines
 
 
 class BaseParser:
@@ -36,6 +38,7 @@ class BaseParser:
     bank: str = ""
     statement_type: str = ""
     extensions: tuple[str, ...] = ()
+    generic: bool = False
 
     def detect(self, source) -> bool:
         """source: first-page text (pdf) or openpyxl workbook (xlsx)."""

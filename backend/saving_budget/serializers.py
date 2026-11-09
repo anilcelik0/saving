@@ -9,6 +9,7 @@ from core.serializers import OwnedPrimaryKeyRelatedField
 
 from .models import Account, Category, Kind, Series, StatementImport, StatementLine, Transaction
 from .services import create_entry
+from .statements.registry import BANK_LABELS
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -122,17 +123,22 @@ class StatementImportSerializer(serializers.ModelSerializer):
     account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
     file = serializers.FileField(write_only=True)
     counts = serializers.SerializerMethodField()
+    bank_label = serializers.SerializerMethodField()
 
     class Meta:
         model = StatementImport
         fields = [
-            "id", "account", "file", "original_name", "status", "error", "bank", "statement_type",
-            "period_start", "period_end", "closing_balance", "imported_count", "matched_count", "counts", "created_at",
+            "id", "account", "file", "original_name", "status", "error", "bank", "bank_label", "is_generic",
+            "statement_type", "period_start", "period_end", "closing_balance", "imported_count", "matched_count",
+            "counts", "created_at",
         ]
         read_only_fields = [
-            "id", "original_name", "status", "error", "bank", "statement_type", "period_start", "period_end",
-            "closing_balance", "imported_count", "matched_count", "created_at",
+            "id", "original_name", "status", "error", "bank", "is_generic", "statement_type", "period_start",
+            "period_end", "closing_balance", "imported_count", "matched_count", "created_at",
         ]
+
+    def get_bank_label(self, obj):
+        return BANK_LABELS.get(obj.bank, obj.bank)
 
     def get_counts(self, obj):
         """Lines per action, e.g. {"import": 18, "match": 1, "skip": 4}."""

@@ -102,6 +102,7 @@ def _build_lines(statement, parsed):
 
     StatementLine.objects.bulk_create(lines)
     statement.bank = parsed.bank
+    statement.is_generic = parsed.generic
     statement.statement_type = parsed.statement_type
     statement.period_start, statement.period_end = parsed.period_start, parsed.period_end
     statement.closing_balance = parsed.closing_balance

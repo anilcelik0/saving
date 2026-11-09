@@ -4,12 +4,13 @@ from datetime import date
 from ..base import ParsedLine
 
 
-def adjust_installment_date(line_date: date, period_start: date | None, cut_off: date | None) -> date:
+def adjust_installment_date(line_date: date, period_start: date | None, cut_off: date | None, installment: str) -> date:
     """
     Card installments from earlier purchases keep the original purchase date on the statement.
     Book them on the statement cut-off date so they fall into the right month.
+    Non-installment rows keep their date (e.g. purchases on the previous cut-off day).
     """
-    if period_start and cut_off and line_date < period_start:
+    if installment and period_start and cut_off and line_date < period_start:
         return cut_off
     return line_date
 
@@ -25,7 +26,7 @@ def card_line(
     if "ÖDEMENİZ" in text or "ODEMENIZ" in text:
         return None
     return ParsedLine(
-        date=adjust_installment_date(line_date, period_start, cut_off),
+        date=adjust_installment_date(line_date, period_start, cut_off, installment),
         description=re.sub(r"\s+", " ", description).strip()[:255],
         amount=-amount,
         installment=installment,
