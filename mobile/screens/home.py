@@ -1,6 +1,7 @@
 import flet as ft
 
 from .activity import ActivityTab
+from .invest import InvestTab
 from .more import MoreTab
 from .summary import SummaryTab
 
@@ -10,7 +11,7 @@ class HomeScreen:
 
     def __init__(self, state):
         self.state = state
-        self.tabs = [SummaryTab(state), ActivityTab(state), MoreTab(state)]
+        self.tabs = [SummaryTab(state), ActivityTab(state), InvestTab(state), MoreTab(state)]
         self.title = ft.Text()
         self.body = ft.Container(expand=True)
         self.view = ft.View(
@@ -20,6 +21,7 @@ class HomeScreen:
                 destinations=[
                     ft.NavigationBarDestination(icon=ft.Icons.DASHBOARD, label="Özet"),
                     ft.NavigationBarDestination(icon=ft.Icons.RECEIPT_LONG, label="Hareketler"),
+                    ft.NavigationBarDestination(icon=ft.Icons.SAVINGS, label="Yatırımlar"),
                     ft.NavigationBarDestination(icon=ft.Icons.MENU, label="Diğer"),
                 ],
                 on_change=lambda e: self.select(e.control.selected_index),

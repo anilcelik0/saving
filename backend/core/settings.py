@@ -115,7 +115,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "saving_budget.tasks.daily_budget_maintenance",
         "schedule": crontab(hour=0, minute=30),
     },
+    # TCMB publishes rates around 15:30 on business days
+    "saving-invest-daily-prices": {
+        "task": "saving_invest.tasks.fetch_daily_prices",
+        "schedule": crontab(hour=17, minute=0),
+    },
 }
+
+# --- Market data (saving_invest) ---
+TCMB_RATES_URL = env("TCMB_RATES_URL", default="https://www.tcmb.gov.tr/kurlar/today.xml")
+ALTINKAYNAK_GOLD_URL = env("ALTINKAYNAK_GOLD_URL", default="https://static.altinkaynak.com/public/Gold")
 
 # --- Auth ---
 AUTH_PASSWORD_VALIDATORS = [

@@ -130,6 +130,7 @@ class Transaction(OwnedModel):
     class Source(models.TextChoices):
         MANUAL = "manual", "Manuel"
         STATEMENT = "statement", "Ekstre"
+        INVESTMENT = "investment", "Yatırım"  # mirrors an investment movement (saving_invest)
 
     kind = models.CharField(max_length=10, choices=Kind.choices)
     amount = models.DecimalField(**MONEY, validators=[POSITIVE])

@@ -10,6 +10,10 @@ FREQUENCIES = [("weekly", "Haftalık"), ("monthly", "Aylık"), ("yearly", "Yıll
 
 ACCOUNT_TYPES = [("bank", "Banka"), ("cash", "Nakit")]
 
+TRADE_SIDES = [("buy", "Alış"), ("reduce", "Azaltma")]
+
+DEPOSIT_STATUSES = [("active", "Aktif"), ("renewed", "Yenilendi"), ("closed", "Kapandı")]
+
 MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
           "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
 

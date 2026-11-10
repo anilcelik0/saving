@@ -10,9 +10,9 @@ def _clean(params: dict) -> dict:
 class Resource:
     """Generic REST resource: list/get/create/update/delete."""
 
-    def __init__(self, api: ApiClient, path: str):
+    def __init__(self, api: ApiClient, path: str, base: str = BASE):
         self.api = api
-        self.path = BASE + path
+        self.path = base + path
 
     async def list(self, **params):
         return await self.api.get(self.path, params=_clean(params))

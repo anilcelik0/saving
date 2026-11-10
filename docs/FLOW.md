@@ -3,7 +3,7 @@
 Sistemin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 2 tamamlandı (bütçe + ekstre + kart dönemleri) — 2026-11-09
+**Son güncelleme:** Faz 3 tamamlandı (yatırımlar: altın/gümüş/döviz + vadeli mevduat) — 2026-11-10
 
 ---
 
@@ -12,7 +12,7 @@ Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 ```mermaid
 flowchart LR
     subgraph Mobil["Android (Flet)"]
-        UI[Ekranlar<br/>Özet · Hareketler · Diğer]
+        UI[Ekranlar<br/>Özet · Hareketler · Yatırımlar · Diğer]
         API[ApiClient<br/>JWT + otomatik yenileme]
         UI --> API
     end
@@ -38,10 +38,12 @@ flowchart LR
     subgraph Apps["Django uygulamaları"]
         ACC[accounts<br/>ortak: ClientApp, User, JWT]
         BUD[saving_budget<br/>hesap, kategori, işlem, seri, özet, ekstre]
-        INV[saving_invest]:::todo
+        INV[saving_invest<br/>varlık fiyatları, alış/azaltma, vadeli mevduat, portföy]
         REP[saving_reports]:::todo
     end
     WEB --- Apps
+    INV -->|isteğe bağlı gider/gelir kaydı| BUD
+    WORKER -->|17:00 fiyat çek| EXT[TCMB today.xml<br/>Altınkaynak Gold]
 
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```
@@ -145,8 +147,10 @@ flowchart TD
     subgraph G3["İstek üzerine"]
         C2[parse_statement_task<br/>ekstre yüklenince çalışır]
     end
-    subgraph G4["Planlanan"]
-        C1[Günlük altın/gümüş/döviz fiyatı çek]:::todo
+    subgraph G4["17:00 · fetch_daily_prices"]
+        C1[Katalogdaki varlıkları senkronla] --> C3[TCMB: USD, EUR<br/>Altınkaynak: gram/çeyrek/yarım/tam altın, gram gümüş]
+        C3 --> C4[Varlık başına günde 1 fiyat satırı<br/>alış + satış]
+        C3 -- kaynak hata verirse --> C5[30 dk arayla 3 kez yeniden dene]
     end
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```
@@ -204,7 +208,10 @@ flowchart TD
     D --> PRO[Profil]
     D --> OUT[Çıkış] --> LOGIN
 
-    D -.-> INVS[Yatırımlar]:::todo
+    HOME --> INVS[Yatırımlar<br/>toplam değer · varlıklarım · mevduatlar · güncel fiyatlar]
+    INVS --> AST[Varlık detayı<br/>elimdeki · ort. maliyet · son 30 gün<br/>Alış ekle · Azalt · işlem düzenle]
+    INVS --> DEP[Mevduat detayı<br/>Düzenle · Yenile · Kapat · Yeniden aç]
+    INVS --> DH[Geçmiş mevduatlar]
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```
 
@@ -267,13 +274,40 @@ flowchart TD
 
 ---
 
-## 9. Planlanan fazlar (henüz yok)
+## 9. Yatırımlar (saving_invest)
+
+```mermaid
+flowchart TD
+    subgraph Varlik["Altın / gümüş / döviz"]
+        B[Alış<br/>miktar + birim fiyat<br/>fiyat: güncel satış fiyatı önerilir] --> BA{Hesap seçildi mi?}
+        BA -- Evet --> BE[Hesaptan Yatırım gideri<br/>bakiye düşer]
+        BA -- Hayır --> BP[Yalnızca portföy]
+        R[Azaltma<br/>yalnızca miktar · satış kârı izlenmez] --> RA{TL tutarı + hesap?}
+        RA -- Evet --> RI[Hesaba Yatırım geliri]
+        RA -- Hayır --> RP[Yalnızca miktar düşer]
+        G[Kontrol: hiçbir tarihte<br/>elde olan miktar eksiye düşemez<br/>ekle / düzenle / sil]
+    end
+    subgraph Mevduat["Vadeli mevduat"]
+        O[Aç: anapara, yıllık faiz %, başlangıç, vade sonu<br/>vade sonu tutarı: kullanıcı girer<br/>boşsa basit faiz, stopajsız] --> OA[isteğe bağlı: anapara hesaptan düşer]
+        O --> M{Vade doldu}
+        M --> RN[Yenile<br/>yeni anapara = vade sonu tutarı<br/>yeni oran + vade]
+        M --> CL[Kapat<br/>tutar isteğe bağlı hesaba gelir]
+        CL --> RO[Yeniden aç<br/>kapanış kaydı silinir]
+    end
+    subgraph Portfoy["Portföy"]
+        V[Varlık değeri = miktar × güncel ALIŞ fiyatı<br/>maliyet = ortalama maliyet × miktar<br/>fark ve %] --> TOT[Toplam yatırım değeri]
+        DV[Aktif mevduat bugünkü değeri<br/>faiz vade boyunca gün gün işler] --> TOT
+    end
+```
+
+---
+
+## 10. Planlanan fazlar (henüz yok)
 
 ```mermaid
 flowchart LR
-    F3["3 · saving_invest<br/>günlük fiyat (altın, gümüş, USD, EUR)<br/>portföy + değerleme"]:::todo
     F4["4 · saving_reports<br/>kategori dağılımı, aylık trend"]:::todo
     F5["5 · Mobil son<br/>güvenli token, APK, tasarım"]:::todo
-    F3 --> F4 --> F5
+    F4 --> F5
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```

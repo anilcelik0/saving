@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class SavingİnvestConfig(AppConfig):
+class SavingInvestConfig(AppConfig):
     name = "saving_invest"
     verbose_name = "Saving Invest"

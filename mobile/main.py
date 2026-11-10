@@ -5,6 +5,7 @@ from router import Router
 from services.api_client import ApiClient
 from services.auth_service import AuthService
 from services.budget_service import BudgetService
+from services.invest_service import InvestService
 from services.token_store import TokenStore
 from state import AppState
 
@@ -19,6 +20,7 @@ async def main(page: ft.Page):
     state.api = ApiClient(api_base_url(page.platform), tokens, on_session_expired=state.on_session_expired)
     state.auth = AuthService(state.api)
     state.budget = BudgetService(state.api)
+    state.invest = InvestService(state.api)
 
     await state.start()
 

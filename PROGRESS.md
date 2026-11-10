@@ -144,10 +144,33 @@ _Nothing pending._
   `parsers/__init__.py` BEFORE `generic`), add label to `BANK_LABELS`, compare totals with the statement summary
 - [ ] (Later) Remember user's category choices per merchant; Garanti purchase rows sample; generic XLSX reader
 
-## Phase 3: saving_invest
-- [ ] Pick free price API (gold, silver, USD, EUR) + adapter
-- [ ] Asset & PriceHistory models, daily celery-beat task
-- [ ] Portfolio holdings + valuation endpoints
+## Phase 3: saving_invest ✅
+Decisions (2026-11-09): USD/EUR from TCMB `today.xml` (ForexBuying/ForexSelling); gold/silver from Altınkaynak
+`static.altinkaynak.com/public/Gold` (GA, C, Y, T, AG_T; TR number format). Assets: USD, EUR, gram/çeyrek/yarım/tam
+gold, gram silver.
+Revised: no selling / realized P/L. Only purchases + "reduce quantity" (optionally add the TRY received to an account
+as income). Purchases and deposit openings can optionally be deducted from a budget account (expense, category
+"Yatırım"). Time deposits: user enters rate, maturity date and maturity amount (default = gross simple interest);
+at maturity the user renews (new deposit, principal = maturity amount) or closes (amount optionally to an account).
+### 3a: Backend
+- [x] Models: `Asset` (shared catalog synced from `catalog.py`), `AssetPrice` (one row per asset/day, buy/sell),
+      `Trade` (buy/reduce, quantity, unit price, proceeds, account, budget_entry), `Deposit` (rate, maturity,
+      status active/renewed/closed, previous, open/close budget entries)
+- [x] Provider adapters (`providers/`: `tcmb`, `altinkaynak`, registry `PROVIDERS`); URLs overridable via env
+- [x] `fetch_prices()` + celery-beat `fetch_daily_prices` 17:00 (retry 3× every 30 min) + `fetch_prices` command
+- [x] Portfolio: average cost, value at latest buy price, gain %, day change %; active deposits valued with linearly
+      accrued interest; totals
+- [x] Holding never below zero on create/edit/delete (timeline replay; same-day buys first), per-user write lock
+- [x] Budget mirror: `saving_budget.services.sync_linked_entry` (source `investment`, category "Yatırım" auto-created)
+- [x] API `/api/v1/saving/invest/`: `assets/` (+`{code}/history/?days=`), `trades/` (?asset=&side=), `deposits/`
+      (?status=; `{id}/close/`, `{id}/reopen/`, `{id}/renew/`), `portfolio/`
+- [x] Migration + first fetch (user) → API E2E 21/21 OK (first user run: TCMB fetch failed once; retry/rerun fine)
+### 3b: Mobile
+- [x] Yatırımlar tab (4th bottom tab): total value, holdings (value, gain %), active deposits, current prices
+- [x] Asset view: holding, average cost, last-30-day range, purchases/reductions list; trade form (asset picker,
+      price prefilled with current sell price, optional account; reduction: optional TRY + account)
+- [x] Deposit form / detail (edit, renew, close, reopen, delete) / history; `services/invest_service.py`
+- [x] Screen check against live API with a stub page (forms → API → balances) OK; FLOW.md section 9
 
 ## Phase 4: saving_reports
 - [ ] Category breakdown, monthly trends, portfolio value (basic month totals/balances already in `saving_budget` summary)

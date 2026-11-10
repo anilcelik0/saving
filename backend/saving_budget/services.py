@@ -25,9 +25,9 @@ DEFAULT_CATEGORIES = {
     Kind.EXPENSE: [
         "Market", "Yeme-İçme", "Faturalar", "Kira", "Ulaşım", "Sağlık", "Eğitim", "Giyim", "Eğlence",
         "Abonelikler", "Online Alışveriş", "Ev & Elektronik", "Kişisel Bakım", "Para Transferi", "Nakit Çekim",
-        "Banka Masrafı", "Kredi/Borç", "Diğer Gider",
+        "Banka Masrafı", "Kredi/Borç", "Yatırım", "Diğer Gider",
     ],
-    Kind.INCOME: ["Maaş", "Ek Gelir", "Gelen Transfer", "İade", "Faiz/Getiri", "Diğer Gelir"],
+    Kind.INCOME: ["Maaş", "Ek Gelir", "Gelen Transfer", "İade", "Faiz/Getiri", "Yatırım", "Diğer Gelir"],
 }
 FALLBACK_CATEGORY = {Kind.EXPENSE: "Diğer Gider", Kind.INCOME: "Diğer Gelir"}
 
@@ -37,6 +37,28 @@ def create_default_categories(user):
         [Category(user=user, kind=kind, name=name) for kind, names in DEFAULT_CATEGORIES.items() for name in names],
         ignore_conflicts=True,
     )
+
+
+def ensure_category(user, kind: str, name: str) -> Category:
+    return Category.objects.filter(user=user, kind=kind, name__iexact=name).first() or         Category.objects.create(user=user, kind=kind, name=name)
+
+
+def sync_linked_entry(entry, *, user, account, kind, amount, date, description, category_name="Yatırım"):
+    """
+    Keep one paid transaction mirroring a movement from another feature (e.g. an investment buy).
+    No account or amount -> the mirror is removed. Returns the transaction or None.
+    """
+    if account is None or not amount:
+        if entry is not None:
+            entry.delete()
+        return None
+    if entry is None:
+        entry = Transaction(user=user, source=Transaction.Source.INVESTMENT,
+                            category=ensure_category(user, kind, category_name))
+    entry.kind, entry.amount, entry.account, entry.description = kind, amount, account, description
+    entry.date, entry.paid_on, entry.status = date, date, Transaction.Status.PAID
+    entry.save()
+    return entry
 
 
 def _sum(**filters):

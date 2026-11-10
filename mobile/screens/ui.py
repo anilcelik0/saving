@@ -44,6 +44,38 @@ def parse_money(text: str | None, allow_negative=False, allow_zero=False) -> str
     return str(value)
 
 
+def fmt_number(value, max_decimals=2) -> str:
+    """Turkish format, trailing zeros trimmed: 1234.5000 -> '1.234,5', 10.000000 -> '10'."""
+    number = Decimal(str(value or 0)).quantize(Decimal(1).scaleb(-max_decimals))
+    text = f"{number:,.{max_decimals}f}".replace(",", "_").replace(".", ",").replace("_", ".")
+    return text.rstrip("0").rstrip(",") if "," in text else text
+
+
+def fmt_pct(value) -> str:
+    if value in (None, ""):
+        return "-"
+    number = Decimal(str(value))
+    return ("+" if number > 0 else "") + fmt_number(number) + "%"
+
+
+def parse_decimal(text: str | None, name: str, decimals: int = 2, allow_zero=False) -> str:
+    """'1,5' / '1.250,75' / '10' -> '1.5' / '1250.75' / '10'; at most `decimals` decimal places."""
+    raw = (text or "").strip().replace(" ", "")
+    if "," in raw:
+        raw = raw.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(\.\d{3})+", raw) and decimals < 3:
+        raw = raw.replace(".", "")  # dots are thousands separators
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        raise FormError(f"{name} için geçerli bir sayı girin.")
+    if value < 0 or (value == 0 and not allow_zero):
+        raise FormError(f"{name} sıfırdan büyük olmalı.")
+    if -value.normalize().as_tuple().exponent > decimals:
+        raise FormError(f"{name} en fazla {decimals} ondalık basamak olabilir." if decimals else f"{name} tam sayı olmalı.")
+    return f"{value.normalize():f}"
+
+
 def money_input_value(value) -> str:
     return "" if value in (None, "") else str(value).replace(".", ",")
 

@@ -24,6 +24,14 @@ FIELD_LABELS = {
     "start_date": "Başlangıç tarihi",
     "end_date": "Bitiş tarihi",
     "month": "Ay",
+    "asset": "Varlık",
+    "quantity": "Miktar",
+    "unit_price": "Birim fiyat",
+    "proceeds": "TL tutarı",
+    "principal": "Anapara",
+    "annual_rate": "Faiz oranı",
+    "maturity_date": "Vade sonu",
+    "maturity_amount": "Vade sonu tutarı",
 }
 
 

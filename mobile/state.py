@@ -6,6 +6,7 @@ from router import Router
 from services.api_client import ApiClient, ApiError
 from services.auth_service import AuthService
 from services.budget_service import BudgetService
+from services.invest_service import InvestService
 
 
 @dataclass
@@ -17,6 +18,7 @@ class AppState:
     api: ApiClient = None
     auth: AuthService = None
     budget: BudgetService = None
+    invest: InvestService = None
     user: dict | None = None
     categories: list = field(default_factory=list)
     accounts: list = field(default_factory=list)
