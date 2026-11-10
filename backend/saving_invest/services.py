@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
+from django.conf import settings
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
@@ -174,8 +175,9 @@ def delete_trade(trade: Trade):
 # --- time deposits ------------------------------------------------------------------------------
 
 def default_maturity_amount(principal: Decimal, annual_rate: Decimal, start: date, end: date) -> Decimal:
-    """Gross simple interest, 365-day year (withholding tax not deducted; the user can adjust the amount)."""
-    return money(principal + principal * annual_rate / 100 * (end - start).days / 365)
+    """Simple interest, 365-day year, net of withholding tax (DEPOSIT_WITHHOLDING_RATE %); the user can adjust it."""
+    gross = principal * annual_rate / 100 * (end - start).days / 365
+    return money(principal + gross * (1 - settings.DEPOSIT_WITHHOLDING_RATE / 100))
 
 
 def deposit_value(deposit: Deposit, today: date | None = None) -> Decimal:

@@ -288,7 +288,7 @@ flowchart TD
         G[Kontrol: hiçbir tarihte<br/>elde olan miktar eksiye düşemez<br/>ekle / düzenle / sil]
     end
     subgraph Mevduat["Vadeli mevduat"]
-        O[Aç: anapara, yıllık faiz %, başlangıç, vade sonu<br/>vade sonu tutarı: kullanıcı girer<br/>boşsa basit faiz, stopajsız] --> OA[isteğe bağlı: anapara hesaptan düşer]
+        O[Aç: anapara, yıllık faiz %, başlangıç, vade sonu<br/>vade sonu tutarı: kullanıcı girer<br/>boşsa basit faiz − %17,5 stopaj] --> OA[isteğe bağlı: anapara hesaptan düşer]
         O --> M{Vade doldu}
         M --> RN[Yenile<br/>yeni anapara = vade sonu tutarı<br/>yeni oran + vade]
         M --> CL[Kapat<br/>tutar isteğe bağlı hesaba gelir]

@@ -150,7 +150,7 @@ Decisions (2026-11-09): USD/EUR from TCMB `today.xml` (ForexBuying/ForexSelling)
 gold, gram silver.
 Revised: no selling / realized P/L. Only purchases + "reduce quantity" (optionally add the TRY received to an account
 as income). Purchases and deposit openings can optionally be deducted from a budget account (expense, category
-"Yatırım"). Time deposits: user enters rate, maturity date and maturity amount (default = gross simple interest);
+"Yatırım"). Time deposits: user enters rate, maturity date and maturity amount (default = simple interest net of 17.5% withholding, `DEPOSIT_WITHHOLDING_RATE`);
 at maturity the user renews (new deposit, principal = maturity amount) or closes (amount optionally to an account).
 ### 3a: Backend
 - [x] Models: `Asset` (shared catalog synced from `catalog.py`), `AssetPrice` (one row per asset/day, buy/sell),

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import environ
@@ -125,6 +126,8 @@ CELERY_BEAT_SCHEDULE = {
 # --- Market data (saving_invest) ---
 TCMB_RATES_URL = env("TCMB_RATES_URL", default="https://www.tcmb.gov.tr/kurlar/today.xml")
 ALTINKAYNAK_GOLD_URL = env("ALTINKAYNAK_GOLD_URL", default="https://static.altinkaynak.com/public/Gold")
+# Withholding tax (stopaj, %) deducted from deposit interest when the maturity amount is computed
+DEPOSIT_WITHHOLDING_RATE = Decimal(env("DEPOSIT_WITHHOLDING_RATE", default="17.5"))
 
 # --- Auth ---
 AUTH_PASSWORD_VALIDATORS = [

@@ -445,7 +445,7 @@ def deposit_form(state, d: dict | None, on_saved) -> ft.View:
     return form_view(state, "/deposit-form", "Mevduatı düzenle" if is_edit else "Vadeli mevduat ekle", [
         name, principal, rate, start.control, end.control, maturity,
         _detail("Vade sonu tutarını bankanın verdiği net tutarla girin. Boş bırakırsanız faiz oranından hesaplanır "
-                "(stopaj düşülmez)."),
+                "(stopaj düşülerek)."),
         account, _detail("Hesap seçerseniz anapara başlangıç tarihinde o hesaptan düşülür."), note,
     ], on_save=save)
 
@@ -490,7 +490,7 @@ def renew_form(state, d, on_saved) -> ft.View:
     return form_view(state, "/deposit-renew", f"Yenile: {d['name']}", [
         _detail(f"Yeni anapara: {fmt_money(d['maturity_amount'])} (eski vade sonu tutarı) · "
                 f"başlangıç {fmt_date(d['maturity_date'])}"),
-        rate, end.control, maturity, _detail("Vade sonu tutarı boş bırakılırsa faiz oranından hesaplanır (stopaj düşülmez)."),
+        rate, end.control, maturity, _detail("Vade sonu tutarı boş bırakılırsa faiz oranından hesaplanır (stopaj düşülerek)."),
         name,
     ], on_save=save)
 
