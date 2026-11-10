@@ -2,6 +2,7 @@ import flet as ft
 
 from .autopay import AutoPaymentsScreen
 from .choices import ACCOUNT_TYPES, KINDS, label
+from .reports import ReportsScreen
 from .statements import StatementsScreen
 from .ui import (
     FormError, confirm, dropdown, empty_text, fmt_money, form_view, guarded, int_field, money_input_value,
@@ -22,6 +23,9 @@ class MoreTab:
                 ft.Container(self.user_text, padding=16),
                 ft.ListTile(leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE), title=ft.Text("Hesaplar"),
                             on_click=lambda e: self._push(AccountsScreen(state).view)),
+                ft.ListTile(leading=ft.Icon(ft.Icons.INSIGHTS), title=ft.Text("Raporlar"),
+                            subtitle=ft.Text("Kategori dağılımı, aylık trend, net varlık, portföy geçmişi"),
+                            on_click=lambda e: self._push(ReportsScreen(state).view)),
                 ft.ListTile(leading=ft.Icon(ft.Icons.AUTORENEW), title=ft.Text("Otomatik ödemelerim"),
                             subtitle=ft.Text("Düzenli ve taksitli ödemeler"),
                             on_click=lambda e: self._push(AutoPaymentsScreen(state).view)),

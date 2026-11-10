@@ -172,8 +172,19 @@ at maturity the user renews (new deposit, principal = maturity amount) or closes
 - [x] Deposit form / detail (edit, renew, close, reopen, delete) / history; `services/invest_service.py`
 - [x] Screen check against live API with a stub page (forms → API → balances) OK; FLOW.md section 9
 
-## Phase 4: saving_reports
-- [ ] Category breakdown, monthly trends, portfolio value (basic month totals/balances already in `saving_budget` summary)
+## Phase 4: saving_reports ✅
+Decisions (2026-11-10): all four reports; period = end month + 1/3/6/12 months, same month scope as the summary
+(card rows by statement cycle, cancelled excluded). Read-only app, no models.
+- [x] `reports/categories/` (kind, month, months): amount, share, count, change vs. previous equal period;
+      `reports/categories/transactions/` drill-down (category id or `none`)
+- [x] `reports/trend/` (months 1-24, default 12): income, expense, net, investment in/out, saving, saving rate;
+      averages over months that have data
+- [x] `reports/wealth/`: month-end (today for current month) cash (paid in-balance movements up to that day),
+      holdings at that day's latest buy price (cost when no price yet -> `priced: false`), deposits with accrued
+      interest, net worth, investment gain
+- [x] API E2E 17/17 (hand-computed expectations); mobile "Diğer > Raporlar" (4 screens + drill-down), checked
+      against live API with stub page
+- Known: net worth uses account opening balance at every month (no opening date), so long-range % change can be large
 
 ## Phase 5: Mobile finalization (per-phase mobile work is done inside each phase)
 - [ ] Secure token storage (SharedPreferences is not encrypted)

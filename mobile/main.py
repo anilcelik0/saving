@@ -6,6 +6,7 @@ from services.api_client import ApiClient
 from services.auth_service import AuthService
 from services.budget_service import BudgetService
 from services.invest_service import InvestService
+from services.report_service import ReportService
 from services.token_store import TokenStore
 from state import AppState
 
@@ -21,6 +22,7 @@ async def main(page: ft.Page):
     state.auth = AuthService(state.api)
     state.budget = BudgetService(state.api)
     state.invest = InvestService(state.api)
+    state.reports = ReportService(state.api)
 
     await state.start()
 

@@ -7,6 +7,7 @@ from services.api_client import ApiClient, ApiError
 from services.auth_service import AuthService
 from services.budget_service import BudgetService
 from services.invest_service import InvestService
+from services.report_service import ReportService
 
 
 @dataclass
@@ -19,6 +20,7 @@ class AppState:
     auth: AuthService = None
     budget: BudgetService = None
     invest: InvestService = None
+    reports: ReportService = None
     user: dict | None = None
     categories: list = field(default_factory=list)
     accounts: list = field(default_factory=list)

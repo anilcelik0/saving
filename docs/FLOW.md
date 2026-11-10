@@ -3,7 +3,7 @@
 Sistemin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 3 tamamlandı (yatırımlar: altın/gümüş/döviz + vadeli mevduat) — 2026-11-10
+**Son güncelleme:** Faz 4 tamamlandı (raporlar: kategori, trend, net varlık, portföy geçmişi) — 2026-11-10
 
 ---
 
@@ -39,10 +39,12 @@ flowchart LR
         ACC[accounts<br/>ortak: ClientApp, User, JWT]
         BUD[saving_budget<br/>hesap, kategori, işlem, seri, özet, ekstre]
         INV[saving_invest<br/>varlık fiyatları, alış/azaltma, vadeli mevduat, portföy]
-        REP[saving_reports]:::todo
+        REP[saving_reports<br/>salt okunur raporlar]
     end
     WEB --- Apps
     INV -->|isteğe bağlı gider/gelir kaydı| BUD
+    REP -->|okur| BUD
+    REP -->|okur| INV
     WORKER -->|17:00 fiyat çek| EXT[TCMB today.xml<br/>Altınkaynak Gold]
 
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
@@ -205,6 +207,7 @@ flowchart TD
     D --> STM[Ekstreler<br/>yükle · önizle · aktar · sil]
     D --> CAT[Kategoriler]
     D --> RULE[Öğrenilen kategoriler]
+    D --> RPT[Raporlar<br/>kategori dağılımı → kayıtlar<br/>aylık trend · net varlık · portföy geçmişi]
     D --> PRO[Profil]
     D --> OUT[Çıkış] --> LOGIN
 
@@ -302,12 +305,25 @@ flowchart TD
 
 ---
 
-## 10. Planlanan fazlar (henüz yok)
+## 10. Raporlar (saving_reports)
+
+```mermaid
+flowchart TD
+    P["Dönem: bitiş ayı + tek ay / son 3 / 6 / 12 ay<br/>ay kapsamı Özet ile aynı<br/>(kart: ekstre dönemi · iptaller sayılmaz)"]
+    P --> C["Kategori dağılımı<br/>gider veya gelir · tutar, %, kayıt sayısı<br/>önceki eşit döneme göre fark"]
+    C --> CT[Kategoriye dokun → o dönemin kayıtları]
+    P --> T["Aylık trend (6/12/24 ay)<br/>gelir, gider, net<br/>birikim = (gelir − yatırımdan gelen) − (gider − yatırıma giden)<br/>birikim oranı · ortalamalar (kaydı olan aylar)"]
+    W["Ay sonu anlık görüntüleri (bu ay: bugün)"] --> N["Net varlık = hesap bakiyeleri<br/>(o güne kadar ödenmiş hareketler)<br/>+ yatırımlar"]
+    W --> PF["Portföy geçmişi<br/>altın/döviz: o günkü son alış fiyatı<br/>fiyat yoksa maliyet (*)<br/>mevduat: işleyen faiz · maliyete göre fark"]
+```
+
+---
+
+## 11. Planlanan fazlar (henüz yok)
 
 ```mermaid
 flowchart LR
-    F4["4 · saving_reports<br/>kategori dağılımı, aylık trend"]:::todo
     F5["5 · Mobil son<br/>güvenli token, APK, tasarım"]:::todo
-    F4 --> F5
+    F5
     classDef todo fill:#eee,stroke:#999,stroke-dasharray:4 3,color:#777
 ```
