@@ -4,6 +4,7 @@ import sys
 import flet as ft
 
 from config import api_base_url
+from screens.theme import apply_theme
 from router import Router
 from services.api_client import ApiClient
 from services.auth_service import AuthService
@@ -33,6 +34,7 @@ def _ignore_connection_reset(loop):
 async def main(page: ft.Page):
     _ignore_connection_reset(asyncio.get_running_loop())
     page.title = "Saving"
+    apply_theme(page)
 
     tokens = TokenStore(ft.SharedPreferences())
     await tokens.load()

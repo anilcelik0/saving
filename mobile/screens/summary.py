@@ -1,14 +1,35 @@
+import asyncio
 from datetime import date
 from decimal import Decimal
 
 import flet as ft
 
-from .choices import ACCOUNT_TYPES, MONTHS, label
-from .ui import empty_text, fmt_date, fmt_money, guarded
+from .choices import MONTHS
+from .theme import (
+    CARD, CHART, EXPENSE, EXPENSE_BAR, INCOME, INCOME_BAR, LineChart, amount_color, card, donut, dot,
+    grouped_bars, muted, section, stat,
+)
+from .ui import fmt_money, fmt_number, fmt_pct, guarded
+
+TOP_CATEGORIES = 5
+
+
+def month_short(key: str) -> str:
+    return MONTHS[int(key[5:7]) - 1][:3]
+
+
+def short_money(value) -> str:
+    """Compact amount for chart centers: 116000 -> '116 B₺', 1250000 -> '1,25 M₺'."""
+    number = abs(Decimal(str(value or 0)))
+    if number >= 1_000_000:
+        return fmt_number(number / 1_000_000, 2) + " M₺"
+    if number >= 10_000:
+        return fmt_number(number / 1000, 0) + " B₺"
+    return fmt_money(number)
 
 
 class SummaryTab:
-    """Month totals (each month on its own), current balances and month-end projection."""
+    """Home: balance, month income/expense, spending ring, 6-month bars, net worth line, upcoming payments."""
 
     title = "Özet"
 
@@ -18,23 +39,25 @@ class SummaryTab:
         today = date.today()
         self.year, self.month = today.year, today.month
         self.fab = None
-        self.month_label = ft.Text(weight=ft.FontWeight.BOLD)
-        self.body = ft.Column(spacing=8)
+        self.month_label = ft.Text(weight=ft.FontWeight.W_600)
+        self.body = ft.Column(spacing=14)
         self.control = ft.ListView(
             [
-                ft.Row(
-                    [
-                        ft.IconButton(ft.Icons.CHEVRON_LEFT, on_click=lambda e: self._shift(-1)),
-                        self.month_label,
-                        ft.IconButton(ft.Icons.CHEVRON_RIGHT, on_click=lambda e: self._shift(1)),
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                ),
+                ft.Row([
+                    ft.IconButton(ft.Icons.CHEVRON_LEFT, on_click=lambda e: self._shift(-1), tooltip="Önceki ay"),
+                    ft.Container(self.month_label, bgcolor=CARD, border_radius=999,
+                                 padding=ft.Padding.symmetric(horizontal=16, vertical=8)),
+                    ft.IconButton(ft.Icons.CHEVRON_RIGHT, on_click=lambda e: self._shift(1), tooltip="Sonraki ay"),
+                ], alignment=ft.MainAxisAlignment.CENTER),
                 self.body,
             ],
             expand=True,
-            padding=16,
+            padding=ft.Padding.only(left=16, right=16, bottom=96),
         )
+
+    @property
+    def month_key(self):
+        return f"{self.year:04d}-{self.month:02d}"
 
     def _shift(self, delta):
         index = self.year * 12 + self.month - 1 + delta
@@ -46,44 +69,142 @@ class SummaryTab:
 
     async def _fetch(self):
         self.month_label.value = f"{MONTHS[self.month - 1]} {self.year}"
-        s = await self.state.budget.summary(f"{self.year:04d}-{self.month:02d}")
-
-        rows = [
-            self._line("Gelir", s["income"], bold=True),
-            self._detail(f"alınan {fmt_money(s['income_paid'])} · bekleyen {fmt_money(s['income_pending'])}"),
-            self._line("Gider", s["expense"], bold=True),
-            self._detail(f"ödenen {fmt_money(s['expense_paid'])} · bekleyen {fmt_money(s['expense_pending'])}"),
-            self._line("Ay net", s["net"], bold=True),
+        report_month = min(self.month_key, date.today().strftime("%Y-%m"))  # reports never look ahead
+        budget, reports = self.state.budget, self.state.reports
+        s, cats, trend, wealth, upcoming = await asyncio.gather(
+            budget.summary(self.month_key),
+            reports.categories("expense", self.month_key, 1),
+            reports.trend(report_month, 6),
+            reports.wealth(report_month, 6),
+            budget.activity_upcoming(30),
+        )
+        self.body.controls = [
+            self._hero(s),
+            ft.Row([
+                ft.Container(stat("Gelir", "+" + fmt_money(s["income"]), INCOME,
+                                  f"bekleyen {fmt_money(s['income_pending'])}"), expand=True),
+                ft.Container(stat("Gider", "−" + fmt_money(s["expense"]), EXPENSE,
+                                  f"bekleyen {fmt_money(s['expense_pending'])}"), expand=True),
+            ], spacing=12),
+            self._spending(cats),
+            self._trend(trend),
+            self._wealth(wealth),
+            self._upcoming(upcoming),
+            self._accounts(s),
         ]
-        if s["card_cycles"]:
-            cycles = ", ".join(f"{c['name']} {fmt_date(c['start'])}–{fmt_date(c['end'])}" for c in s["card_cycles"])
-            rows.append(self._detail(f"Kart harcamaları ekstre dönemine göre: {cycles}"))
-        rows += [
-            ft.Divider(),
-            ft.Text("Hesaplar (şu an)", weight=ft.FontWeight.BOLD),
-        ]
-        if s["accounts"]:
-            rows += [self._line(f"{a['name']} ({label(ACCOUNT_TYPES, a['account_type'])})", a["balance"]) for a in s["accounts"]]
-        else:
-            rows.append(empty_text("Henüz hesap yok. Diğer > Hesaplar'dan açılış bakiyesiyle ekleyin."))
-        rows.append(self._line("Şu anki bakiye", s["current_balance"], bold=True))
-
-        if Decimal(s["overdue_expense"]) or Decimal(s["overdue_income"]):
-            rows.append(self._detail(
-                f"Geciken: gider {fmt_money(s['overdue_expense'])} · gelir {fmt_money(s['overdue_income'])}",
-                color=ft.Colors.RED_700,
-            ))
-        if s["projected_balance"] is not None:
-            rows.append(self._line("Ay sonu tahmini bakiye", s["projected_balance"], bold=True))
-
-        self.body.controls = rows
         self.page.update()
 
-    @staticmethod
-    def _line(text, value, bold=False):
-        weight = ft.FontWeight.BOLD if bold else None
-        return ft.Row([ft.Text(text, weight=weight, expand=True), ft.Text(fmt_money(value), weight=weight)])
+    # ---------------------------------------------------------------- parts
+    def _hero(self, s):
+        on = ft.Colors.ON_PRIMARY
+        lines = [
+            ft.Text("Toplam bakiye", size=13, color=on, opacity=0.85),
+            ft.Text(fmt_money(s["current_balance"]), size=32, weight=ft.FontWeight.W_700, color=on),
+        ]
+        if s["projected_balance"] is not None:
+            lines.append(ft.Text(f"Ay sonu tahmini {fmt_money(s['projected_balance'])}", size=13, color=on, opacity=0.85))
+        overdue = Decimal(s["overdue_expense"]) + Decimal(s["overdue_income"])
+        if overdue:
+            lines.append(ft.Container(
+                ft.Text(f"Geciken: gider {fmt_money(s['overdue_expense'])} · gelir {fmt_money(s['overdue_income'])}",
+                        size=12, color=on),
+                bgcolor=ft.Colors.with_opacity(0.18, ft.Colors.BLACK), border_radius=10,
+                padding=ft.Padding.symmetric(horizontal=10, vertical=6)))
+        return card(ft.Column(lines, spacing=6), padding=20, bgcolor=ft.Colors.PRIMARY, radius=22)
 
-    @staticmethod
-    def _detail(text, color=None):
-        return ft.Text(text, size=12, color=color or ft.Colors.GREY_700)
+    def _open_report(self, factory):
+        from . import reports
+        self.state.router.push(factory(reports).view)
+
+    def _spending(self, r):
+        items = [i for i in r["items"] if Decimal(i["amount"]) > 0]
+        header = section(f"Harcama dağılımı · {MONTHS[self.month - 1]}", "Rapor",
+                         lambda e: self._open_report(lambda m: m.CategoryReport(self.state)))
+        if not items:
+            return card(ft.Column([header, muted("Bu ay harcama yok.")], spacing=8))
+        top, rest = items[:TOP_CATEGORIES], items[TOP_CATEGORIES:]
+        rows = [(i["name"], Decimal(i["amount"]), Decimal(i["pct"] or 0)) for i in top]
+        if rest:
+            rows.append(("Diğer", sum((Decimal(i["amount"]) for i in rest), Decimal(0)),
+                         sum((Decimal(i["pct"] or 0) for i in rest), Decimal(0))))
+        colors = CHART[:len(rows) - 1] + [CHART[-1] if rest else CHART[len(rows) - 1]]
+        legend = ft.Column([
+            ft.Row([dot(color), ft.Text(name, size=13, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                    ft.Text(f"%{fmt_number(share, 0)}", size=13, weight=ft.FontWeight.W_600)], spacing=8)
+            for (name, _, share), color in zip(rows, colors)
+        ], spacing=8, expand=True)
+        ring = donut([(float(amount), color) for (_, amount, _), color in zip(rows, colors)],
+                     center_top="toplam", center_bottom=short_money(r["total"]))
+        return card(ft.Column([header, ft.Row([ring, legend], spacing=16,
+                                              vertical_alignment=ft.CrossAxisAlignment.CENTER)], spacing=10))
+
+    def _trend(self, t):
+        groups = [(month_short(m["month"]), [float(m["income"]), float(m["expense"])]) for m in t["months"]]
+        header = section("Gelir · gider (son 6 ay)", "Rapor", lambda e: self._open_report(lambda m: m.TrendReport(self.state)))
+        legend = ft.Row([
+            ft.Row([dot(INCOME_BAR), muted("Gelir")], spacing=6),
+            ft.Row([dot(EXPENSE_BAR), muted("Gider")], spacing=6),
+            ft.Container(expand=True),
+            muted(f"Ort. birikim oranı {fmt_pct(t['averages']['saving_rate'])}"),
+        ], spacing=14)
+        return card(ft.Column([header, grouped_bars(groups, [INCOME_BAR, EXPENSE_BAR]), legend], spacing=10))
+
+    def _wealth(self, w):
+        header = section("Net varlık", "Rapor", lambda e: self._open_report(lambda m: m.WealthReport(self.state, "net")))
+        points = w["points"]
+        if not points:
+            return card(ft.Column([header, muted("Veri yok.")], spacing=8))
+        last = points[-1]
+        change = Decimal(w["net_worth_change"])
+        controls = [
+            header,
+            ft.Row([ft.Text(fmt_money(last["net_worth"]), size=24, weight=ft.FontWeight.W_700),
+                    ft.Text(("▲ " if change >= 0 else "▼ ") + fmt_money(abs(change)), size=13,
+                            weight=ft.FontWeight.W_600, color=amount_color(change))],
+                   vertical_alignment=ft.CrossAxisAlignment.END, spacing=10),
+        ]
+        if len(points) > 1:
+            controls += [LineChart([float(p["net_worth"]) for p in points]),
+                         ft.Row([muted(month_short(points[0]["month"]), size=11), ft.Container(expand=True),
+                                 muted(month_short(last["month"]), size=11)])]
+        controls.append(muted(f"Hesaplar {fmt_money(last['cash'])} · Yatırımlar {fmt_money(last['investments'])}"))
+        return card(ft.Column(controls, spacing=8))
+
+    def _upcoming(self, items):
+        rows = []
+        for item in items[:5]:
+            if item["type"] == "transaction":
+                t = item["transaction"]
+                day, title = t["date"], t["description"] or self.state.category_name(t["category"])
+                sign = "−" if t["kind"] == "expense" else "+"
+                amount, color = sign + fmt_money(t["amount"]), EXPENSE if t["kind"] == "expense" else INCOME
+                sub = self.state.account_name(t["account"])
+            else:
+                day, title = item["end"], item["card_name"]
+                amount, color, sub = "−" + fmt_money(item["pending_amount"]), EXPENSE, "Kart ekstresi"
+            overdue = day < date.today().isoformat()
+            rows.append(ft.Row([
+                ft.Container(
+                    ft.Column([ft.Text(day[8:10], size=15, weight=ft.FontWeight.W_700),
+                               ft.Text(MONTHS[int(day[5:7]) - 1][:3].upper(), size=10, weight=ft.FontWeight.W_600)],
+                              spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                              alignment=ft.MainAxisAlignment.CENTER),
+                    width=44, height=44, border_radius=14, alignment=ft.Alignment.CENTER,
+                    bgcolor=ft.Colors.ERROR_CONTAINER if overdue else ft.Colors.PRIMARY_CONTAINER),
+                ft.Column([ft.Text(title, size=14, weight=ft.FontWeight.W_500, max_lines=1,
+                                   overflow=ft.TextOverflow.ELLIPSIS),
+                           muted(("Gecikti · " if overdue else "") + sub)], spacing=2, expand=True),
+                ft.Text(amount, size=14, weight=ft.FontWeight.W_600, color=color),
+            ], spacing=12))
+        body = rows or [muted("Önümüzdeki 30 günde bekleyen ödeme yok.")]
+        return card(ft.Column([section("Yaklaşan ödemeler (30 gün)"), *body], spacing=12))
+
+    def _accounts(self, s):
+        rows = [ft.Row([ft.Text(a["name"], size=14, expand=True), ft.Text(fmt_money(a["balance"]), size=14,
+                                                                          weight=ft.FontWeight.W_600)])
+                for a in s["accounts"]]
+        body = rows or [muted("Henüz hesap yok. + > Hesap ekle ile açılış bakiyesiyle ekleyin.")]
+        if s["card_cycles"]:
+            body.append(muted("Kart harcamaları bu ay ekstre dönemine göre sayılır: " + ", ".join(
+                f"{c['name']} {c['start'][8:10]}.{c['start'][5:7]}–{c['end'][8:10]}.{c['end'][5:7]}" for c in s["card_cycles"])))
+        return card(ft.Column([section("Hesaplar"), *body], spacing=10))

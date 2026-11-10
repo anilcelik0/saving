@@ -73,44 +73,49 @@ class StatementsScreen:
         await self.refresh()
 
     def _upload_dialog(self):
-        page = self.page
-        accounts = account_options(self.state)
-        if not accounts:
-            toast(page, "Önce Diğer > Hesaplar bölümünden bir hesap ekleyin.", error=True)
+        upload_dialog(self.state, self.picker, self.refresh)
+
+
+def upload_dialog(state, picker: ft.FilePicker, on_done):
+    """Choose account + file, upload, then open the preview. Used by the statements list and the + menu."""
+    page = state.page
+    accounts = account_options(state)
+    if not accounts:
+        toast(page, "Önce Diğer > Hesaplar bölümünden bir hesap ekleyin.", error=True)
+        return
+    account = dropdown("Hangi hesaba aktarılsın?", accounts, accounts[0][0])
+    hint = ft.Text("Kart ekstresindeki harcamalar, kartın bağlı olduğu banka hesabına gider olarak eklenir.",
+                   size=12, color=ft.Colors.GREY_700)
+    history_only = ft.Checkbox(
+        label="Bu ekstre bakiyeden düşülmesin (eski ekstre, sadece rapor için)", value=False,
+    )
+
+    async def pick_and_upload():
+        files = await picker.pick_files(
+            dialog_title="Ekstre seç", file_type=ft.FilePickerFileType.CUSTOM,
+            allowed_extensions=["pdf", "xlsx"], with_data=True,
+        )
+        if not files:
             return
-        account = dropdown("Hangi hesaba aktarılsın?", accounts, accounts[0][0])
-        hint = ft.Text("Kart ekstresindeki harcamalar, kartın bağlı olduğu banka hesabına gider olarak eklenir.",
-                       size=12, color=ft.Colors.GREY_700)
-        history_only = ft.Checkbox(
-            label="Bu ekstre bakiyeden düşülmesin (eski ekstre, sadece rapor için)", value=False,
+        f = files[0]
+        if not f.bytes:
+            raise FormError("Dosya okunamadı.")
+        page.pop_dialog()
+        statement = await state.budget.statements.upload(
+            account.value, f.name, f.bytes, exclude_from_balance=bool(history_only.value)
         )
+        state.router.push(StatementReview(state, statement["id"], on_done=on_done).view)
 
-        async def pick_and_upload():
-            files = await self.picker.pick_files(
-                dialog_title="Ekstre seç", file_type=ft.FilePickerFileType.CUSTOM,
-                allowed_extensions=["pdf", "xlsx"], with_data=True,
-            )
-            if not files:
-                return
-            f = files[0]
-            if not f.bytes:
-                raise FormError("Dosya okunamadı.")
-            page.pop_dialog()
-            statement = await self.state.budget.statements.upload(
-                account.value, f.name, f.bytes, exclude_from_balance=bool(history_only.value)
-            )
-            self.state.router.push(StatementReview(self.state, statement["id"], on_done=self.refresh).view)
-
-        page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text("Ekstre yükle"),
-                content=ft.Column([account, hint, history_only], tight=True),
-                actions=[
-                    ft.TextButton("Vazgeç", on_click=lambda e: page.pop_dialog()),
-                    ft.FilledButton("Dosya seç", on_click=guarded(page, pick_and_upload)),
-                ],
-            )
+    page.show_dialog(
+        ft.AlertDialog(
+            title=ft.Text("Ekstre yükle"),
+            content=ft.Column([account, hint, history_only], tight=True),
+            actions=[
+                ft.TextButton("Vazgeç", on_click=lambda e: page.pop_dialog()),
+                ft.FilledButton("Dosya seç", on_click=guarded(page, pick_and_upload)),
+            ],
         )
+    )
 
 
 class StatementReview:

@@ -186,10 +186,17 @@ Decisions (2026-11-10): all four reports; period = end month + 1/3/6/12 months, 
       against live API with stub page
 - Known: net worth uses account opening balance at every month (no opening date), so long-range % change can be large
 
-## Phase 5: Mobile finalization (per-phase mobile work is done inside each phase)
-- [ ] Secure token storage (SharedPreferences is not encrypted)
-- [ ] Android build (`flet build apk`), cleartext HTTP / real-device API URL config
-- [ ] Visual design pass (last)
+## Phase 5: Mobile finalization 🔄
+Design decisions (2026-11-10): direction A "calm & airy" (canvas: https://claude.ai/artifact/CjZ1b3xTJdqjCq6tpgVuA1),
+light/dark following the phone, Inter, teal accent; one central + button with all add actions; home shows balance +
+projection, spending ring, 6-month income/expense bars, net worth line, upcoming payments. Charts drawn with
+`flet.canvas`/containers (no extra package).
+- [x] Step 1: `screens/theme.py` (light/dark color schemes, card/section/stat, donut, grouped bars, line chart),
+      shell with bottom bar + central + (add menu: entry, statement upload, gold/currency buy, deposit, account),
+      new Özet screen; checked against live API with stub page
+- [ ] Step 2: restyle Hareketler, Yatırımlar, Diğer, reports and forms in the same style (remove per-tab FABs)
+- [ ] Step 3: secure token storage (SharedPreferences is not encrypted)
+- [ ] Step 4: Android build (`flet build apk`), bundle Inter font as asset, cleartext HTTP / real-device API URL
 
 ---
 
