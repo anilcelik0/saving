@@ -110,7 +110,9 @@ class SummaryTab:
                         size=12, color=on),
                 bgcolor=ft.Colors.with_opacity(0.18, ft.Colors.BLACK), border_radius=10,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=6)))
-        return card(ft.Column(lines, spacing=6), padding=20, bgcolor=ft.Colors.PRIMARY, radius=22)
+        hero = card(ft.Column(lines, spacing=6), padding=20, bgcolor=ft.Colors.PRIMARY, radius=22)
+        hero.expand = True
+        return ft.Row([hero])  # full width
 
     def _open_report(self, factory):
         from . import reports
