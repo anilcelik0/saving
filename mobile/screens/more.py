@@ -4,6 +4,7 @@ from .autopay import AutoPaymentsScreen
 from .choices import ACCOUNT_TYPES, KINDS, label
 from .reports import ReportsScreen
 from .statements import StatementsScreen
+from .theme import EXPENSE, MUTED, card, grouped, icon_badge, muted, section
 from .ui import (
     FormError, confirm, dropdown, empty_text, fmt_money, form_view, guarded, int_field, money_input_value,
     parse_int, parse_money, text_field,
@@ -16,33 +17,52 @@ class MoreTab:
     def __init__(self, state):
         self.state = state
         self.page = state.page
-        self.user_text = ft.Text()
         self.fab = None
+        self.avatar = ft.Text(size=18, weight=ft.FontWeight.W_700, color=ft.Colors.ON_PRIMARY)
+        self.user_name = ft.Text(size=16, weight=ft.FontWeight.W_600)
+        self.user_email = muted("", size=13)
+        push = self._push
+
+        def item(icon, color, title, on_click, subtitle=None):
+            return ft.ListTile(leading=icon_badge(icon, color, size=36), title=ft.Text(title, weight=ft.FontWeight.W_500),
+                               subtitle=muted(subtitle) if subtitle else None,
+                               trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT, color=MUTED), on_click=on_click)
+
         self.control = ft.ListView(
             [
-                ft.Container(self.user_text, padding=16),
-                ft.ListTile(leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE), title=ft.Text("Hesaplar"),
-                            on_click=lambda e: self._push(AccountsScreen(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.INSIGHTS), title=ft.Text("Raporlar"),
-                            subtitle=ft.Text("Kategori dağılımı, aylık trend, net varlık, portföy geçmişi"),
-                            on_click=lambda e: self._push(ReportsScreen(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.AUTORENEW), title=ft.Text("Otomatik ödemelerim"),
-                            subtitle=ft.Text("Düzenli ve taksitli ödemeler"),
-                            on_click=lambda e: self._push(AutoPaymentsScreen(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.UPLOAD_FILE), title=ft.Text("Ekstreler"),
-                            subtitle=ft.Text("PDF/Excel hesap veya kart ekstresi yükle"),
-                            on_click=lambda e: self._push(StatementsScreen(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.CATEGORY), title=ft.Text("Kategoriler"),
-                            on_click=lambda e: self._push(CategoriesScreen(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.AUTO_FIX_HIGH), title=ft.Text("Öğrenilen kategoriler"),
-                            subtitle=ft.Text("İşyeri → kategori eşleştirmeleri (ekstrede otomatik uygulanır)"),
-                            on_click=lambda e: self._push(CategoryRulesScreen(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.PERSON), title=ft.Text("Profil"),
-                            on_click=lambda e: self._push(profile_form(state, on_saved=self.refresh))),
-                ft.ListTile(leading=ft.Icon(ft.Icons.LOGOUT), title=ft.Text("Çıkış yap"),
-                            on_click=lambda e: confirm(self.page, "Oturumunuz kapatılacak.", state.logout)),
+                card(ft.Row([
+                    ft.Container(self.avatar, width=48, height=48, border_radius=24, bgcolor=ft.Colors.PRIMARY,
+                                 alignment=ft.Alignment.CENTER),
+                    ft.Column([self.user_name, self.user_email], spacing=2, expand=True),
+                    ft.IconButton(ft.Icons.EDIT_OUTLINED, tooltip="Profili düzenle",
+                                  on_click=lambda e: push(profile_form(state, on_saved=self.refresh))),
+                ], spacing=14)),
+                section("Para"),
+                *grouped([
+                    item(ft.Icons.ACCOUNT_BALANCE, "#0F766E", "Hesaplar", lambda e: push(AccountsScreen(state).view),
+                         "Banka / nakit, kart kesim günü"),
+                    item(ft.Icons.AUTORENEW, "#0EA5E9", "Otomatik ödemelerim",
+                         lambda e: push(AutoPaymentsScreen(state).view), "Düzenli ve taksitli ödemeler"),
+                    item(ft.Icons.UPLOAD_FILE, "#1D4ED8", "Ekstreler", lambda e: push(StatementsScreen(state).view),
+                         "Yüklenen hesap / kart ekstreleri"),
+                    item(ft.Icons.INSIGHTS, "#7C3AED", "Raporlar", lambda e: push(ReportsScreen(state).view),
+                         "Kategori, trend, net varlık, portföy"),
+                ]),
+                section("Ayarlar"),
+                *grouped([
+                    item(ft.Icons.CATEGORY, "#D97706", "Kategoriler", lambda e: push(CategoriesScreen(state).view)),
+                    item(ft.Icons.AUTO_FIX_HIGH, "#DB2777", "Öğrenilen kategoriler",
+                         lambda e: push(CategoryRulesScreen(state).view), "İşyeri → kategori eşleştirmeleri"),
+                ]),
+                *grouped([
+                    ft.ListTile(leading=icon_badge(ft.Icons.LOGOUT, "#DC2626", size=36),
+                                title=ft.Text("Çıkış yap", color=EXPENSE, weight=ft.FontWeight.W_500),
+                                on_click=lambda e: confirm(self.page, "Oturumunuz kapatılacak.", state.logout)),
+                ]),
             ],
             expand=True,
+            spacing=12,
+            padding=ft.Padding.only(left=16, right=16, top=4, bottom=96),
         )
 
     def _push(self, view):
@@ -51,7 +71,10 @@ class MoreTab:
     async def refresh(self):
         u = self.state.user or {}
         full_name = " ".join(filter(None, [u.get("first_name"), u.get("last_name")]))
-        self.user_text.value = f"{full_name or u.get('username', '')}\n{u.get('email', '')}"
+        name = full_name or u.get("username", "")
+        self.avatar.value = (name[:1] or "?").upper()
+        self.user_name.value = name
+        self.user_email.value = u.get("email", "")
         self.page.update()
 
 
@@ -60,7 +83,7 @@ class AccountsScreen:
     def __init__(self, state):
         self.state = state
         self.page = state.page
-        self.list = ft.ListView(expand=True)
+        self.list = ft.ListView(expand=True, padding=16, spacing=12)
         self.view = ft.View(
             route="/accounts",
             appbar=ft.AppBar(title=ft.Text("Hesaplar")),
@@ -74,19 +97,21 @@ class AccountsScreen:
 
     async def _fetch(self):
         await self.state.load_refs()
-        self.list.controls = [
+        self.list.controls = grouped([
             ft.ListTile(
-                title=ft.Text(a["name"] + (" (arşiv)" if a["is_archived"] else "")),
+                leading=icon_badge(ft.Icons.ACCOUNT_BALANCE if a["account_type"] == "bank" else ft.Icons.PAYMENTS,
+                                   "#94A3B8" if a["is_archived"] else "#0F766E", size=36),
+                title=ft.Text(a["name"] + (" (arşiv)" if a["is_archived"] else ""), weight=ft.FontWeight.W_500),
                 subtitle=ft.Text(" · ".join(filter(None, [
                     label(ACCOUNT_TYPES, a["account_type"]),
                     a.get("card_name") or "",
                     f"kesim günü {a['statement_day']}" if a["statement_day"] else "",
                 ]))),
-                trailing=ft.Text(fmt_money(a["balance"])),
+                trailing=ft.Text(fmt_money(a["balance"]), weight=ft.FontWeight.W_600),
                 on_click=lambda e, a=a: self._open(a),
             )
             for a in self.state.accounts
-        ] or [empty_text("Henüz hesap yok.")]
+        ], empty_text("Henüz hesap yok."))
         self.page.update()
 
     def _open(self, account):
@@ -139,7 +164,7 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
         [name, account_type, opening, statement_day, card_name,
          ft.Text("Kart harcamaları aylık özette ekstre dönemine göre sayılır (ör. kesim 15 → 16 Ocak-15 Şubat "
                  "harcamaları Şubat'a). Kart ekstresi yüklenince boşsa otomatik doldurulur.",
-                 size=12, color=ft.Colors.GREY_700)] + ([archived] if is_edit else []),
+                 size=12, color=MUTED)] + ([archived] if is_edit else []),
         on_save=save, on_delete=delete if is_edit else None,
     )
 
@@ -149,7 +174,7 @@ class CategoriesScreen:
     def __init__(self, state):
         self.state = state
         self.page = state.page
-        self.list = ft.ListView(expand=True)
+        self.list = ft.ListView(expand=True, padding=16, spacing=12)
         self.view = ft.View(
             route="/categories",
             appbar=ft.AppBar(title=ft.Text("Kategoriler")),
@@ -165,15 +190,17 @@ class CategoriesScreen:
         await self.state.load_refs()
         controls = []
         for kind, kind_label in KINDS:
-            controls.append(ft.Container(ft.Text(kind_label, weight=ft.FontWeight.BOLD), padding=ft.Padding.only(left=16, top=12)))
-            controls += [
+            controls.append(section(kind_label))
+            controls += grouped([
                 ft.ListTile(
-                    title=ft.Text(c["name"] + (" (arşiv)" if c["is_archived"] else "")),
+                    title=ft.Text(c["name"] + (" (arşiv)" if c["is_archived"] else ""),
+                                  color=MUTED if c["is_archived"] else None),
+                    trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT, color=MUTED),
                     on_click=lambda e, c=c: self._open(c),
                 )
                 for c in self.state.categories
                 if c["kind"] == kind
-            ]
+            ])
         self.list.controls = controls
         self.page.update()
 
@@ -219,7 +246,7 @@ class CategoryRulesScreen:
     def __init__(self, state):
         self.state = state
         self.page = state.page
-        self.list = ft.ListView(expand=True)
+        self.list = ft.ListView(expand=True, padding=16, spacing=12)
         self.view = ft.View(route="/category-rules", appbar=ft.AppBar(title=ft.Text("Öğrenilen kategoriler")),
                             controls=[self.list])
         self.page.run_task(self.refresh)
@@ -229,16 +256,16 @@ class CategoryRulesScreen:
 
     async def _fetch(self):
         rules = await self.state.budget.category_rules.list()
-        self.list.controls = [
+        self.list.controls = grouped([
             ft.ListTile(
-                title=ft.Text(r["merchant_key"]),
+                title=ft.Text(r["merchant_key"], weight=ft.FontWeight.W_500),
                 subtitle=ft.Text(f"{r['category_name']} · {label(KINDS, r['kind'])} · {r['hits']} kez uygulandı"),
                 trailing=ft.IconButton(ft.Icons.DELETE_OUTLINE, on_click=lambda e, r=r: confirm(
                     self.page, f"'{r['merchant_key']}' eşleştirmesi silinecek.", lambda: self._delete(r))),
             )
             for r in rules
-        ] or [empty_text("Henüz öğrenilen eşleştirme yok. Ekstre önizlemesinde veya bir kayıtta kategori "
-                         "değiştirdiğinizde burada görünür.")]
+        ], empty_text("Henüz öğrenilen eşleştirme yok. Ekstre önizlemesinde veya bir kayıtta kategori "
+                         "değiştirdiğinizde burada görünür."))
         self.page.update()
 
     async def _delete(self, rule):

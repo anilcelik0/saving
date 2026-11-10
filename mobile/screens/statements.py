@@ -4,6 +4,7 @@ import flet as ft
 
 from .choices import label
 from .transactions import account_options, category_options
+from .theme import EXPENSE, INCOME, MUTED, grouped, icon_badge
 from .ui import FormError, confirm, dropdown, dropdown_value, empty_text, fmt_date, fmt_money, guarded, toast
 
 GENERIC_WARNING = "Bu banka için özel okuyucu yok, genel okuyucu kullanıldı. Satırları kontrol edin."
@@ -27,7 +28,7 @@ class StatementsScreen:
         self.state = state
         self.page = state.page
         self.picker = ft.FilePicker()
-        self.list = ft.ListView(expand=True)
+        self.list = ft.ListView(expand=True, padding=16, spacing=12)
         self.view = ft.View(
             route="/statements",
             appbar=ft.AppBar(title=ft.Text("Ekstreler")),
@@ -41,7 +42,7 @@ class StatementsScreen:
 
     async def _fetch(self):
         items = (await self.state.budget.statements.list(page_size=50))["results"]
-        self.list.controls = [self._tile(s) for s in items] or [
+        self.list.controls = grouped([self._tile(s) for s in items]) or [
             empty_text("Henüz ekstre yüklenmedi. PDF veya Excel hesap/kart ekstresi yükleyebilirsiniz.")
         ]
         self.page.update()
@@ -60,8 +61,10 @@ class StatementsScreen:
             parts.append(s["error"])
         parts.append(self.state.account_name(s["account"]))
         return ft.ListTile(
-            title=ft.Text(s["original_name"]),
-            subtitle=ft.Text(" · ".join(parts), color=ft.Colors.RED_700 if s["status"] == "failed" else None),
+            leading=icon_badge(ft.Icons.DESCRIPTION, "#DC2626" if s["status"] == "failed" else "#1D4ED8", size=36),
+            title=ft.Text(s["original_name"], weight=ft.FontWeight.W_500, max_lines=1,
+                          overflow=ft.TextOverflow.ELLIPSIS),
+            subtitle=ft.Text(" · ".join(parts), color=EXPENSE if s["status"] == "failed" else None),
             trailing=ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="Ekstre bilgilerini sil", on_click=lambda e: confirm(
                 self.page, "Ekstre kaydı ve satırları silinecek. Aktarılmış harcamalar kalır.",
                 lambda: self._delete(s))),
@@ -85,7 +88,7 @@ def upload_dialog(state, picker: ft.FilePicker, on_done):
         return
     account = dropdown("Hangi hesaba aktarılsın?", accounts, accounts[0][0])
     hint = ft.Text("Kart ekstresindeki harcamalar, kartın bağlı olduğu banka hesabına gider olarak eklenir.",
-                   size=12, color=ft.Colors.GREY_700)
+                   size=12, color=MUTED)
     history_only = ft.Checkbox(
         label="Bu ekstre bakiyeden düşülmesin (eski ekstre, sadece rapor için)", value=False,
     )
@@ -152,7 +155,7 @@ class StatementReview:
         s = self.statement
         if s["status"] == "failed":
             self.header.value = f"Ekstre okunamadı: {s['error']}"
-            self.header.color = ft.Colors.RED_700
+            self.header.color = EXPENSE
             self.page.update()
             return
         if s["status"] in ("pending", "parsing"):
@@ -198,7 +201,7 @@ class StatementReview:
             color = ft.Colors.BLUE_700
         elif line["action"] == "skip":
             notes.append(SKIP_REASONS.get(line["skip_reason"], "Aktarılmayacak"))
-            color = ft.Colors.GREY_600
+            color = MUTED
 
         checkbox = ft.Checkbox(
             value=line["action"] != "skip",
@@ -210,7 +213,7 @@ class StatementReview:
             title=ft.Text(line["description"]),
             subtitle=ft.Text(" · ".join(filter(None, notes)), color=color),
             trailing=ft.Text(("-" if is_expense else "+") + fmt_money(line["amount"]),
-                             color=ft.Colors.RED_700 if is_expense else ft.Colors.GREEN_700),
+                             color=EXPENSE if is_expense else INCOME),
             on_click=(lambda e: self._edit_dialog(line)) if editable and line["skip_reason"] != "duplicate" else None,
         )
 

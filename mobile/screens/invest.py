@@ -1,18 +1,22 @@
 """Investments: portfolio (gold/silver/currency holdings + time deposits), prices, purchases/reductions, deposits."""
 
+import asyncio
 from datetime import date, timedelta
 from decimal import Decimal
 
 import flet as ft
 
 from .choices import DEPOSIT_STATUSES, label
+from .theme import (
+    CHART, EXPENSE, INCOME, MUTED, asset_badge, card, donut, dot, grouped, icon_badge, muted, section,
+)
 from .transactions import account_options
 from .ui import (
     DateInput, FormError, confirm, dropdown, dropdown_value, empty_text, fmt_date, fmt_money, fmt_number, fmt_pct,
-    form_view, guarded, money_field, money_input_value, parse_decimal, parse_money, text_field, toast,
+    form_view, guarded, money_field, money_input_value, parse_decimal, parse_money, text_field,
 )
 
-GREEN, RED, GREY = ft.Colors.GREEN_700, ft.Colors.RED_700, ft.Colors.GREY_700
+GREEN, RED, GREY = INCOME, EXPENSE, MUTED
 
 
 def _signed_color(value):
@@ -23,11 +27,11 @@ def _signed_color(value):
 
 
 def _section(text):
-    return ft.Container(ft.Text(text, weight=ft.FontWeight.BOLD, size=16), padding=ft.Padding.only(top=12))
+    return ft.Container(ft.Text(text, weight=ft.FontWeight.W_600, size=16), padding=ft.Padding.only(top=8))
 
 
 def _line(text, value, bold=False, color=None):
-    weight = ft.FontWeight.BOLD if bold else None
+    weight = ft.FontWeight.W_700 if bold else None
     return ft.Row([ft.Text(text, weight=weight, expand=True), ft.Text(fmt_money(value), weight=weight, color=color)])
 
 
@@ -47,9 +51,14 @@ def _account_dropdown(state, label_text, none_text, value=None):
     return dropdown(label_text, account_options(state, value), value, with_none=True, none_text=none_text)
 
 
+def _value_column(value, sub, sub_color=None):
+    return ft.Column([ft.Text(value, weight=ft.FontWeight.W_600), ft.Text(sub, size=12, color=sub_color or GREY)],
+                     horizontal_alignment=ft.CrossAxisAlignment.END, spacing=0, tight=True)
+
+
 # ---------------------------------------------------------------- tab
 class InvestTab:
-    """Portfolio totals, holdings, active deposits and current prices."""
+    """Total value, allocation ring, holdings, active deposits and current prices (adding: central + menu)."""
 
     title = "Yatırımlar"
 
@@ -57,48 +66,75 @@ class InvestTab:
         self.state = state
         self.page = state.page
         self.assets = []
-        self.body = ft.Column(spacing=4)
-        self.control = ft.ListView([self.body], expand=True, padding=16)
-        self.fab = ft.FloatingActionButton(icon=ft.Icons.ADD, on_click=self._add_menu)
+        self.body = ft.Column(spacing=12)
+        self.control = ft.ListView([self.body], expand=True, padding=ft.Padding.only(left=16, right=16, bottom=96))
+        self.fab = None
 
     async def refresh(self):
         await guarded(self.page, self._fetch)()
 
     async def _fetch(self):
         invest = self.state.invest
-        p = await invest.portfolio()
-        self.assets = await invest.assets()
-        deposits = (await invest.deposits.list(status="active", page_size=100))["results"]
+        p, self.assets, deposits = await asyncio.gather(
+            invest.portfolio(), invest.assets(), invest.deposits.list(status="active", page_size=100))
+        deposits = deposits["results"]
         t = p["totals"]
 
-        rows = [
-            _line("Toplam yatırım değeri", t["total_value"], bold=True),
-            _detail("Altın/döviz güncel alış fiyatıyla, mevduat bugüne kadar işleyen faiziyle."),
-            _section("Varlıklarım"),
-        ]
+        rows = [self._hero(t), *self._allocation(p["items"], t)]
+        rows.append(_section("Varlıklarım"))
+        rows += grouped([self._position_tile(i) for i in p["items"]],
+                        card(muted("Henüz varlık yok. + > Altın / döviz ile alış ekleyin.")))
         if p["items"]:
-            rows += [self._position_tile(i) for i in p["items"]]
             gain = f"{fmt_money(t['assets_gain'])} ({fmt_pct(t['assets_gain_pct'])})"
-            rows += [_line("Varlıklar toplamı", t["assets_value"], bold=True),
-                     _detail(f"Maliyet {fmt_money(t['assets_cost'])} · Fark {gain}", _signed_color(t["assets_gain"]))]
-        else:
-            rows.append(empty_text("Henüz varlık yok. + ile alış ekleyin."))
+            rows.append(_detail(f"Maliyet {fmt_money(t['assets_cost'])} · Fark {gain}", _signed_color(t["assets_gain"])))
 
-        rows.append(_section("Vadeli mevduat"))
+        rows.append(section("Vadeli mevduat", "Geçmiş",
+                            lambda e: self.state.router.push(DepositHistoryView(self.state, self.refresh).view)))
+        rows += grouped([deposit_tile(self.state, d, self.refresh) for d in deposits],
+                        card(muted("Aktif vadeli mevduat yok. + > Vadeli mevduat ile ekleyin.")))
         if deposits:
-            rows += [deposit_tile(self.state, d, self.refresh) for d in deposits]
-            rows += [_line("Mevduat (bugünkü değer)", t["deposits_value"], bold=True),
-                     _detail(f"Anapara {fmt_money(t['deposits_principal'])} · "
-                             f"Vade sonu toplamı {fmt_money(t['deposits_at_maturity'])}")]
-        else:
-            rows.append(empty_text("Aktif vadeli mevduat yok."))
-        rows.append(ft.TextButton("Geçmiş mevduatlar",
-                                  on_click=lambda e: self.state.router.push(DepositHistoryView(self.state, self.refresh).view)))
+            rows.append(_detail(f"Anapara {fmt_money(t['deposits_principal'])} · "
+                                f"Vade sonu toplamı {fmt_money(t['deposits_at_maturity'])}"))
 
         rows.append(_section("Güncel fiyatlar"))
-        rows += [self._price_tile(a) for a in self.assets]
+        rows += grouped([self._price_tile(a) for a in self.assets])
         self.body.controls = rows
         self.page.update()
+
+    @staticmethod
+    def _hero(t):
+        on = ft.Colors.ON_PRIMARY
+        gain = Decimal(t["assets_gain"])
+        hero = card(ft.Column([
+            ft.Text("Toplam yatırım değeri", size=13, color=on, opacity=0.85),
+            ft.Text(fmt_money(t["total_value"]), size=30, weight=ft.FontWeight.W_700, color=on),
+            ft.Text(f"Altın/döviz {fmt_money(t['assets_value'])} · Mevduat {fmt_money(t['deposits_value'])}",
+                    size=13, color=on, opacity=0.85),
+            ft.Text(("▲ " if gain >= 0 else "▼ ") + f"{fmt_money(abs(gain))} ({fmt_pct(t['assets_gain_pct'])}) "
+                    "maliyete göre", size=12, color=on, opacity=0.85),
+        ], spacing=6), padding=20, bgcolor=ft.Colors.PRIMARY, radius=22)
+        hero.expand = True
+        return ft.Row([hero])
+
+    @staticmethod
+    def _allocation(items, t):
+        parts = [(i["asset"]["name"], Decimal(i["value"] or i["cost"])) for i in items]
+        if Decimal(t["deposits_value"]):
+            parts.append(("Vadeli mevduat", Decimal(t["deposits_value"])))
+        total = sum((v for _, v in parts), Decimal(0))
+        if not total:
+            return []
+        colors = [CHART[i % (len(CHART) - 1)] for i in range(len(parts))]
+        legend = ft.Column([
+            ft.Row([dot(c), ft.Text(name, size=13, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                    ft.Text(f"%{fmt_number(value / total * 100, 0)}", size=13, weight=ft.FontWeight.W_600)], spacing=8)
+            for (name, value), c in zip(parts, colors)
+        ], spacing=8, expand=True)
+        ring = donut([(float(v), c) for (_, v), c in zip(parts, colors)], center_top="dağılım",
+                     center_bottom=f"{len(parts)} kalem")
+        return [card(ft.Column([section("Dağılım"), ft.Row([ring, legend], spacing=16,
+                                                           vertical_alignment=ft.CrossAxisAlignment.CENTER)],
+                               spacing=10))]
 
     def _open_asset(self, code):
         asset = next(a for a in self.assets if a["code"] == code)
@@ -106,50 +142,27 @@ class InvestTab:
 
     def _position_tile(self, item):
         asset = item["asset"]
-        parts = [_qty(item["quantity"], asset), f"ort. maliyet {_price(item['average_cost'])}"]
-        if item["price"]:
-            parts.append(f"fiyat {_price(item['price'])} ({fmt_date(item['price_date'])})")
-        else:
-            parts.append("fiyat yok, maliyetle sayılıyor")
-        trailing = ft.Column(
-            [ft.Text(fmt_money(item["value"] or item["cost"]), weight=ft.FontWeight.BOLD),
-             ft.Text(fmt_pct(item["gain_pct"]), size=12, color=_signed_color(item["gain"]))],
-            horizontal_alignment=ft.CrossAxisAlignment.END, spacing=0, tight=True,
+        sub = f"{_qty(item['quantity'], asset)} · ort. {_price(item['average_cost'])}"
+        if not item["price"]:
+            sub += " · fiyat yok"
+        return ft.ListTile(
+            leading=asset_badge(asset), title=ft.Text(asset["name"], weight=ft.FontWeight.W_500),
+            subtitle=ft.Text(sub, color=GREY),
+            trailing=_value_column(fmt_money(item["value"] or item["cost"]), fmt_pct(item["gain_pct"]),
+                                   _signed_color(item["gain"])),
+            on_click=lambda e: self._open_asset(asset["code"]),
         )
-        return ft.ListTile(title=ft.Text(asset["name"]), subtitle=ft.Text(" · ".join(parts)), trailing=trailing,
-                           on_click=lambda e: self._open_asset(asset["code"]))
 
     def _price_tile(self, a):
         price = a["price"]
-        subtitle = (f"Alış {_price(price['buy'])} · Satış {_price(price['sell'])} · {fmt_date(price['date'])}"
-                    if price else "Henüz fiyat alınmadı")
+        sub = f"Satış {_price(price['sell'])} · {fmt_date(price['date'])}" if price else "Henüz fiyat alınmadı"
         return ft.ListTile(
-            title=ft.Text(a["name"]), subtitle=ft.Text(subtitle, size=12),
-            trailing=ft.Text(fmt_pct(a["change_pct"]), color=_signed_color(a["change_pct"])),
-            on_click=lambda e: self._open_asset(a["code"]), dense=True,
+            leading=asset_badge(a, size=36), title=ft.Text(a["name"], weight=ft.FontWeight.W_500),
+            subtitle=ft.Text(sub, size=12, color=GREY),
+            trailing=_value_column(_price(price["buy"]) if price else "—", fmt_pct(a["change_pct"]),
+                                   _signed_color(a["change_pct"])),
+            on_click=lambda e: self._open_asset(a["code"]),
         )
-
-    def _add_menu(self, e):
-        def pick(handler):
-            def run(ev):
-                self.page.pop_dialog()
-                handler()
-            return run
-
-        def buy():
-            if not self.assets:
-                toast(self.page, "Varlık listesi yüklenemedi.", error=True)
-                return
-            self.state.router.push(trade_form(self.state, self.assets, None, "buy", None, self.refresh))
-
-        self.page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Ne eklemek istersiniz?"),
-            content=ft.Column([
-                ft.ListTile(leading=ft.Icon(ft.Icons.SAVINGS), title=ft.Text("Altın / döviz alışı"), on_click=pick(buy)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE), title=ft.Text("Vadeli mevduat"),
-                            on_click=pick(lambda: self.state.router.push(deposit_form(self.state, None, self.refresh)))),
-            ], tight=True),
-        ))
 
 
 # ---------------------------------------------------------------- asset detail + trades
@@ -162,7 +175,7 @@ class AssetView:
         self.asset = asset
         self.on_changed = on_changed
         self.held = Decimal(0)
-        self.header = ft.Column(spacing=2)
+        self.header = ft.Column(spacing=4)
         self.list = ft.Column(spacing=0)
         self.reduce_button = ft.OutlinedButton("Azalt", icon=ft.Icons.REMOVE,
                                                on_click=lambda e: self._open_form("reduce", None))
@@ -170,12 +183,13 @@ class AssetView:
             route="/asset",
             appbar=ft.AppBar(title=ft.Text(asset["name"])),
             controls=[ft.ListView([
-                self.header,
+                card(ft.Row([asset_badge(asset, size=48), self.header], spacing=14,
+                            vertical_alignment=ft.CrossAxisAlignment.START)),
                 ft.Row([ft.FilledButton("Alış ekle", icon=ft.Icons.ADD, on_click=lambda e: self._open_form("buy", None)),
                         self.reduce_button], wrap=True),
                 _section("İşlemler"),
                 self.list,
-            ], expand=True, padding=16)],
+            ], expand=True, padding=16, spacing=12)],
             padding=0,
         )
         self.page.run_task(self.refresh)
@@ -192,7 +206,7 @@ class AssetView:
         self.held = Decimal(item["quantity"]) if item else Decimal(0)
         self.reduce_button.disabled = self.held <= 0
 
-        rows = [ft.Text(f"Elimdeki: {_qty(self.held, a)}", weight=ft.FontWeight.BOLD)]
+        rows = [ft.Text(f"Elimdeki: {_qty(self.held, a)}", size=18, weight=ft.FontWeight.W_700)]
         if item:
             rows += [_detail(f"Ortalama maliyet {_price(item['average_cost'])} · Maliyet {fmt_money(item['cost'])}"),
                      _detail(f"Bugünkü değer {fmt_money(item['value'] or item['cost'])} · Fark {fmt_money(item['gain'] or 0)} "
@@ -205,7 +219,7 @@ class AssetView:
             rows.append(_detail(f"Son 30 gün alış fiyatı: en düşük {_price(min(buys))} · en yüksek {_price(max(buys))} "
                                 f"({len(history)} gün)"))
         self.header.controls = rows
-        self.list.controls = [self._trade_tile(t) for t in trades] or [empty_text("Henüz işlem yok.")]
+        self.list.controls = grouped([self._trade_tile(t) for t in trades], card(muted("Henüz işlem yok.")))
         self.page.update()
 
     def _trade_tile(self, t):
@@ -331,9 +345,9 @@ def deposit_tile(state, d, on_changed) -> ft.ListTile:
         parts.append(label(DEPOSIT_STATUSES, d["status"]))
     value = d["current_value"] if d["status"] == "active" else (d["close_amount"] or d["maturity_amount"])
     return ft.ListTile(
-        leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE, color=color),
-        title=ft.Text(d["name"]), subtitle=ft.Text(" · ".join(parts), color=color),
-        trailing=ft.Text(fmt_money(value)),
+        leading=icon_badge(ft.Icons.ACCOUNT_BALANCE, "#DC2626" if color else "#6D28D9"),
+        title=ft.Text(d["name"], weight=ft.FontWeight.W_500), subtitle=ft.Text(" · ".join(parts), color=color or GREY),
+        trailing=ft.Text(fmt_money(value), weight=ft.FontWeight.W_600),
         on_click=lambda e: state.router.push(DepositView(state, d, on_changed).view),
     )
 
@@ -389,7 +403,8 @@ class DepositView:
                 ft.Icons.DELETE, on_click=lambda e: confirm(
                     self.page, "Mevduat silinecek. Bütçeye yazılan açılış/kapanış kayıtları da silinir.", self._delete))]),
             controls=[ft.ListView([
-                *[ft.Row([ft.Text(k, expand=True, color=GREY), ft.Text(v, weight=ft.FontWeight.BOLD)]) for k, v in lines],
+                card(ft.Column([ft.Row([ft.Text(k, expand=True, color=GREY), ft.Text(v, weight=ft.FontWeight.W_600)])
+                                for k, v in lines], spacing=10)),
                 _detail(info, RED) if info else ft.Container(),
                 ft.Row(buttons, wrap=True),
             ], expand=True, padding=16, spacing=8)],
@@ -502,9 +517,9 @@ class DepositHistoryView:
         self.state = state
         self.page = state.page
         self.on_changed = on_changed
-        self.list = ft.ListView(expand=True)
+        self.list = ft.ListView(expand=True, padding=16)
         self.view = ft.View(route="/deposit-history", appbar=ft.AppBar(title=ft.Text("Geçmiş mevduatlar")),
-                            controls=[self.list], padding=8)
+                            controls=[self.list], padding=0)
         self.page.run_task(self.refresh)
 
     async def refresh(self):
@@ -513,7 +528,7 @@ class DepositHistoryView:
     async def _fetch(self):
         rows = (await self.state.invest.deposits.list(status="renewed,closed", page_size=100))["results"]
         rows.sort(key=lambda d: d["maturity_date"], reverse=True)
-        self.list.controls = [deposit_tile(self.state, d, self._changed) for d in rows] or [empty_text("Kayıt yok.")]
+        self.list.controls = grouped([deposit_tile(self.state, d, self._changed) for d in rows], empty_text("Kayıt yok."))
         self.page.update()
 
     async def _changed(self):

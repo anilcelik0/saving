@@ -2,7 +2,8 @@ import flet as ft
 
 from .choices import FREQUENCIES, label
 from .transactions import open_entry_form
-from .ui import empty_text, fmt_date, fmt_money, guarded, toast
+from .theme import EXPENSE, INCOME, MUTED, card, grouped, icon_badge, muted
+from .ui import fmt_date, fmt_money, guarded, toast
 
 
 class AutoPaymentsScreen:
@@ -15,22 +16,19 @@ class AutoPaymentsScreen:
     def __init__(self, state):
         self.state = state
         self.page = state.page
-        self.list = ft.ListView(expand=True)
+        self.list = ft.Column(spacing=0)
         self.view = ft.View(
             route="/auto-payments",
             appbar=ft.AppBar(title=ft.Text("Otomatik ödemelerim")),
             floating_action_button=ft.FloatingActionButton(
                 icon=ft.Icons.ADD, on_click=lambda e: open_entry_form(state, None, self.refresh, repeat="recurring")
             ),
-            controls=[
-                ft.Container(
-                    ft.Text("Günü gelen otomatik ödemeler hesaba kendiliğinden işlenir. Düzenlerken "
-                            "'Bu ve sonraki bekleyenler'i seçerseniz plan tümüyle güncellenir.",
-                            size=12, color=ft.Colors.GREY_700),
-                    padding=ft.Padding.symmetric(horizontal=16),
-                ),
+            controls=[ft.ListView([
+                muted("Günü gelen otomatik ödemeler hesaba kendiliğinden işlenir. Düzenlerken "
+                      "'Bu ve sonraki bekleyenler'i seçerseniz plan tümüyle güncellenir."),
                 self.list,
-            ],
+            ], expand=True, padding=16, spacing=12)],
+            padding=0,
         )
         self.page.run_task(self.refresh)
 
@@ -39,9 +37,8 @@ class AutoPaymentsScreen:
 
     async def _fetch(self):
         plans = await self.state.budget.series()
-        self.list.controls = [self._tile(p) for p in plans] or [
-            empty_text("Düzenli veya taksitli ödeme yok. + ile ekleyebilirsiniz.")
-        ]
+        self.list.controls = grouped([self._tile(p) for p in plans],
+                                     card(muted("Düzenli veya taksitli ödeme yok. + ile ekleyebilirsiniz.")))
         self.page.update()
 
     def _tile(self, p):
@@ -54,12 +51,14 @@ class AutoPaymentsScreen:
         parts = [plan, "Otomatik" if p["auto_pay"] else "Manuel", where]
         if nxt:
             parts.insert(0, f"Sıradaki: {fmt_date(nxt['date'])}")
-        sign = "+" if p["kind"] == "income" else "-"
+        sign = "+" if p["kind"] == "income" else "−"
         return ft.ListTile(
-            leading=ft.Icon(ft.Icons.AUTORENEW if p["auto_pay"] else ft.Icons.EVENT_REPEAT),
-            title=ft.Text(p["description"]),
-            subtitle=ft.Text(" · ".join(parts)),
-            trailing=ft.Text(sign + fmt_money(nxt["amount"] if nxt else p["amount"])),
+            leading=icon_badge(ft.Icons.AUTORENEW if p["auto_pay"] else ft.Icons.EVENT_REPEAT,
+                               "#0EA5E9" if p["auto_pay"] else "#64748B", size=36),
+            title=ft.Text(p["description"], weight=ft.FontWeight.W_500),
+            subtitle=ft.Text(" · ".join(parts), color=MUTED),
+            trailing=ft.Text(sign + fmt_money(nxt["amount"] if nxt else p["amount"]), weight=ft.FontWeight.W_600,
+                             color=INCOME if p["kind"] == "income" else EXPENSE),
             on_click=lambda e: self._open(p),
         )
 

@@ -6,10 +6,14 @@ from decimal import Decimal
 import flet as ft
 
 from .choices import KINDS, MONTHS
+from .theme import (
+    CARD, CHART, EXPENSE, EXPENSE_BAR, INCOME, INCOME_BAR, MUTED, LineChart, card, donut, dot, grouped,
+    grouped_bars, icon_badge,
+)
 from .transactions import transaction_tile
 from .ui import dropdown, empty_text, fmt_date, fmt_money, fmt_number, fmt_pct, guarded
 
-GREEN, RED, GREY = ft.Colors.GREEN_700, ft.Colors.RED_700, ft.Colors.GREY_700
+GREEN, RED, GREY = INCOME, EXPENSE, MUTED
 PERIODS = [("1", "Tek ay"), ("3", "Son 3 ay"), ("6", "Son 6 ay"), ("12", "Son 12 ay")]
 HISTORY_LENGTHS = [("6", "Son 6 ay"), ("12", "Son 12 ay"), ("24", "Son 24 ay")]
 
@@ -43,20 +47,20 @@ class ReportsScreen:
         self.view = ft.View(
             route="/reports",
             appbar=ft.AppBar(title=ft.Text("Raporlar")),
-            controls=[ft.ListView([
-                ft.ListTile(leading=ft.Icon(ft.Icons.PIE_CHART), title=ft.Text("Kategori dağılımı"),
+            controls=[ft.ListView(grouped([
+                ft.ListTile(leading=icon_badge(ft.Icons.PIE_CHART, "#0F766E", size=36), title=ft.Text("Kategori dağılımı"),
                             subtitle=ft.Text("Gider/gelir kategorilere göre, önceki döneme göre fark"),
                             on_click=lambda e: push(CategoryReport(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.SHOW_CHART), title=ft.Text("Aylık trend"),
+                ft.ListTile(leading=icon_badge(ft.Icons.BAR_CHART, "#D97706", size=36), title=ft.Text("Aylık trend"),
                             subtitle=ft.Text("Ay ay gelir, gider, birikim ve birikim oranı"),
                             on_click=lambda e: push(TrendReport(state).view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.ACCOUNT_BALANCE_WALLET), title=ft.Text("Net varlık"),
+                ft.ListTile(leading=icon_badge(ft.Icons.ACCOUNT_BALANCE_WALLET, "#1D4ED8", size=36), title=ft.Text("Net varlık"),
                             subtitle=ft.Text("Hesaplar + yatırımlar, ay sonları"),
                             on_click=lambda e: push(WealthReport(state, "net").view)),
-                ft.ListTile(leading=ft.Icon(ft.Icons.SAVINGS), title=ft.Text("Portföy değer geçmişi"),
+                ft.ListTile(leading=icon_badge(ft.Icons.SAVINGS, "#7C3AED", size=36), title=ft.Text("Portföy değer geçmişi"),
                             subtitle=ft.Text("Altın/döviz + mevduat değeri ve maliyete göre fark"),
                             on_click=lambda e: push(WealthReport(state, "portfolio").view)),
-            ], expand=True)],
+            ]), expand=True, padding=16)],
             padding=0,
         )
 
@@ -73,18 +77,20 @@ class _Report:
         today = date.today()
         self.year, self.month = today.year, today.month
         self.max_index = today.year * 12 + today.month - 1
-        self.month_label = ft.Text(weight=ft.FontWeight.BOLD)
+        self.month_label = ft.Text(weight=ft.FontWeight.W_600)
         self.next_button = ft.IconButton(ft.Icons.CHEVRON_RIGHT, on_click=lambda e: self._shift(1))
-        self.body = ft.Column(spacing=6)
+        self.body = ft.Column(spacing=12)
         self.view = ft.View(
             route=self.route,
             appbar=ft.AppBar(title=ft.Text(self.title)),
             controls=[ft.ListView([
-                ft.Row([ft.IconButton(ft.Icons.CHEVRON_LEFT, on_click=lambda e: self._shift(-1)), self.month_label,
+                ft.Row([ft.IconButton(ft.Icons.CHEVRON_LEFT, on_click=lambda e: self._shift(-1), tooltip="Önceki ay"),
+                        ft.Container(self.month_label, bgcolor=CARD, border_radius=999,
+                                     padding=ft.Padding.symmetric(horizontal=16, vertical=8)),
                         self.next_button], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row(options, wrap=True),
                 self.body,
-            ], expand=True, padding=16, spacing=8)],
+            ], expand=True, padding=16, spacing=12)],
             padding=0,
         )
         for control in options:
@@ -124,15 +130,23 @@ class CategoryReport(_Report):
         r = await self.state.reports.categories(self.kind.value, self.month_key, months)
         p, prev = r["period"], r["previous_period"]
         span = month_name(p["end_month"]) if months == 1 else f"{month_name(p['start_month'])} – {month_name(p['end_month'])}"
-        rows = [
+        head = [
             _row("Toplam", fmt_money(r["total"]), bold=True),
             _detail(f"{span} · önceki dönem ({month_name(prev['start_month'])}"
                     f"{'' if months == 1 else ' – ' + month_name(prev['end_month'])}) {fmt_money(r['previous_total'])}"
                     f" · fark {fmt_pct(r['change_pct'])}",
                     _color(r["change_pct"], good_when_positive=self.kind.value == "income")),
-            ft.Divider(),
         ]
-        rows += [self._tile(i, months) for i in r["items"]] or [empty_text("Bu dönemde kayıt yok.")]
+        active = [i for i in r["items"] if Decimal(i["amount"]) > 0]
+        if active:
+            head.append(ft.Row([donut([(float(i["amount"]), CHART[n % len(CHART)]) for n, i in enumerate(active)],
+                                      size=140, thickness=18, center_top="toplam",
+                                      center_bottom=fmt_money(r["total"]).replace(",00 ₺", " ₺"))],
+                               alignment=ft.MainAxisAlignment.CENTER))
+        self.colors = {i["category"]: CHART[n % len(CHART)] for n, i in enumerate(active)}
+        rows = [card(ft.Column(head, spacing=10))]
+        tiles = [self._tile(i, months) for i in r["items"]]
+        rows.append(card(ft.Column(tiles, spacing=6)) if tiles else empty_text("Bu dönemde kayıt yok."))
         self.body.controls = rows
         self.page.update()
 
@@ -142,9 +156,11 @@ class CategoryReport(_Report):
             else "önceki dönemde yok"
         return ft.Container(
             ft.Column([
-                ft.Row([ft.Text(item["name"], expand=True, weight=ft.FontWeight.W_500),
+                ft.Row([dot(self.colors.get(item["category"], MUTED)),
+                        ft.Text(item["name"], expand=True, weight=ft.FontWeight.W_500),
                         ft.Text(f"{fmt_money(item['amount'])} · %{fmt_number(share, 1)}")]),
-                ft.ProgressBar(value=float(share) / 100, bar_height=6),
+                ft.ProgressBar(value=float(share) / 100, bar_height=6, border_radius=3,
+                               color=self.colors.get(item["category"], MUTED), bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH),
                 _detail(f"{item['count']} kayıt · {change}",
                         _color(item["change_pct"], good_when_positive=self.kind.value == "income")),
             ], spacing=2),
@@ -162,9 +178,9 @@ class CategoryTransactions:
         self.state = state
         self.page = state.page
         self.args = (item["category"], kind, month, months)
-        self.list = ft.ListView(expand=True)
+        self.list = ft.ListView(expand=True, padding=16)
         self.view = ft.View(route="/report-category", appbar=ft.AppBar(title=ft.Text(item["name"])),
-                            controls=[self.list], padding=8)
+                            controls=[self.list], padding=0)
         self.page.run_task(self.refresh)
 
     async def refresh(self):
@@ -172,7 +188,7 @@ class CategoryTransactions:
 
     async def _fetch(self):
         rows = await self.state.reports.category_transactions(*self.args)
-        self.list.controls = [transaction_tile(self.state, t, self.refresh) for t in rows] or [empty_text("Kayıt yok.")]
+        self.list.controls = grouped([transaction_tile(self.state, t, self.refresh) for t in rows], empty_text("Kayıt yok."))
         self.page.update()
 
 
@@ -188,8 +204,8 @@ class TrendReport(_Report):
     async def _fetch(self):
         r = await self.state.reports.trend(self.month_key, int(self.length.value))
         a = r["averages"]
-        rows = [
-            ft.Text(f"Aylık ortalama ({a['months']} ay, kaydı olan aylar)", weight=ft.FontWeight.BOLD),
+        averages = [
+            ft.Text(f"Aylık ortalama ({a['months']} ay, kaydı olan aylar)", weight=ft.FontWeight.W_600),
             _row("Gelir", fmt_money(a["income"])),
             _row("Gider", fmt_money(a["expense"])),
             _row("Birikim", fmt_money(a["saving"]), color=_color(a["saving"])),
@@ -197,17 +213,27 @@ class TrendReport(_Report):
             _row("Yatırıma giden", fmt_money(a["investment_out"])),
             _detail("Birikim = gelir − gider; yatırım alışları/mevduat gider sayılmaz, "
                     "yatırımdan gelen TL ve mevduat kapanışları gelir sayılmaz."),
-            ft.Divider(),
+        ]
+        chart = [m for m in r["months"]][-12:]
+        rows = [
+            card(ft.Column([
+                grouped_bars([(MONTHS[int(m["month"][5:7]) - 1][:3], [float(m["income"]), float(m["expense"])])
+                              for m in chart], [INCOME_BAR, EXPENSE_BAR], bar_width=8 if len(chart) > 6 else 12),
+                ft.Row([ft.Row([dot(INCOME_BAR), _detail("Gelir")], spacing=6),
+                        ft.Row([dot(EXPENSE_BAR), _detail("Gider")], spacing=6)], spacing=14),
+            ], spacing=10)),
+            card(ft.Column(averages, spacing=6)),
         ]
         top = max((max(Decimal(m["income"]), Decimal(m["expense"])) for m in r["months"]), default=Decimal(0))
-        rows += [self._month(m, top) for m in reversed(r["months"])]
+        rows.append(card(ft.Column([self._month(m, top) for m in reversed(r["months"])], spacing=4)))
         self.body.controls = rows
         self.page.update()
 
     @staticmethod
     def _month(m, top):
         def bar(value, color):
-            return ft.ProgressBar(value=float(Decimal(value) / top) if top else 0, color=color, bar_height=6)
+            return ft.ProgressBar(value=float(Decimal(value) / top) if top else 0, color=color, bar_height=6,
+                                  border_radius=3, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH)
 
         extra = []
         if m["investment_out"] != "0.00":
@@ -217,8 +243,8 @@ class TrendReport(_Report):
         return ft.Container(ft.Column([
             _row(month_name(m["month"]), f"Birikim {fmt_money(m['saving'])} ({fmt_pct(m['saving_rate'])})", bold=True,
                  color=_color(m["saving"])),
-            _detail(f"Gelir {fmt_money(m['income'])}"), bar(m["income"], GREEN),
-            _detail(f"Gider {fmt_money(m['expense'])}" + (f" · {' · '.join(extra)}" if extra else "")), bar(m["expense"], RED),
+            _detail(f"Gelir {fmt_money(m['income'])}"), bar(m["income"], INCOME_BAR),
+            _detail(f"Gider {fmt_money(m['expense'])}" + (f" · {' · '.join(extra)}" if extra else "")), bar(m["expense"], EXPENSE_BAR),
         ], spacing=2), padding=ft.Padding.symmetric(vertical=6))
 
 
@@ -257,11 +283,16 @@ class WealthReport(_Report):
                 _detail(f"Maliyete göre fark {fmt_money(last['investments_gain'])} · dönem başından değişim "
                         f"{fmt_money(change)}", _color(last["investments_gain"])),
             ]
+        key = "net_worth" if self.mode == "net" else "investments"
+        if len(points) > 1:
+            rows += [LineChart([float(p[key]) for p in points], height=120),
+                     ft.Row([_detail(month_name(first["month"])), ft.Container(expand=True),
+                             _detail(month_name(last["month"]))])]
         if not all(p["priced"] for p in points):
             rows.append(_detail("* O tarihte kayıtlı fiyat olmayan aylarda varlıklar maliyetle sayıldı "
                                 "(fiyatlar uygulamada günlük kaydedilmeye başladığı tarihten itibaren var)."))
-        rows.append(ft.Divider())
-        rows += [self._point(p) for p in reversed(points)]
+        rows = [card(ft.Column(rows, spacing=8)),
+                card(ft.Column([self._point(p) for p in reversed(points)], spacing=4))]
         self.body.controls = rows
         self.page.update()
 

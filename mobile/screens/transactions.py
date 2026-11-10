@@ -3,6 +3,7 @@ from datetime import date
 import flet as ft
 
 from .choices import FREQUENCIES, KINDS, NONE, REPEATS
+from .theme import EXPENSE, INCOME, MUTED, kind_badge
 from .ui import (
     DateInput, FormError, ask_scope, dropdown, dropdown_value, fmt_date, fmt_money, form_view, guarded,
     int_field, money_field, parse_int, parse_money, text_field, toast,
@@ -26,7 +27,7 @@ def transaction_tile(state, t, on_changed) -> ft.ListTile:
 
     amount_text = ft.Text(
         ("-" if is_expense else "+") + fmt_money(t["amount"]),
-        color=ft.Colors.GREY_500 if cancelled else (ft.Colors.RED_700 if is_expense else ft.Colors.GREEN_700),
+        color=MUTED if cancelled else (EXPENSE if is_expense else INCOME), weight=ft.FontWeight.W_600,
     )
     if t["status"] == "pending" and not t["auto_pay"]:
         trailing = ft.Row(
@@ -37,9 +38,11 @@ def transaction_tile(state, t, on_changed) -> ft.ListTile:
     else:
         trailing = amount_text
 
-    subtitle_color = ft.Colors.RED_700 if t["is_overdue"] else (ft.Colors.GREY_500 if cancelled else None)
+    subtitle_color = EXPENSE if t["is_overdue"] else (MUTED if cancelled else MUTED)
     return ft.ListTile(
-        title=ft.Text(title, color=ft.Colors.GREY_500 if cancelled else None),
+        leading=kind_badge(t["kind"], card_spend=t.get("is_card", False), dimmed=cancelled),
+        title=ft.Text(title, color=MUTED if cancelled else None, weight=ft.FontWeight.W_500,
+                      max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
         subtitle=ft.Text(" · ".join(filter(None, details)), color=subtitle_color),
         trailing=trailing,
         on_click=lambda e: open_entry_form(state, t, on_changed),
@@ -233,7 +236,7 @@ def entry_form(state, txn: dict | None, on_saved, default_repeat="none") -> ft.V
         else:
             status_text = "Gecikti" if txn["is_overdue"] else "Bekliyor"
         header = [ft.Text(f"Durum: {status_text}" + (f" · Seri {txn['series_info']['label']}" if in_series else ""),
-                          color=ft.Colors.GREY_700)]
+                          color=MUTED)]
         buttons = []
         if status != "cancelled":
             buttons.append(ft.OutlinedButton(

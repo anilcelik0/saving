@@ -107,6 +107,44 @@ def icon_badge(icon, color, size=40) -> ft.Container:
                         border_radius=size * 0.32, bgcolor=color, alignment=ft.Alignment.CENTER)
 
 
+def grouped(rows: list, empty=None) -> list:
+    """Rows (ListTiles...) inside one card separated by hairlines; `empty` shown when there are none."""
+    if not rows:
+        return [empty] if empty is not None else []
+    items = []
+    for i, row in enumerate(rows):
+        if i:
+            items.append(ft.Divider(height=1, leading_indent=16, trailing_indent=16))
+        items.append(row)
+    return [card(ft.Column(items, spacing=0), padding=ft.Padding.symmetric(vertical=4))]
+
+
+def text_badge(text, color, size=40) -> ft.Container:
+    return ft.Container(ft.Text(text, size=size * 0.32, weight=ft.FontWeight.W_700, color=ft.Colors.WHITE),
+                        width=size, height=size, border_radius=size * 0.32, bgcolor=color,
+                        alignment=ft.Alignment.CENTER)
+
+
+ASSET_BADGES = {"currency": ("#0EA5E9", None), "gold": ("#D97706", "Au"), "silver": ("#64748B", "Ag")}
+CURRENCY_SYMBOLS = {"USD": "$", "EUR": "€"}
+
+
+def asset_badge(asset: dict, size=40) -> ft.Container:
+    color, text = ASSET_BADGES.get(asset.get("asset_type"), ("#64748B", None))
+    return text_badge(text or CURRENCY_SYMBOLS.get(asset["code"], asset["code"][:2]), color, size)
+
+
+def kind_badge(kind: str, card_spend=False, dimmed=False, size=40) -> ft.Container:
+    """Round badge for a money movement: income arrow, expense arrow or card."""
+    is_expense = kind == "expense"
+    icon = ft.Icons.CREDIT_CARD if card_spend else (ft.Icons.SOUTH_WEST if not is_expense else ft.Icons.NORTH_EAST)
+    color = MUTED if dimmed else (EXPENSE if is_expense else INCOME)
+    bg = ft.Colors.SURFACE_CONTAINER_HIGH if dimmed else (
+        ft.Colors.ERROR_CONTAINER if is_expense else ft.Colors.TERTIARY_CONTAINER)
+    return ft.Container(ft.Icon(icon, size=size * 0.5, color=color), width=size, height=size,
+                        border_radius=size / 2, bgcolor=bg, alignment=ft.Alignment.CENTER)
+
+
 def amount_color(value):
     number = Decimal(str(value or 0))
     return INCOME if number > 0 else EXPENSE if number < 0 else None

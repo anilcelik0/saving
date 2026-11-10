@@ -194,7 +194,9 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
 - [x] Step 1: `screens/theme.py` (light/dark color schemes, card/section/stat, donut, grouped bars, line chart),
       shell with bottom bar + central + (add menu: entry, statement upload, gold/currency buy, deposit, account),
       new Özet screen; checked against live API with stub page
-- [ ] Step 2: restyle Hareketler, Yatırımlar, Diğer, reports and forms in the same style (remove per-tab FABs)
+- [x] Step 2: Hareketler (badged rows in cards, month chip), Yatırımlar (value card, allocation ring, holdings/
+      deposits/prices with badges), Diğer (profile card, grouped menu), sub-screens and reports (ring, bars, line
+      charts) restyled; per-tab FABs removed; 15 screens opened against live API with stub page, no errors
 - [ ] Step 3: secure token storage (SharedPreferences is not encrypted)
 - [ ] Step 4: Android build (`flet build apk`), bundle Inter font as asset, cleartext HTTP / real-device API URL
 

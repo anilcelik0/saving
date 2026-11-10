@@ -189,7 +189,9 @@ flowchart TD
     LOGIN --> REG[Kayıt ol] --> HOME
     LOGIN --> HOME
 
-    HOME[Ana ekran] --> S[Özet<br/>ay seçimi · gelir/gider · bakiye · tahmin]
+    HOME[Ana ekran<br/>alt menü + ortada + butonu<br/>açık/koyu tema telefona uyar] --> S[Özet<br/>bakiye + tahmin · gelir/gider<br/>harcama halkası · 6 ay çubuk<br/>net varlık çizgisi · yaklaşan ödemeler]
+    HOME --> PLUS[+ menüsü<br/>gelir/gider · ekstre yükle<br/>altın/döviz · vadeli mevduat · hesap]
+    PLUS --> NEW
     HOME --> H[Hareketler]
     HOME --> D[Diğer]
 
@@ -197,7 +199,7 @@ flowchart TD
     HM --> HT[Kart dışı hareketler tek tek<br/>bekleyenlerde Öde butonu]
     HM --> HC["Kart dönemi satırı (hesap bazlı)<br/>Enpara Kredi Kartı · Ekstre 15.02<br/>toplam · Ödendi / Ödenmedi / Kısmen"]
     HC --> CYC[Dönem detayı<br/>harcamalar · Tümünü ödendi / ödenmedi]
-    H --> NEW[+ Yeni kayıt formu<br/>tek seferlik / düzenli / taksitli<br/>kredi kartıyla]
+    NEW[Yeni kayıt formu<br/>tek seferlik / düzenli / taksitli<br/>kredi kartıyla]
     HT --> EDIT[Kayıt düzenle<br/>Ödendi / geri al · İptal et / geri al<br/>kapsam: sadece bu / sonrakiler]
     CYC --> EDIT
 

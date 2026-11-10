@@ -9,6 +9,7 @@ import flet as ft
 from services.api_client import ApiError, SessionExpired
 
 from .choices import NONE
+from .theme import MUTED
 
 
 class FormError(Exception):
@@ -82,7 +83,7 @@ def money_input_value(value) -> str:
 
 # ---------- feedback ----------
 def toast(page: ft.Page, message: str, error=False):
-    page.show_dialog(ft.SnackBar(ft.Text(message), bgcolor=ft.Colors.RED_700 if error else None))
+    page.show_dialog(ft.SnackBar(ft.Text(message), bgcolor=ft.Colors.ERROR if error else None))
 
 
 def guarded(page: ft.Page, fn):
@@ -241,4 +242,4 @@ def form_view(state, route, title, controls, on_save, on_delete=None, delete_mes
 
 
 def empty_text(message: str) -> ft.Control:
-    return ft.Container(ft.Text(message, color=ft.Colors.GREY_600), padding=24)
+    return ft.Container(ft.Text(message, color=MUTED), padding=24)
