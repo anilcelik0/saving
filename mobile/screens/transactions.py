@@ -118,7 +118,10 @@ def entry_form(state, txn: dict | None, on_saved, default_repeat="none") -> ft.V
     category = dropdown(
         "Kategori", category_options(state, kind.value, txn.get("category")), txn.get("category"), with_none=True
     )
-    account = dropdown("Hesap", accounts, txn.get("account") or accounts[0][0])
+    preferred = state.settings.default_account if state.settings else None
+    if preferred not in {key for key, _ in accounts}:
+        preferred = accounts[0][0]
+    account = dropdown("Hesap", accounts, txn.get("account") or preferred)
     frequency = dropdown("Sıklık", FREQUENCIES, "monthly")
     end = DateInput(page, "Bitiş tarihi (boş = süresiz)", optional=True)
     installments = int_field("Taksit sayısı")

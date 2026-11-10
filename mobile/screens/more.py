@@ -3,6 +3,7 @@ import flet as ft
 from .autopay import AutoPaymentsScreen
 from .choices import ACCOUNT_TYPES, KINDS, label
 from .reports import ReportsScreen
+from .settings import settings_view
 from .statements import StatementsScreen
 from .theme import EXPENSE, MUTED, card, grouped, icon_badge, muted, section
 from .ui import (
@@ -50,6 +51,9 @@ class MoreTab:
                 ]),
                 section("Ayarlar"),
                 *grouped([
+                    item(ft.Icons.TUNE, "#475569", "Uygulama ayarları",
+                         lambda e: push(settings_view(state, self._settings_changed)),
+                         "Tema, varsayılan hesap, açılış ekranı"),
                     item(ft.Icons.CATEGORY, "#D97706", "Kategoriler", lambda e: push(CategoriesScreen(state).view)),
                     item(ft.Icons.AUTO_FIX_HIGH, "#DB2777", "Öğrenilen kategoriler",
                          lambda e: push(CategoryRulesScreen(state).view), "İşyeri → kategori eşleştirmeleri"),
@@ -67,6 +71,9 @@ class MoreTab:
 
     def _push(self, view):
         self.state.router.push(view)
+
+    async def _settings_changed(self):
+        """Home tabs read settings on refresh; nothing to rebuild here."""
 
     async def refresh(self):
         u = self.state.user or {}

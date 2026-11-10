@@ -66,11 +66,14 @@ def _theme(scheme: ft.ColorScheme) -> ft.Theme:
     )
 
 
-def apply_theme(page: ft.Page):
+THEME_MODES = {"system": ft.ThemeMode.SYSTEM, "light": ft.ThemeMode.LIGHT, "dark": ft.ThemeMode.DARK}
+
+
+def apply_theme(page: ft.Page, mode: str = "system"):
     page.fonts = {FONT: FONT_URL}
     page.theme = _theme(LIGHT)
     page.dark_theme = _theme(DARK)
-    page.theme_mode = ft.ThemeMode.SYSTEM
+    page.theme_mode = THEME_MODES.get(mode, ft.ThemeMode.SYSTEM)
     page.bgcolor = ft.Colors.SURFACE
 
 

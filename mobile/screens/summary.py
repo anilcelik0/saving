@@ -56,6 +56,10 @@ class SummaryTab:
         )
 
     @property
+    def upcoming_days(self) -> int:
+        return self.state.settings.upcoming_days if self.state.settings else 30
+
+    @property
     def month_key(self):
         return f"{self.year:04d}-{self.month:02d}"
 
@@ -63,6 +67,19 @@ class SummaryTab:
         index = self.year * 12 + self.month - 1 + delta
         self.year, self.month = index // 12, index % 12 + 1
         self.page.run_task(self.refresh)
+
+    @property
+    def hidden(self) -> bool:
+        return bool(self.state.settings and self.state.settings.hide_amounts)
+
+    def money(self, value, short=False) -> str:
+        if self.hidden:
+            return "•••• ₺"
+        return short_money(value) if short else fmt_money(value)
+
+    async def _toggle_hidden(self, e):
+        await self.state.settings.set("hide_amounts", "false" if self.hidden else "true")
+        await self.refresh()
 
     async def refresh(self):
         await guarded(self.page, self._fetch)()
@@ -76,15 +93,15 @@ class SummaryTab:
             reports.categories("expense", self.month_key, 1),
             reports.trend(report_month, 6),
             reports.wealth(report_month, 6),
-            budget.activity_upcoming(30),
+            budget.activity_upcoming(self.upcoming_days),
         )
         self.body.controls = [
             self._hero(s),
             ft.Row([
-                ft.Container(stat("Gelir", "+" + fmt_money(s["income"]), INCOME,
-                                  f"bekleyen {fmt_money(s['income_pending'])}"), expand=True),
-                ft.Container(stat("Gider", "−" + fmt_money(s["expense"]), EXPENSE,
-                                  f"bekleyen {fmt_money(s['expense_pending'])}"), expand=True),
+                ft.Container(stat("Gelir", "+" + self.money(s["income"]), INCOME,
+                                  f"bekleyen {self.money(s['income_pending'])}"), expand=True),
+                ft.Container(stat("Gider", "−" + self.money(s["expense"]), EXPENSE,
+                                  f"bekleyen {self.money(s['expense_pending'])}"), expand=True),
             ], spacing=12),
             self._spending(cats),
             self._trend(trend),
@@ -98,15 +115,18 @@ class SummaryTab:
     def _hero(self, s):
         on = ft.Colors.ON_PRIMARY
         lines = [
-            ft.Text("Toplam bakiye", size=13, color=on, opacity=0.85),
-            ft.Text(fmt_money(s["current_balance"]), size=32, weight=ft.FontWeight.W_700, color=on),
+            ft.Row([ft.Text("Toplam bakiye", size=13, color=on, opacity=0.85, expand=True),
+                    ft.IconButton(ft.Icons.VISIBILITY_OFF_OUTLINED if self.hidden else ft.Icons.VISIBILITY_OUTLINED,
+                                  icon_color=on, icon_size=20, tooltip="Tutarları göster" if self.hidden
+                                  else "Tutarları gizle", on_click=self._toggle_hidden)]),
+            ft.Text(self.money(s["current_balance"]), size=32, weight=ft.FontWeight.W_700, color=on),
         ]
         if s["projected_balance"] is not None:
-            lines.append(ft.Text(f"Ay sonu tahmini {fmt_money(s['projected_balance'])}", size=13, color=on, opacity=0.85))
+            lines.append(ft.Text(f"Ay sonu tahmini {self.money(s['projected_balance'])}", size=13, color=on, opacity=0.85))
         overdue = Decimal(s["overdue_expense"]) + Decimal(s["overdue_income"])
         if overdue:
             lines.append(ft.Container(
-                ft.Text(f"Geciken: gider {fmt_money(s['overdue_expense'])} · gelir {fmt_money(s['overdue_income'])}",
+                ft.Text(f"Geciken: gider {self.money(s['overdue_expense'])} · gelir {self.money(s['overdue_income'])}",
                         size=12, color=on),
                 bgcolor=ft.Colors.with_opacity(0.18, ft.Colors.BLACK), border_radius=10,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=6)))
@@ -136,7 +156,7 @@ class SummaryTab:
             for (name, _, share), color in zip(rows, colors)
         ], spacing=8, expand=True)
         ring = donut([(float(amount), color) for (_, amount, _), color in zip(rows, colors)],
-                     center_top="toplam", center_bottom=short_money(r["total"]))
+                     center_top="toplam", center_bottom=self.money(r["total"], short=True))
         return card(ft.Column([header, ft.Row([ring, legend], spacing=16,
                                               vertical_alignment=ft.CrossAxisAlignment.CENTER)], spacing=10))
 
@@ -160,8 +180,8 @@ class SummaryTab:
         change = Decimal(w["net_worth_change"])
         controls = [
             header,
-            ft.Row([ft.Text(fmt_money(last["net_worth"]), size=24, weight=ft.FontWeight.W_700),
-                    ft.Text(("▲ " if change >= 0 else "▼ ") + fmt_money(abs(change)), size=13,
+            ft.Row([ft.Text(self.money(last["net_worth"]), size=24, weight=ft.FontWeight.W_700),
+                    ft.Text(("▲ " if change >= 0 else "▼ ") + self.money(abs(change)), size=13,
                             weight=ft.FontWeight.W_600, color=amount_color(change))],
                    vertical_alignment=ft.CrossAxisAlignment.END, spacing=10),
         ]
@@ -169,7 +189,7 @@ class SummaryTab:
             controls += [LineChart([float(p["net_worth"]) for p in points]),
                          ft.Row([muted(month_short(points[0]["month"]), size=11), ft.Container(expand=True),
                                  muted(month_short(last["month"]), size=11)])]
-        controls.append(muted(f"Hesaplar {fmt_money(last['cash'])} · Yatırımlar {fmt_money(last['investments'])}"))
+        controls.append(muted(f"Hesaplar {self.money(last['cash'])} · Yatırımlar {self.money(last['investments'])}"))
         return card(ft.Column(controls, spacing=8))
 
     def _upcoming(self, items):
@@ -179,11 +199,11 @@ class SummaryTab:
                 t = item["transaction"]
                 day, title = t["date"], t["description"] or self.state.category_name(t["category"])
                 sign = "−" if t["kind"] == "expense" else "+"
-                amount, color = sign + fmt_money(t["amount"]), EXPENSE if t["kind"] == "expense" else INCOME
+                amount, color = sign + self.money(t["amount"]), EXPENSE if t["kind"] == "expense" else INCOME
                 sub = self.state.account_name(t["account"])
             else:
                 day, title = item["end"], item["card_name"]
-                amount, color, sub = "−" + fmt_money(item["pending_amount"]), EXPENSE, "Kart ekstresi"
+                amount, color, sub = "−" + self.money(item["pending_amount"]), EXPENSE, "Kart ekstresi"
             overdue = day < date.today().isoformat()
             rows.append(ft.Row([
                 ft.Container(
@@ -198,11 +218,11 @@ class SummaryTab:
                            muted(("Gecikti · " if overdue else "") + sub)], spacing=2, expand=True),
                 ft.Text(amount, size=14, weight=ft.FontWeight.W_600, color=color),
             ], spacing=12))
-        body = rows or [muted("Önümüzdeki 30 günde bekleyen ödeme yok.")]
-        return card(ft.Column([section("Yaklaşan ödemeler (30 gün)"), *body], spacing=12))
+        body = rows or [muted(f"Önümüzdeki {self.upcoming_days} günde bekleyen ödeme yok.")]
+        return card(ft.Column([section(f"Yaklaşan ödemeler ({self.upcoming_days} gün)"), *body], spacing=12))
 
     def _accounts(self, s):
-        rows = [ft.Row([ft.Text(a["name"], size=14, expand=True), ft.Text(fmt_money(a["balance"]), size=14,
+        rows = [ft.Row([ft.Text(a["name"], size=14, expand=True), ft.Text(self.money(a["balance"]), size=14,
                                                                           weight=ft.FontWeight.W_600)])
                 for a in s["accounts"]]
         body = rows or [muted("Henüz hesap yok. + > Hesap ekle ile açılış bakiyesiyle ekleyin.")]

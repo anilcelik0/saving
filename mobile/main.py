@@ -11,6 +11,7 @@ from services.auth_service import AuthService
 from services.budget_service import BudgetService
 from services.invest_service import InvestService
 from services.report_service import ReportService
+from services.settings_store import SettingsStore
 from services.token_store import TokenStore
 from state import AppState
 
@@ -34,12 +35,15 @@ def _ignore_connection_reset(loop):
 async def main(page: ft.Page):
     _ignore_connection_reset(asyncio.get_running_loop())
     page.title = "Saving"
-    apply_theme(page)
+    prefs = ft.SharedPreferences()
+    settings = SettingsStore(prefs)
+    await settings.load()
+    apply_theme(page, settings.theme)
 
-    tokens = TokenStore(ft.SharedPreferences())
+    tokens = TokenStore(prefs)
     await tokens.load()
 
-    state = AppState(page=page, router=Router(page))
+    state = AppState(page=page, router=Router(page), settings=settings)
     state.api = ApiClient(api_base_url(page.platform), tokens, on_session_expired=state.on_session_expired)
     state.auth = AuthService(state.api)
     state.budget = BudgetService(state.api)

@@ -7,6 +7,7 @@ from services.api_client import ApiClient, ApiError
 from services.auth_service import AuthService
 from services.budget_service import BudgetService
 from services.invest_service import InvestService
+from services.settings_store import SettingsStore
 from services.report_service import ReportService
 
 
@@ -21,6 +22,7 @@ class AppState:
     budget: BudgetService = None
     invest: InvestService = None
     reports: ReportService = None
+    settings: SettingsStore = None
     user: dict | None = None
     categories: list = field(default_factory=list)
     accounts: list = field(default_factory=list)

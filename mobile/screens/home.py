@@ -7,6 +7,8 @@ from .summary import SummaryTab
 from .theme import ACCENT, MUTED, icon_badge, muted
 from .ui import guarded, toast
 
+TILE_HEIGHT = 136
+
 NAV = [
     (ft.Icons.DASHBOARD_OUTLINED, ft.Icons.DASHBOARD, "Özet"),
     (ft.Icons.RECEIPT_LONG_OUTLINED, ft.Icons.RECEIPT_LONG, "Hareketler"),
@@ -44,7 +46,7 @@ class HomeScreen:
                 bgcolor=ft.Colors.SURFACE_CONTAINER_LOWEST, padding=ft.Padding.symmetric(horizontal=4), height=72,
             ),
         )
-        self.select(0, update=False)
+        self.select(state.settings.start_tab if state.settings else 0, update=False)
 
     def _nav_item(self, index):
         icon, _, label = NAV[index]
@@ -120,25 +122,28 @@ class HomeScreen:
                 ft.Column([icon_badge(icon, color), ft.Text(title, size=15, weight=ft.FontWeight.W_600),
                            muted(subtitle)], spacing=8),
                 bgcolor=ft.Colors.SURFACE_CONTAINER_LOW, border_radius=20, padding=16, expand=True, ink=True,
-                on_click=run(action),
+                height=TILE_HEIGHT, on_click=run(action),
             )
 
+        # Fixed tile heights: a bottom sheet sizes itself to its content, so nothing inside may "fill" vertically
+        # (stretch/expand in the vertical direction makes the height unbounded and the sheet fails to lay out).
         sheet = ft.BottomSheet(
             ft.Container(ft.Column([
                 ft.Row([ft.Text("Ne eklemek istersiniz?", size=18, weight=ft.FontWeight.W_700, expand=True),
                         ft.IconButton(ft.Icons.CLOSE, tooltip="Kapat", on_click=lambda e: page.pop_dialog())]),
                 ft.Row([
-                    tile(ft.Icons.SWAP_VERT, "#0F766E", "Gelir / gider", "Tek seferlik, düzenli veya taksitli", entry),
+                    tile(ft.Icons.SWAP_VERT, "#0F766E", "Gelir / gider", "Tek seferlik, düzenli, taksitli", entry),
                     tile(ft.Icons.UPLOAD_FILE, "#1D4ED8", "Ekstre yükle", "PDF / Excel, önizleyip aktar", statement),
-                ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
+                ], spacing=12),
                 ft.Row([
                     tile(ft.Icons.SAVINGS, "#B45309", "Altın / döviz", "Alış ekle", lambda: page.run_task(guarded(page, asset))),
-                    tile(ft.Icons.ACCOUNT_BALANCE, "#6D28D9", "Vadeli mevduat", "Faiz, vade, vade sonu tutarı", deposit),
-                ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
+                    tile(ft.Icons.ACCOUNT_BALANCE, "#6D28D9", "Vadeli mevduat", "Faiz, vade, vade sonu", deposit),
+                ], spacing=12),
                 ft.ListTile(leading=ft.Icon(ft.Icons.ADD_CARD), title=ft.Text("Hesap ekle"),
                             trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT), on_click=run(account)),
-            ], spacing=12, tight=True), padding=ft.Padding.only(left=20, right=20, top=8, bottom=24)),
-            show_drag_handle=True, bgcolor=ft.Colors.SURFACE_CONTAINER_LOWEST,
+            ], spacing=12, tight=True, scroll=ft.ScrollMode.AUTO),
+                padding=ft.Padding.only(left=20, right=20, top=4, bottom=24)),
+            show_drag_handle=True, scrollable=True, bgcolor=ft.Colors.SURFACE_CONTAINER_LOWEST,
             shape=ft.RoundedRectangleBorder(radius=28),
         )
         page.show_dialog(sheet)

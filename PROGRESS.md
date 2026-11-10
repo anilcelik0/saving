@@ -7,7 +7,10 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 
 ## ⏳ Waiting on user (pending commands)
 
-_Nothing pending._
+```powershell
+# Demo user with ~6 months of data for looking at the UI (re-run = rebuild); login: demo / Demo-12345
+docker compose exec web python manage.py seed_demo_data
+```
 - [ ] Try the mobile app on desktop: `cd mobile; .venv\Scripts\flet run` (backend must be up)
 
 ---
@@ -197,6 +200,14 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
 - [x] Step 2: Hareketler (badged rows in cards, month chip), Yatırımlar (value card, allocation ring, holdings/
       deposits/prices with badges), Diğer (profile card, grouped menu), sub-screens and reports (ring, bars, line
       charts) restyled; per-tab FABs removed; 15 screens opened against live API with stub page, no errors
+- [x] Fix: + sheet tiles had vertical stretch inside a content-sized bottom sheet (unbounded height) -> fixed
+      tile height, scrollable sheet
+- [x] App settings (Diğer > Uygulama ayarları, stored on the device: `services/settings_store.py`): theme
+      system/light/dark, default account for new entries, upcoming payments window, start tab, hide amounts on
+      Özet (also eye toggle on the balance card); version + server shown
+- [x] Demo data: `saving_invest` command `seed_demo_data` (user `demo` / `Demo-12345`, ~6 months: 3 accounts,
+      recurring + installment + card spending, overdue bill, trades incl. reduction, closed/matured/active deposits);
+      re-run rebuilds only that user
 - [ ] Step 3: secure token storage (SharedPreferences is not encrypted)
 - [ ] Step 4: Android build (`flet build apk`), bundle Inter font as asset, cleartext HTTP / real-device API URL
 
