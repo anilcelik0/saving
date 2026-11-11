@@ -2,8 +2,6 @@
 
 import flet as ft
 
-from config import api_base_url
-
 from .theme import THEME_MODES, card, muted, section
 from .transactions import account_options
 from .ui import dropdown, dropdown_value, guarded, toast
@@ -65,7 +63,6 @@ def settings_view(state, on_changed) -> ft.View:
             section("Hakkında"),
             card(ft.Column([
                 ft.Row([ft.Text("Sürüm", expand=True), muted(APP_VERSION, size=14)]),
-                ft.Row([ft.Text("Sunucu", expand=True), muted(api_base_url(page.platform), size=13)]),
                 muted("Ayarlar bu cihazda saklanır; çıkış yapınca silinmez."),
             ], spacing=10)),
         ], expand=True, padding=16, spacing=12)],

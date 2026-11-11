@@ -5,6 +5,7 @@ description = "Saving - personal finance client for app_manager backend"
 requires-python = ">=3.12"
 dependencies = [
     "flet==1.1.2",
+    "flet-secure-storage==1.1.2",
     "httpx==0.28.1",
 ]
 

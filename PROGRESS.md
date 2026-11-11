@@ -10,6 +10,9 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 ```powershell
 # Demo user with ~6 months of data for looking at the UI (re-run = rebuild); login: demo / Demo-12345
 docker compose exec web python manage.py seed_demo_data
+
+# Secure token storage extension (Phase 5 step 3)
+cd mobile; .venv\Scripts\python -m pip install flet-secure-storage==1.1.2
 ```
 - [ ] Try the mobile app on desktop: `cd mobile; .venv\Scripts\flet run` (backend must be up)
 
@@ -224,7 +227,11 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
       quick entry, statement upload + privacy, summary/activity, investments, settings); shown once per user on
       this device (`onboarded` setting), Atla/Geri/İleri; with no accounts the last page offers "İlk hesabımı ekle";
       replay from Diğer > Uygulama turu; checked with stub page
-- [ ] Step 3: secure token storage (SharedPreferences is not encrypted)
+- [x] Step 3: secure token storage: `flet-secure-storage` (Android Keystore) in `services/token_store.py`;
+      tokens from older SharedPreferences moved once and removed; falls back to SharedPreferences when the
+      extension is missing/not answering (3 s probe, e.g. desktop `flet run`; logged as a warning). Hakkında
+      shows only the version (server URL and token status removed on request). Real check on the Android build
+      (step 4)
 - [ ] Step 4: Android build (`flet build apk`), bundle Inter font as asset, cleartext HTTP / real-device API URL
 
 ---

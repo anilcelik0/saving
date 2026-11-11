@@ -32,6 +32,16 @@ def _ignore_connection_reset(loop):
     loop.set_exception_handler(handler)
 
 
+def _secure_storage():
+    """Encrypted key-value storage service, or None when the extension package is not installed."""
+    try:
+        import flet_secure_storage as fss
+    except ImportError:
+        return None
+    # reset_on_error: a broken keystore (e.g. restored backup) wipes only the tokens -> user logs in again
+    return fss.SecureStorage(android_options=fss.AndroidOptions(reset_on_error=True))
+
+
 async def main(page: ft.Page):
     _ignore_connection_reset(asyncio.get_running_loop())
     page.title = "Saving"
@@ -40,7 +50,7 @@ async def main(page: ft.Page):
     await settings.load()
     apply_theme(page, settings.theme)
 
-    tokens = TokenStore(prefs)
+    tokens = TokenStore(prefs, secure=_secure_storage())
     await tokens.load()
 
     state = AppState(page=page, router=Router(page), settings=settings)
