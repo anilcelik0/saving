@@ -6,14 +6,17 @@ from decimal import Decimal
 
 import flet as ft
 
-from .choices import DEPOSIT_STATUSES, label
+from .choices import DEPOSIT_STATUSES, NONE, label
+from .form_kit import (
+    Chips, Collapsible, DateChips, QuickForm, TermPicker, big_amount, field, hero, inline_text, plain_input,
+)
 from .theme import (
     CHART, EXPENSE, INCOME, MUTED, asset_badge, card, donut, dot, grouped, icon_badge, muted, section,
 )
-from .transactions import account_options
+from .transactions import account_options, amount_preview
 from .ui import (
-    DateInput, FormError, confirm, dropdown, dropdown_value, empty_text, fmt_date, fmt_money, fmt_number, fmt_pct,
-    form_view, guarded, money_field, money_input_value, parse_decimal, parse_money, text_field,
+    FormError, confirm, empty_text, fmt_date, fmt_money, fmt_number, fmt_pct, guarded, money_input_value,
+    parse_decimal, parse_money,
 )
 
 GREEN, RED, GREY = INCOME, EXPENSE, MUTED
@@ -45,10 +48,6 @@ def _qty(value, asset) -> str:
 
 def _price(value) -> str:
     return fmt_number(value, 4) + " ₺"
-
-
-def _account_dropdown(state, label_text, none_text, value=None):
-    return dropdown(label_text, account_options(state, value), value, with_none=True, none_text=none_text)
 
 
 def _value_column(value, sub, sub_color=None):
@@ -251,6 +250,23 @@ class AssetView:
         await self.on_changed()
 
 
+def _account_chips(state, none_text, value=None) -> Chips:
+    """Account choice with an explicit "no account" chip first."""
+    options = [(NONE, none_text), *account_options(state, value)]
+    return Chips(options, value or NONE)
+
+
+def _chip_value(chips: Chips):
+    return None if chips.value in (None, NONE) else chips.value
+
+
+def _number_preview(text, decimals):
+    try:
+        return Decimal(parse_decimal(text, "x", decimals))
+    except FormError:
+        return None
+
+
 def trade_form(state, assets, asset, side, trade, on_saved, held=None) -> ft.View:
     """
     Purchase or reduction. Purchase: quantity + unit price, optionally deducted from an account.
@@ -262,46 +278,58 @@ def trade_form(state, assets, asset, side, trade, on_saved, held=None) -> ft.Vie
     is_buy = side == "buy"
     current = {"asset": asset or assets[0]}
 
-    asset_dd = dropdown("Varlık", [(a["code"], a["name"]) for a in assets], current["asset"]["code"])
-    asset_dd.visible = asset is None
-    quantity = ft.TextField(value=fmt_number(trade["quantity"], 6) if trade else "",
-                            keyboard_type=ft.KeyboardType.NUMBER)
-    unit_price = ft.TextField(label="Birim fiyat (₺)", keyboard_type=ft.KeyboardType.NUMBER, visible=is_buy)
-    proceeds = money_field("Alınan TL tutarı (isteğe bağlı)", trade.get("proceeds"))
-    proceeds.visible = not is_buy
-    account = _account_dropdown(
-        state, "Hesap", "Hesaptan düşülmesin" if is_buy else "Hesaba eklenmesin", trade.get("account"))
-    hint = _detail("")
-    day = DateInput(page, "Tarih", trade.get("date") or date.today())
-    note = text_field("Not", trade.get("note"))
+    asset_chips = Chips([(a["code"], a["name"]) for a in assets], current["asset"]["code"],
+                        on_change=lambda code: asset_changed(code))
+    quantity_label = muted("", size=13)
+    quantity = big_amount(hint="0", suffix=None, text=fmt_number(trade["quantity"], 6) if trade else "",
+                          on_change=lambda e: refresh())
+    preview = muted("", size=13)
+    unit_price = plain_input(hint="Birim fiyat", number=True)
+    unit_price.on_change = lambda e: refresh()
+    proceeds = plain_input(money_input_value(trade.get("proceeds")), hint="ör. 15.000", number=True)
+    account = _account_chips(state, "Hesaptan düşülmesin" if is_buy else "Hesaba eklenmesin", trade.get("account"))
+    hint = muted("", size=12)
+    day = DateChips(page, trade.get("date") or date.today())
+    note = plain_input(trade.get("note"), hint="Not (isteğe bağlı)")
+
+    def asset_changed(code):
+        current["asset"] = next(a for a in assets if a["code"] == code)
+        apply_asset(prefill_price=True)
+        refresh()
 
     def apply_asset(prefill_price):
         a = current["asset"]
-        quantity.label = f"Miktar ({a['unit']})"
+        quantity_label.value = f"Miktar ({a['unit']})"
         if is_buy:
-            account.label = "Hangi hesaptan ödendi?"
             hint.value = "Hesap seçerseniz toplam tutar o hesaptan \"Yatırım\" gideri olarak düşülür."
             if prefill_price:
                 unit_price.value = money_input_value(trade.get("unit_price") or (a["price"] and a["price"]["sell"]))
         else:
-            account.label = "TL tutarı hangi hesaba eklensin?"
-            hint.value = (f"Elinizde {_qty(held, a)} var. " if held is not None else "") + \
-                "Tutar ve hesap girerseniz o hesaba \"Yatırım\" geliri olarak eklenir."
+            hint.value = "Tutar ve hesap girerseniz o hesaba \"Yatırım\" geliri olarak eklenir."
 
-    def asset_changed(e):
-        current["asset"] = next(a for a in assets if a["code"] == asset_dd.value)
-        apply_asset(prefill_price=True)
-        page.update()
-
-    asset_dd.on_select = asset_changed
-    apply_asset(prefill_price=True)
+    def refresh():
+        a = current["asset"]
+        qty = _number_preview(quantity.value, a["quantity_decimals"] or 0)
+        if is_buy:
+            price = _number_preview(unit_price.value, 4)
+            total = qty * price if qty and price else None
+            preview.value = f"Toplam {fmt_money(total)}" if total else "Toplam tutar miktar × birim fiyattır."
+            action = f"{fmt_number(total)} ₺ alış ekle" if total else "Alış ekle"
+        else:
+            preview.value = f"Elinizde {_qty(held, a)} var." if held is not None else ""
+            action = f"{_qty(qty, a)} azalt" if qty else "Azalt"
+        form.set_action("Değişiklikleri kaydet" if is_edit else action)
+        try:
+            page.update()
+        except RuntimeError:
+            pass
 
     async def save():
         a = current["asset"]
         payload = {
             "asset": a["code"], "side": side, "date": day.iso, "note": note.value or "",
             "quantity": parse_decimal(quantity.value, "Miktar", a["quantity_decimals"]),
-            "account": dropdown_value(account),
+            "account": _chip_value(account),
         }
         if is_buy:
             payload["unit_price"] = parse_decimal(unit_price.value, "Birim fiyat", 4)
@@ -323,11 +351,26 @@ def trade_form(state, assets, asset, side, trade, on_saved, held=None) -> ft.Vie
         state.router.pop()
         await on_saved()
 
+    apply_asset(prefill_price=True)
+    body = [field("Varlık", asset_chips.control, visible=asset is None),
+            hero(quantity_label, quantity, preview)]
+    if is_buy:
+        body.append(field("Birim fiyat (₺)", unit_price))
+    else:
+        body.append(field("Alınan TL tutarı (isteğe bağlı)", proceeds))
+    body += [
+        field("Hangi hesaptan ödendi?" if is_buy else "TL tutarı hangi hesaba eklensin?",
+              ft.Column([account.control, hint], spacing=8)),
+        field("Tarih", day.control),
+        field("Not", note),
+    ]
     title = ("Alışı düzenle" if is_edit else "Alış ekle") if is_buy else ("Azaltmayı düzenle" if is_edit else "Azalt")
-    return form_view(state, "/trade", title,
-                     [asset_dd, quantity, unit_price, day.control, proceeds, account, hint, note],
-                     on_save=save, on_delete=delete if is_edit else None,
+    if asset is not None:
+        title += f" · {asset['name']}"
+    form = QuickForm(state, "/trade", body, on_save=save, title=title, on_delete=delete if is_edit else None,
                      delete_message="Bu işlem silinecek. Bütçeye yazılan karşılığı da silinir.")
+    refresh()
+    return form.view
 
 
 # ---------------------------------------------------------------- deposits
@@ -424,19 +467,36 @@ class DepositView:
         await self._done()
 
 
+def _safe_page_update(page):
+    try:
+        page.update()
+    except RuntimeError:
+        pass
+
+
 def deposit_form(state, d: dict | None, on_saved) -> ft.View:
     page = state.page
     d = d or {}
     is_edit = bool(d)
-    name = text_field("Ad (ör. Enpara 32 gün)", d.get("name"))
-    principal = money_field("Anapara (₺)", d.get("principal"))
-    rate = ft.TextField(label="Yıllık faiz oranı (%)", value=fmt_number(d["annual_rate"], 4) if d else "",
-                        keyboard_type=ft.KeyboardType.NUMBER)
-    start = DateInput(page, "Başlangıç tarihi", d.get("start_date") or date.today())
-    end = DateInput(page, "Vade sonu tarihi", d.get("maturity_date") or date.today() + timedelta(days=32))
-    maturity = money_field("Vade sonu tutarı (₺)", d.get("maturity_amount"))
-    account = _account_dropdown(state, "Anapara hangi hesaptan çıktı?", "Hesaptan düşülmesin", d.get("account"))
-    note = text_field("Not", d.get("note"))
+    principal = big_amount(d.get("principal"), on_change=lambda e: refresh())
+    name = inline_text(d.get("name"), hint="Ad (ör. Enpara 32 gün)")
+    rate = plain_input(fmt_number(d["annual_rate"], 4) if d else "", hint="ör. 42,5", number=True)
+    start = DateChips(page, d.get("start_date") or date.today(), on_change=lambda v: end.sync())
+    end = TermPicker(page, lambda: start.value, d.get("maturity_date") or date.today() + timedelta(days=32))
+    maturity = plain_input(money_input_value(d.get("maturity_amount")), hint="Boş = faiz oranından", number=True)
+    account = _account_chips(state, "Hesaptan düşülmesin", d.get("account"))
+    note = plain_input(d.get("note"), hint="Not (isteğe bağlı)")
+    extras = Collapsible("Vade sonu tutarı ve not", [
+        field("Vade sonu net tutarı (₺)", maturity),
+        muted("Bankanın verdiği net tutarı girin. Boş bırakırsanız faiz oranından hesaplanır (stopaj düşülerek).",
+              size=12),
+        note,
+    ], summary=lambda: "Elle girildi" if (maturity.value or "").strip() else "Otomatik")
+
+    def refresh():
+        shown = amount_preview(principal.value)
+        form.set_action("Değişiklikleri kaydet" if is_edit else (f"{shown} mevduat aç" if shown else "Mevduat aç"))
+        _safe_page_update(page)
 
     async def save():
         if not (name.value or "").strip():
@@ -446,7 +506,8 @@ def deposit_form(state, d: dict | None, on_saved) -> ft.View:
         payload = {
             "name": name.value.strip(), "principal": parse_money(principal.value),
             "annual_rate": parse_decimal(rate.value, "Faiz oranı", 4),
-            "start_date": start.iso, "maturity_date": end.iso, "account": dropdown_value(account), "note": note.value or "",
+            "start_date": start.iso, "maturity_date": end.iso, "account": _chip_value(account),
+            "note": note.value or "",
         }
         if (maturity.value or "").strip():
             payload["maturity_amount"] = parse_money(maturity.value)
@@ -457,39 +518,59 @@ def deposit_form(state, d: dict | None, on_saved) -> ft.View:
         state.router.pop()
         await on_saved()
 
-    return form_view(state, "/deposit-form", "Mevduatı düzenle" if is_edit else "Vadeli mevduat ekle", [
-        name, principal, rate, start.control, end.control, maturity,
-        _detail("Vade sonu tutarını bankanın verdiği net tutarla girin. Boş bırakırsanız faiz oranından hesaplanır "
-                "(stopaj düşülerek)."),
-        account, _detail("Hesap seçerseniz anapara başlangıç tarihinde o hesaptan düşülür."), note,
-    ], on_save=save)
+    form = QuickForm(state, "/deposit-form", [
+        hero("Anapara", principal, name),
+        field("Yıllık faiz oranı (%)", rate),
+        field("Başlangıç", start.control),
+        field("Vade sonu", end.control),
+        field("Anapara hangi hesaptan çıktı?", ft.Column([
+            account.control, muted("Hesap seçerseniz anapara başlangıç tarihinde o hesaptan düşülür.", size=12)],
+            spacing=8)),
+        extras.control,
+    ], on_save=save, title="Mevduatı düzenle" if is_edit else "Vadeli mevduat")
+    refresh()
+    return form.view
 
 
 def close_form(state, d, on_saved) -> ft.View:
     page = state.page
-    amount = money_field("Alınan tutar (₺)", d["maturity_amount"])
-    account = _account_dropdown(state, "Tutar hangi hesaba eklensin?", "Hesaba eklenmesin")
-    on = DateInput(page, "Kapanış tarihi", min(date.today(), date.fromisoformat(d["maturity_date"])))
+    amount = big_amount(d["maturity_amount"], on_change=lambda e: refresh())
+    account = _account_chips(state, "Hesaba eklenmesin")
+    on = DateChips(page, min(date.today(), date.fromisoformat(d["maturity_date"])))
+
+    def refresh():
+        shown = amount_preview(amount.value)
+        form.set_action(f"{shown} ile kapat" if shown else "Kapat")
+        _safe_page_update(page)
 
     async def save():
-        await state.invest.deposits.close(d["id"], account=dropdown_value(account), amount=parse_money(amount.value),
+        await state.invest.deposits.close(d["id"], account=_chip_value(account), amount=parse_money(amount.value),
                                           date=on.iso)
         state.router.pop()
         await on_saved()
 
-    return form_view(state, "/deposit-close", f"Kapat: {d['name']}", [
-        amount, on.control, account, _detail("Hesap seçerseniz tutar o hesaba \"Yatırım\" geliri olarak eklenir."),
-    ], on_save=save)
+    form = QuickForm(state, "/deposit-close", [
+        hero("Alınan tutar", amount, muted(d["name"], size=13)),
+        field("Kapanış tarihi", on.control),
+        field("Tutar hangi hesaba eklensin?", ft.Column([
+            account.control, muted("Hesap seçerseniz tutar o hesaba \"Yatırım\" geliri olarak eklenir.", size=12)],
+            spacing=8)),
+    ], on_save=save, title="Mevduatı kapat")
+    refresh()
+    return form.view
 
 
 def renew_form(state, d, on_saved) -> ft.View:
     page = state.page
     old_end = date.fromisoformat(d["maturity_date"])
-    rate = ft.TextField(label="Yeni yıllık faiz oranı (%)", value=fmt_number(d["annual_rate"], 4),
-                        keyboard_type=ft.KeyboardType.NUMBER)
-    end = DateInput(page, "Yeni vade sonu", old_end + timedelta(days=d["term_days"]))
-    maturity = money_field("Yeni vade sonu tutarı (₺)")
-    name = text_field("Ad", d["name"])
+    rate = plain_input(fmt_number(d["annual_rate"], 4), hint="ör. 42,5", number=True)
+    end = TermPicker(page, lambda: old_end, old_end + timedelta(days=d["term_days"]))
+    maturity = plain_input(hint="Boş = faiz oranından", number=True)
+    name = inline_text(d["name"], hint="Ad")
+    extras = Collapsible("Yeni vade sonu tutarı", [
+        maturity,
+        muted("Boş bırakılırsa faiz oranından hesaplanır (stopaj düşülerek).", size=12),
+    ], summary=lambda: "Elle girildi" if (maturity.value or "").strip() else "Otomatik")
 
     async def save():
         if not end.value or end.value <= old_end:
@@ -502,12 +583,14 @@ def renew_form(state, d, on_saved) -> ft.View:
         state.router.pop()
         await on_saved()
 
-    return form_view(state, "/deposit-renew", f"Yenile: {d['name']}", [
-        _detail(f"Yeni anapara: {fmt_money(d['maturity_amount'])} (eski vade sonu tutarı) · "
-                f"başlangıç {fmt_date(d['maturity_date'])}"),
-        rate, end.control, maturity, _detail("Vade sonu tutarı boş bırakılırsa faiz oranından hesaplanır (stopaj düşülerek)."),
-        name,
-    ], on_save=save)
+    principal = ft.Text(fmt_money(d["maturity_amount"]), size=36, weight=ft.FontWeight.W_800)
+    return QuickForm(state, "/deposit-renew", [
+        hero("Yeni anapara (eski vade sonu tutarı)", principal, name,
+             muted(f"Başlangıç {fmt_date(d['maturity_date'])}", size=12)),
+        field("Yeni yıllık faiz oranı (%)", rate),
+        field("Yeni vade sonu", end.control),
+        extras.control,
+    ], on_save=save, title="Mevduatı yenile", action_text="Yenile").view
 
 
 class DepositHistoryView:

@@ -118,7 +118,7 @@ class TransactionCreateSerializer(TransactionSerializer):
         if repeat == "recurring" and attrs.get("end_date") and attrs["end_date"] < attrs["date"]:
             raise serializers.ValidationError({"end_date": "Bitiş tarihi başlangıçtan önce olamaz."})
         if repeat != "none" and not attrs.get("description"):
-            raise serializers.ValidationError({"description": "Tekrarlayan kayıtlar için açıklama gerekli."})
+            raise serializers.ValidationError({"description": "Tekrarlayan kayıtlar için isim gerekli."})
         return attrs
 
     def create(self, validated_data):

@@ -17,7 +17,7 @@ FIELD_LABELS = {
     "category": "Kategori",
     "account": "Hesap",
     "kind": "Tür",
-    "description": "Açıklama",
+    "description": "İsim",
     "total_amount": "Toplam tutar",
     "installment_count": "Taksit sayısı",
     "opening_balance": "Açılış bakiyesi",

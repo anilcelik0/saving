@@ -1,7 +1,6 @@
-"""Small UI helpers shared by screens (formatting, inputs, form scaffold, error handling)."""
+"""Small UI helpers shared by screens (formatting, inputs, error handling). Form style: form_kit.py."""
 
 import re
-from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 import flet as ft
@@ -142,14 +141,6 @@ def text_field(label, value="", **kwargs) -> ft.TextField:
     return ft.TextField(label=label, value=value or "", **kwargs)
 
 
-def money_field(label, value=None) -> ft.TextField:
-    return ft.TextField(label=label, value=money_input_value(value), keyboard_type=ft.KeyboardType.NUMBER)
-
-
-def int_field(label, value=None) -> ft.TextField:
-    return ft.TextField(label=label, value="" if value is None else str(value), keyboard_type=ft.KeyboardType.NUMBER)
-
-
 def parse_int(field: ft.TextField, name: str, required=False, minimum=1) -> int | None:
     raw = (field.value or "").strip()
     if not raw:
@@ -174,71 +165,6 @@ def dropdown(label, options, value=None, with_none=False, none_text="Seçilmedi"
 
 def dropdown_value(dd: ft.Dropdown):
     return None if dd.value in (None, NONE) else dd.value
-
-
-class DateInput:
-    """Read-only text field + date picker. `.iso` returns 'YYYY-MM-DD' or None."""
-
-    def __init__(self, page: ft.Page, label: str, value: date | str | None = None, optional=False):
-        self.page = page
-        self.value = date.fromisoformat(value) if isinstance(value, str) else value
-        self.text = ft.TextField(label=label, read_only=True, expand=True, value=self._display())
-        self.picker = ft.DatePicker(
-            value=datetime.combine(self.value, datetime.min.time()) if self.value else None,
-            first_date=datetime(2000, 1, 1),
-            last_date=datetime(2100, 12, 31),
-            on_change=self._picked,
-        )
-        buttons = [ft.IconButton(ft.Icons.CALENDAR_MONTH, on_click=lambda e: page.show_dialog(self.picker))]
-        if optional:
-            buttons.append(ft.IconButton(ft.Icons.CLEAR, on_click=self._clear))
-        self.control = ft.Row([self.text, *buttons])
-
-    def _display(self):
-        return self.value.strftime("%d.%m.%Y") if self.value else ""
-
-    def _picked(self, e):
-        picked = e.control.value
-        self.value = picked.date() if isinstance(picked, datetime) else picked
-        self.text.value = self._display()
-        self.page.update()
-
-    def _clear(self, e):
-        self.value = None
-        self.text.value = ""
-        self.page.update()
-
-    @property
-    def iso(self) -> str | None:
-        return self.value.isoformat() if self.value else None
-
-
-# ---------- scaffolds ----------
-def form_view(state, route, title, controls, on_save, on_delete=None, delete_message="Bu kayıt silinecek.") -> ft.View:
-    """Standard form page: AppBar (+ delete), scrollable fields, save button."""
-    page = state.page
-    save_button = ft.FilledButton("Kaydet")
-
-    async def save():
-        save_button.disabled = True
-        page.update()
-        try:
-            await on_save()
-        finally:
-            save_button.disabled = False
-            page.update()
-
-    save_button.on_click = guarded(page, save)
-    actions = []
-    if on_delete:
-        actions.append(ft.IconButton(ft.Icons.DELETE, on_click=lambda e: confirm(page, delete_message, on_delete)))
-
-    return ft.View(
-        route=route,
-        appbar=ft.AppBar(title=ft.Text(title), actions=actions),
-        controls=[ft.Column([*controls, save_button], spacing=12, scroll=ft.ScrollMode.AUTO, expand=True)],
-        padding=16,
-    )
 
 
 def empty_text(message: str) -> ft.Control:

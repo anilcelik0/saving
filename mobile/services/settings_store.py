@@ -8,7 +8,9 @@ class SettingsStore:
         "upcoming_days": "30",  # home: upcoming payments window
         "start_tab": "0",  # 0 Özet, 1 Hareketler, 2 Yatırımlar
         "hide_amounts": "false",  # home: mask balances (e.g. when others can see the screen)
+        "recent_categories": "",  # comma separated ids, most recent first (entry form shows them first)
     }
+    RECENT_LIMIT = 8
 
     def __init__(self, prefs):
         self._prefs = prefs
@@ -44,3 +46,13 @@ class SettingsStore:
     @property
     def hide_amounts(self) -> bool:
         return self.values["hide_amounts"] == "true"
+
+    @property
+    def recent_categories(self) -> list[str]:
+        return [x for x in self.values["recent_categories"].split(",") if x]
+
+    async def remember_category(self, category_id):
+        if not category_id:
+            return
+        ids = [category_id] + [x for x in self.recent_categories if x != category_id]
+        await self.set("recent_categories", ",".join(ids[: self.RECENT_LIMIT]))

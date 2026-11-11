@@ -5,11 +5,12 @@ from .choices import ACCOUNT_TYPES, KINDS, label
 from .reports import ReportsScreen
 from .settings import settings_view
 from .statements import StatementsScreen
-from .theme import EXPENSE, MUTED, card, grouped, icon_badge, muted, section
-from .ui import (
-    FormError, confirm, dropdown, empty_text, fmt_money, form_view, guarded, int_field, money_input_value,
-    parse_int, parse_money, text_field,
+from .form_kit import Chips, QuickForm, big_amount, field, hero, inline_text, plain_input
+from .theme import (
+    CARD, CATEGORY_ICONS, CHART, EXPENSE, MUTED, card, category_color, category_icon, grouped, icon_badge, muted,
+    section, text_badge,
 )
+from .ui import FormError, confirm, empty_text, fmt_money, guarded, parse_int, parse_money
 
 
 class MoreTab:
@@ -128,30 +129,42 @@ class AccountsScreen:
 def account_form(state, a: dict | None, on_saved) -> ft.View:
     a = a or {}
     is_edit = bool(a.get("id"))
-    name = text_field("Ad", a.get("name"))
-    account_type = dropdown("Tür", ACCOUNT_TYPES, a.get("account_type", "bank"))
-    opening = ft.TextField(
-        label="Açılış bakiyesi (bugünkü bakiye)",
-        value=money_input_value(a.get("opening_balance", "0")),
-        keyboard_type=ft.KeyboardType.NUMBER,
-    )
-    statement_day = int_field("Kredi kartı ekstre kesim günü (1-31, kart yoksa boş)", a.get("statement_day"))
-    card_name = text_field("Kart adı (ör. Enpara Kredi Kartı)", a.get("card_name"))
-    archived = ft.Switch(label="Arşivlendi", value=a.get("is_archived", False))
+    page = state.page
+    opening = big_amount(a.get("opening_balance"), hint="0")
+    name = inline_text(a.get("name"), hint="Hesap adı (ör. Ziraat Maaş)")
+    account_type = Chips(ACCOUNT_TYPES, a.get("account_type", "bank"))
+    has_card = Chips([("no", "Kart yok"), ("yes", "Kredi kartı var")], "yes" if a.get("statement_day") else "no",
+                     on_change=lambda v: refresh())
+    statement_day = plain_input("" if a.get("statement_day") is None else str(a["statement_day"]),
+                                hint="Ekstre kesim günü (1-31)", number=True)
+    card_name = plain_input(a.get("card_name"), hint="Kart adı (ör. Enpara Kredi Kartı)")
+    card_fields = ft.Column([
+        statement_day, card_name,
+        muted("Kart harcamaları aylık özette ekstre dönemine göre sayılır (ör. kesim 15 → 16 Ocak-15 Şubat "
+              "harcamaları Şubat'a). Kart ekstresi yüklenince boşsa otomatik doldurulur.", size=12),
+    ], spacing=10)
+    archived = ft.Switch(label="Arşivlendi (listelerde ve formlarda gizlenir)", value=a.get("is_archived", False))
+
+    def refresh():
+        card_fields.visible = has_card.value == "yes"
+        try:
+            page.update()
+        except RuntimeError:
+            pass
 
     async def save():
-        if not name.value:
-            raise FormError("Ad gerekli.")
+        if not (name.value or "").strip():
+            raise FormError("Hesap adı gerekli.")
         opening_value = parse_money(opening.value or "0", allow_negative=True, allow_zero=True)
-        day = parse_int(statement_day, "Kesim günü")
+        day = parse_int(statement_day, "Kesim günü", required=True) if has_card.value == "yes" else None
         if day is not None and day > 31:
             raise FormError("Kesim günü 1 ile 31 arasında olmalı.")
         payload = {
-            "name": name.value,
+            "name": name.value.strip(),
             "account_type": account_type.value,
             "opening_balance": opening_value,
             "statement_day": day,
-            "card_name": card_name.value,
+            "card_name": card_name.value if day else "",
             "is_archived": archived.value,
         }
         if is_edit:
@@ -166,14 +179,17 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
         state.router.pop()
         await on_saved()
 
-    return form_view(
-        state, "/account", "Hesabı düzenle" if is_edit else "Yeni hesap",
-        [name, account_type, opening, statement_day, card_name,
-         ft.Text("Kart harcamaları aylık özette ekstre dönemine göre sayılır (ör. kesim 15 → 16 Ocak-15 Şubat "
-                 "harcamaları Şubat'a). Kart ekstresi yüklenince boşsa otomatik doldurulur.",
-                 size=12, color=MUTED)] + ([archived] if is_edit else []),
-        on_save=save, on_delete=delete if is_edit else None,
-    )
+    body = [
+        hero("Açılış bakiyesi (bugünkü bakiye)", opening, name),
+        field("Tür", account_type.control),
+        field("Kredi kartı", ft.Column([has_card.control, card_fields], spacing=10)),
+    ]
+    if is_edit:
+        body.append(archived)
+    refresh()
+    return QuickForm(state, "/account", body, on_save=save, title="Hesabı düzenle" if is_edit else "Yeni hesap",
+                     action_text="Değişiklikleri kaydet" if is_edit else "Hesabı ekle",
+                     on_delete=delete if is_edit else None).view
 
 
 # ---------- categories ----------
@@ -200,6 +216,7 @@ class CategoriesScreen:
             controls.append(section(kind_label))
             controls += grouped([
                 ft.ListTile(
+                    leading=icon_badge(category_icon(c), MUTED if c["is_archived"] else category_color(c), size=36),
                     title=ft.Text(c["name"] + (" (arşiv)" if c["is_archived"] else ""),
                                   color=MUTED if c["is_archived"] else None),
                     trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT, color=MUTED),
@@ -215,17 +232,51 @@ class CategoriesScreen:
         self.state.router.push(category_form(self.state, category, on_saved=self.refresh))
 
 
+ICON_CHOICES = list(dict.fromkeys([*CATEGORY_ICONS.values(), ft.Icons.PETS, ft.Icons.CHILD_CARE,
+                                   ft.Icons.SPORTS_SOCCER, ft.Icons.FLIGHT, ft.Icons.LOCAL_GAS_STATION,
+                                   ft.Icons.CARD_GIFTCARD, ft.Icons.PHONE_IPHONE, ft.Icons.LABEL]))
+
+
 def category_form(state, c: dict | None, on_saved) -> ft.View:
     c = c or {}
     is_edit = bool(c.get("id"))
-    name = text_field("Ad", c.get("name"))
-    kind = dropdown("Tür", KINDS, c.get("kind", "expense"))
-    archived = ft.Switch(label="Arşivlendi", value=c.get("is_archived", False))
+    page = state.page
+    current = {"icon": category_icon(c) if c else ft.Icons.LABEL,
+               "color": category_color(c) if c else CHART[0]}
+    name = inline_text(c.get("name"), hint="Kategori adı", width=260)
+    kind = Chips(KINDS, c.get("kind", "expense"))
+    preview = ft.Container()
+    icons = ft.Row(wrap=True, spacing=8, run_spacing=8)
+    colors = ft.Row(wrap=True, spacing=10, run_spacing=10)
+    archived = ft.Switch(label="Arşivlendi (yeni kayıtlarda gösterilmez)", value=c.get("is_archived", False))
+
+    def pick(key, value):
+        current[key] = value
+        render()
+        page.update()
+
+    def render():
+        preview.content = icon_badge(current["icon"], current["color"], size=64)
+        icons.controls = [
+            ft.Container(ft.Icon(icon, size=22, color=ft.Colors.WHITE if icon == current["icon"] else MUTED),
+                         width=44, height=44, border_radius=12, alignment=ft.Alignment.CENTER,
+                         bgcolor=current["color"] if icon == current["icon"] else CARD,
+                         border=None if icon == current["icon"] else ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
+                         on_click=lambda e, i=icon: pick("icon", i))
+            for icon in ICON_CHOICES
+        ]
+        colors.controls = [
+            ft.Container(width=36, height=36, border_radius=18, bgcolor=color,
+                         border=ft.Border.all(3, ft.Colors.ON_SURFACE) if color == current["color"] else None,
+                         on_click=lambda e, col=color: pick("color", col))
+            for color in CHART
+        ]
 
     async def save():
-        if not name.value:
+        if not (name.value or "").strip():
             raise FormError("Ad gerekli.")
-        payload = {"name": name.value, "kind": kind.value, "is_archived": archived.value}
+        payload = {"name": name.value.strip(), "kind": kind.value, "is_archived": archived.value,
+                   "icon": current["icon"].name.lower(), "color": current["color"]}
         if is_edit:
             await state.budget.categories.update(c["id"], payload)
         else:
@@ -238,12 +289,20 @@ def category_form(state, c: dict | None, on_saved) -> ft.View:
         state.router.pop()
         await on_saved()
 
-    return form_view(
-        state, "/category", "Kategoriyi düzenle" if is_edit else "Yeni kategori",
-        [name, kind] + ([archived] if is_edit else []),
-        on_save=save, on_delete=delete if is_edit else None,
-        delete_message="Kategori silinecek; bu kategorideki işlemler kategorisiz kalır.",
-    )
+    render()
+    body = [
+        hero("", preview, name),
+        field("Tür", kind.control),
+        field("Renk", colors),
+        field("İkon", icons),
+    ]
+    if is_edit:
+        body.append(archived)
+    return QuickForm(state, "/category", body, on_save=save,
+                     title="Kategoriyi düzenle" if is_edit else "Yeni kategori",
+                     action_text="Değişiklikleri kaydet" if is_edit else "Kategoriyi ekle",
+                     on_delete=delete if is_edit else None,
+                     delete_message="Kategori silinecek; bu kategorideki işlemler kategorisiz kalır.").view
 
 
 # ---------- learned category rules ----------
@@ -283,13 +342,17 @@ class CategoryRulesScreen:
 # ---------- profile ----------
 def profile_form(state, on_saved) -> ft.View:
     u = state.user or {}
-    info = ft.Text(f"Kullanıcı adı: {u.get('username', '')}\nE-posta: {u.get('email', '')}")
-    first_name = text_field("Ad", u.get("first_name"))
-    last_name = text_field("Soyad", u.get("last_name"))
+    first_name = plain_input(u.get("first_name"), hint="Ad")
+    last_name = plain_input(u.get("last_name"), hint="Soyad")
+    initials = ((u.get("first_name") or u.get("username") or "?")[:1] + (u.get("last_name") or "")[:1]).upper()
 
     async def save():
         state.user = await state.auth.update_me(first_name=first_name.value, last_name=last_name.value)
         state.router.pop()
         await on_saved()
 
-    return form_view(state, "/profile", "Profil", [info, first_name, last_name], on_save=save)
+    return QuickForm(state, "/profile", [
+        hero(u.get("email", ""), text_badge(initials, CHART[0], size=64), muted(u.get("username", ""), size=13)),
+        field("Ad", first_name),
+        field("Soyad", last_name),
+    ], on_save=save, title="Profil").view

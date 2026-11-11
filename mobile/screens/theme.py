@@ -148,6 +148,36 @@ def kind_badge(kind: str, card_spend=False, dimmed=False, size=40) -> ft.Contain
                         border_radius=size / 2, bgcolor=bg, alignment=ft.Alignment.CENTER)
 
 
+CATEGORY_ICONS = {
+    "market": ft.Icons.SHOPPING_CART, "yeme-içme": ft.Icons.RESTAURANT, "faturalar": ft.Icons.BOLT,
+    "kira": ft.Icons.HOME, "ulaşım": ft.Icons.DIRECTIONS_CAR, "sağlık": ft.Icons.FAVORITE,
+    "eğitim": ft.Icons.SCHOOL, "giyim": ft.Icons.CHECKROOM, "eğlence": ft.Icons.MOVIE,
+    "abonelikler": ft.Icons.SUBSCRIPTIONS, "online alışveriş": ft.Icons.SHOPPING_BAG,
+    "ev & elektronik": ft.Icons.DEVICES, "kişisel bakım": ft.Icons.SPA, "para transferi": ft.Icons.SWAP_HORIZ,
+    "nakit çekim": ft.Icons.LOCAL_ATM, "banka masrafı": ft.Icons.ACCOUNT_BALANCE, "kredi/borç": ft.Icons.REQUEST_QUOTE,
+    "yatırım": ft.Icons.TRENDING_UP, "maaş": ft.Icons.WORK, "ek gelir": ft.Icons.PAYMENTS,
+    "gelen transfer": ft.Icons.CALL_RECEIVED, "iade": ft.Icons.REPLAY, "faiz/getiri": ft.Icons.PERCENT,
+}
+
+
+def tr_lower(text: str) -> str:
+    """Turkish-aware lowercase ('İ'.lower() would give 'i' + combining dot)."""
+    return text.replace("İ", "i").replace("I", "ı").lower()
+
+
+def category_icon(c: dict):
+    """Icon for a category: stored icon name, else a match on the default category names."""
+    stored = (c.get("icon") or "").upper()
+    if stored and hasattr(ft.Icons, stored):
+        return getattr(ft.Icons, stored)
+    return CATEGORY_ICONS.get(tr_lower(c["name"]), ft.Icons.LABEL)
+
+
+def category_color(c: dict) -> str:
+    """Stored color, else a stable palette pick from the name (Python's hash() is randomized per run)."""
+    return c.get("color") or CHART[sum(map(ord, c["name"])) % (len(CHART) - 1)]
+
+
 def amount_color(value):
     number = Decimal(str(value or 0))
     return INCOME if number > 0 else EXPENSE if number < 0 else None

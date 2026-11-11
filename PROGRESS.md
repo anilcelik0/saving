@@ -208,6 +208,17 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
 - [x] Demo data: `saving_invest` command `seed_demo_data` (user `demo` / `Demo-12345`, ~6 months: 3 accounts,
       recurring + installment + card spending, overdue bill, trades incl. reduction, closed/matured/active deposits);
       re-run rebuilds only that user
+- [x] Data-entry forms redesign, chosen style "Form 2 · big amount + chips" (canvas, 2nd row):
+  - [x] `screens/form_kit.py`: big amount, Chips, Segmented, CategoryGrid (recently used first, stored on the
+        device; then common defaults; 7 + "Tümü"), DateChips (Bugün/Dün/Tarih seç), Collapsible, QuickForm
+        (close · center · delete, sticky action button with the amount); category icons/colors by name in theme.py
+  - [x] Gelir/gider entry form (new + edit; card spending is an account chip "Enpara kartı"; repeat/installment/
+        note in "Tekrar, taksit, not"); checked against live API with stub page
+  - [x] Investment forms: trade (asset chips, big quantity, live total, account chips with "no account"),
+        deposit open/renew (term chips 32/46/92/181 days + date; maturity amount + note collapsed), close
+  - [x] Account (card section toggled by "Kredi kartı var"), category (icon + color picker, stored in the existing
+        `icon`/`color` fields; list shows the badges), profile, pay dialog; old `form_view`/`DateInput`/
+        `money_field`/`int_field` removed from ui.py; all forms saved against live API with stub page
 - [ ] Step 3: secure token storage (SharedPreferences is not encrypted)
 - [ ] Step 4: Android build (`flet build apk`), bundle Inter font as asset, cleartext HTTP / real-device API URL
 
