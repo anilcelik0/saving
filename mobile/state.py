@@ -24,6 +24,7 @@ class AppState:
     reports: ReportService = None
     settings: SettingsStore = None
     user: dict | None = None
+    home: object = None  # HomeScreen of the current session
     categories: list = field(default_factory=list)
     accounts: list = field(default_factory=list)
 
@@ -59,7 +60,29 @@ class AppState:
         from screens.home import HomeScreen
 
         await self.load_refs()
-        self.router.reset(HomeScreen(self).view)
+        self.home = HomeScreen(self)
+        self.router.reset(self.home.view)
+        if self.settings and not self.settings.is_onboarded(self.user_key):
+            self.show_onboarding()
+
+    @property
+    def user_key(self) -> str:
+        u = self.user or {}
+        return str(u.get("id") or u.get("username") or "")
+
+    def show_onboarding(self):
+        """App tour; first run per user on this device, or from Diğer > Uygulama turu."""
+        from screens.more import account_form
+        from screens.onboarding import onboarding_view
+
+        async def finished(add_account: bool):
+            if self.settings:
+                await self.settings.mark_onboarded(self.user_key)
+            self.router.pop()
+            if add_account:
+                self.router.push(account_form(self, None, on_saved=self.home.refresh_current))
+
+        self.router.push(onboarding_view(self, finished))
 
     def show_login(self, message: str | None = None):
         from screens.auth import login_view

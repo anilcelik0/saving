@@ -55,6 +55,8 @@ class MoreTab:
                     item(ft.Icons.TUNE, "#475569", "Uygulama ayarları",
                          lambda e: push(settings_view(state, self._settings_changed)),
                          "Tema, varsayılan hesap, açılış ekranı"),
+                    item(ft.Icons.SCHOOL, "#0EA5E9", "Uygulama turu", lambda e: state.show_onboarding(),
+                         "Uygulamanın kısa tanıtımı"),
                     item(ft.Icons.CATEGORY, "#D97706", "Kategoriler", lambda e: push(CategoriesScreen(state).view)),
                     item(ft.Icons.AUTO_FIX_HIGH, "#DB2777", "Öğrenilen kategoriler",
                          lambda e: push(CategoryRulesScreen(state).view), "İşyeri → kategori eşleştirmeleri"),

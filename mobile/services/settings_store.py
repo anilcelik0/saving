@@ -9,6 +9,7 @@ class SettingsStore:
         "start_tab": "0",  # 0 Özet, 1 Hareketler, 2 Yatırımlar
         "hide_amounts": "false",  # home: mask balances (e.g. when others can see the screen)
         "recent_categories": "",  # comma separated ids, most recent first (entry form shows them first)
+        "onboarded": "",  # comma separated user ids that have seen the app tour on this device
     }
     RECENT_LIMIT = 8
 
@@ -50,6 +51,13 @@ class SettingsStore:
     @property
     def recent_categories(self) -> list[str]:
         return [x for x in self.values["recent_categories"].split(",") if x]
+
+    def is_onboarded(self, user_key: str) -> bool:
+        return user_key in self.values["onboarded"].split(",")
+
+    async def mark_onboarded(self, user_key: str):
+        if user_key and not self.is_onboarded(user_key):
+            await self.set("onboarded", ",".join(filter(None, [self.values["onboarded"], user_key])))
 
     async def remember_category(self, category_id):
         if not category_id:

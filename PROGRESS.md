@@ -219,6 +219,11 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
   - [x] Account (card section toggled by "Kredi kartı var"), category (icon + color picker, stored in the existing
         `icon`/`color` fields; list shows the badges), profile, pay dialog; old `form_view`/`DateInput`/
         `money_field`/`int_field` removed from ui.py; all forms saved against live API with stub page
+- [x] Entry form: description shown as a prominent "İsim" field under the amount (API messages say "isim")
+- [x] App tour (`screens/onboarding.py`): 8 swipeable pages with mini illustrations (welcome, accounts, + menu,
+      quick entry, statement upload + privacy, summary/activity, investments, settings); shown once per user on
+      this device (`onboarded` setting), Atla/Geri/İleri; with no accounts the last page offers "İlk hesabımı ekle";
+      replay from Diğer > Uygulama turu; checked with stub page
 - [ ] Step 3: secure token storage (SharedPreferences is not encrypted)
 - [ ] Step 4: Android build (`flet build apk`), bundle Inter font as asset, cleartext HTTP / real-device API URL
 
