@@ -18,7 +18,7 @@ flowchart LR
     end
 
     subgraph Sunucu["Docker Compose (tek sunucu)"]
-        NGINX[Nginx :8080]
+        NGINX[Nginx :80]
         WEB[Gunicorn + Django<br/>/api/v1]
         DB[(PostgreSQL)]
         REDIS[(Redis)]

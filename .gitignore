@@ -25,6 +25,7 @@ celerybeat.pid
 mobile/build/
 mobile/dist/
 mobile/storage/
+mobile/local_config.py
 
 # Real bank statements (personal data) - never commit
 statement_samples/

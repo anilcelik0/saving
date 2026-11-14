@@ -11,8 +11,14 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 # Demo user with ~6 months of data for looking at the UI (re-run = rebuild); login: demo / Demo-12345
 docker compose exec web python manage.py seed_demo_data
 
-# Secure token storage extension (Phase 5 step 3)
-cd mobile; .venv\Scripts\python -m pip install flet-secure-storage==1.1.2
+# Phase 5 step 4: APK for a real phone on the same Wi-Fi (local backend)
+ipconfig                                   # note the Wi-Fi IPv4 address, e.g. 192.168.1.20
+# .env: DJANGO_ALLOWED_HOSTS=...,192.168.1.20   then: docker compose up -d
+New-NetFirewallRule -DisplayName "Saving API 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Private   # admin PowerShell
+cd mobile; Copy-Item local_config.example.py local_config.py   # set API_URL to http://<IP>/api/v1
+New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
+.venv\Scripts\flet build apk               # first run downloads Flutter/JDK/Android SDK (long)
+# APK: mobile\build\apk\ -> copy to the phone and install (allow unknown sources)
 ```
 - [ ] Try the mobile app on desktop: `cd mobile; .venv\Scripts\flet run` (backend must be up)
 
@@ -232,7 +238,11 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
       extension is missing/not answering (3 s probe, e.g. desktop `flet run`; logged as a warning). Hakkında
       shows only the version (server URL and token status removed on request). Real check on the Android build
       (step 4)
-- [ ] Step 4: Android build (`flet build apk`), bundle Inter font as asset, cleartext HTTP / real-device API URL
+- [~] Step 4: Android build (`flet build apk`): prepared, waiting on the user's build + phone test
+  - [x] Server URL for a real phone from git-ignored `mobile/local_config.py` (`local_config.example.py`)
+  - [x] `usesCleartextTraffic` in `[tool.flet.android.manifest_application]` (plain HTTP on LAN; remove with HTTPS)
+  - [x] Inter loaded from `assets/fonts/Inter.ttf` when present (`ft.run(..., assets_dir="assets")`), else URL
+  - [ ] Build, install, check on the phone (login, secure token status, forms, statement upload)
 
 ---
 
@@ -240,7 +250,7 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
 - No django-celery-beat: schedules live in code (`CELERY_BEAT_SCHEDULE`).
 - No CORS package: Android native client does not need it.
 - Local runs production-like (`DEBUG=False`); errors are visible in `docker compose logs web`.
-- Android emulator reaches the host via `10.0.2.2:8080`.
+- Android emulator reaches the host via `10.0.2.2` (nginx on port 80).
 - Celery worker does not auto-reload: `docker compose restart celery_worker` after task code changes.
 - Login payload: `{"app": "saving", "identifier": "<username or email>", "password": "..."}`.
 - Account types are only bank/cash. No credit card accounts: card spending (manual or from card statement import)

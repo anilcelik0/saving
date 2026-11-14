@@ -13,3 +13,7 @@ dependencies = [
 org = "com.anilcelik"
 product = "Saving"
 company = "anilcelik"
+
+[tool.flet.android.manifest_application]
+# the API is plain HTTP on the local network for now; remove once the server has HTTPS
+usesCleartextTraffic = true
