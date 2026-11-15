@@ -13,10 +13,14 @@ from pathlib import Path
 import flet as ft
 import flet.canvas as cv
 
+from config import is_packaged
+
 FONT = "Inter"
 FONT_URL = "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf"
-FONT_ASSET = "fonts/Inter.ttf"  # bundled copy (assets/fonts/Inter.ttf) works offline; URL is the fallback
-FONT_SRC = FONT_ASSET if (Path(__file__).resolve().parent.parent / "assets" / FONT_ASSET).exists() else FONT_URL
+FONT_ASSET = "fonts/Inter.ttf"  # bundled copy (assets/fonts/Inter.ttf): offline, no request to a third party
+_HAS_ASSET = (Path(__file__).resolve().parent.parent / "assets" / FONT_ASSET).exists()
+# a built app never downloads the font (privacy policy: no third-party requests) -> system font if not bundled
+FONT_SRC = FONT_ASSET if _HAS_ASSET else (None if is_packaged() else FONT_URL)
 
 LIGHT = ft.ColorScheme(
     primary="#0F766E", on_primary="#FFFFFF", primary_container="#CCFBF1", on_primary_container="#134E4A",
@@ -73,7 +77,7 @@ THEME_MODES = {"system": ft.ThemeMode.SYSTEM, "light": ft.ThemeMode.LIGHT, "dark
 
 
 def apply_theme(page: ft.Page, mode: str = "system"):
-    page.fonts = {FONT: FONT_SRC}
+    page.fonts = {FONT: FONT_SRC} if FONT_SRC else {}
     page.theme = _theme(LIGHT)
     page.dark_theme = _theme(DARK)
     page.theme_mode = THEME_MODES.get(mode, ft.ThemeMode.SYSTEM)

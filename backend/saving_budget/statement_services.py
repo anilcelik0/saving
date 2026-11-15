@@ -5,6 +5,7 @@ import logging
 from collections import Counter
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction as db_transaction
 from django.db.models import F
 from django.utils import timezone
@@ -13,6 +14,7 @@ from rest_framework.exceptions import ValidationError
 from .models import Category, Kind, MerchantCategoryRule, StatementImport, StatementLine, Transaction
 from .services import FALLBACK_CATEGORY
 from .statements import StatementParseError, detect_and_parse
+from .statements.registry import BANK_LABELS
 from .statements.classify import merchant_key, skip_reason, suggest_category_name
 from .statements.utils import normalize
 
@@ -289,6 +291,36 @@ def delete_statement_data(statement: StatementImport) -> None:
     if statement.file:
         statement.file.delete(save=False)
     statement.delete()
+
+
+def statement_snapshot(user, statement_id) -> dict | None:
+    """Issue report context (support registry, type "saving.statement"): what the user's statement looked like
+    when the problem was reported. No file content, no line texts; None if not found / not the user's."""
+    try:
+        s = StatementImport.objects.select_related("account").get(pk=statement_id, user=user)
+    except (StatementImport.DoesNotExist, DjangoValidationError, ValueError):
+        return None
+    actions = Counter(s.lines.values_list("action", flat=True))
+    iso = lambda d: d.isoformat() if d else None  # noqa: E731
+    return {
+        "id": str(s.pk),
+        "original_name": s.original_name,
+        "bank": s.bank,
+        "bank_label": BANK_LABELS.get(s.bank, s.bank),
+        "is_generic_parser": s.is_generic,
+        "statement_type": s.statement_type,
+        "status": s.status,
+        "error": s.error,
+        "period": [iso(s.period_start), iso(s.period_end)],
+        "closing_balance": str(s.closing_balance) if s.closing_balance is not None else None,
+        "account": s.account.name,
+        "lines": sum(actions.values()),
+        "line_actions": dict(actions),
+        "imported": s.imported_count,
+        "matched": s.matched_count,
+        "cancelled": s.cancelled_count,
+        "uploaded_at": s.created_at.isoformat(),
+    }
 
 
 def cleanup_stale_statement_files(max_age_hours: int = 1) -> int:

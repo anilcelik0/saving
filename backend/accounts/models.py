@@ -97,3 +97,65 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.username = self.username.strip().lower()
         self.email = self.email.strip().lower()
         super().save(*args, **kwargs)
+
+
+class LegalDocument(TimeStampedModel):
+    """
+    Versioned legal text of a client app (privacy policy, KVKK information notice), Markdown with placeholders
+    filled at render time (see accounts.legal). A published version is immutable: changes go into a new version,
+    which users must accept again.
+    """
+
+    class Kind(models.TextChoices):
+        PRIVACY = "privacy", "Gizlilik Politikası"
+        KVKK = "kvkk", "KVKK Aydınlatma Metni"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid7, editable=False)
+    app = models.ForeignKey(ClientApp, on_delete=models.PROTECT, related_name="legal_documents")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    version = models.PositiveIntegerField(editable=False)
+    title = models.CharField(max_length=150)
+    body = models.TextField(
+        help_text="Markdown. Placeholders: {{controller}}, {{email}}, {{app}}, {{version}}, {{date}}"
+    )
+    requires_acceptance = models.BooleanField(default=True)
+    published_at = models.DateTimeField(null=True, blank=True, help_text="Empty = draft (not shown to users)")
+
+    class Meta:
+        ordering = ["app", "kind", "-version"]
+        constraints = [
+            models.UniqueConstraint(fields=["app", "kind", "version"], name="uniq_legal_document_version"),
+        ]
+
+    def __str__(self):
+        return f"{self.app_id and self.app.slug}/{self.kind} v{self.version}"
+
+    @property
+    def is_published(self) -> bool:
+        return self.published_at is not None
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and not self.version:
+            last = LegalDocument.objects.filter(app=self.app, kind=self.kind).aggregate(v=models.Max("version"))["v"]
+            self.version = (last or 0) + 1
+        super().save(*args, **kwargs)
+
+
+class LegalAcceptance(models.Model):
+    """Proof that a user accepted a specific legal document version (time, IP, client)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid7, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="legal_acceptances")
+    document = models.ForeignKey(LegalDocument, on_delete=models.PROTECT, related_name="acceptances")
+    accepted_at = models.DateTimeField(default=timezone.now)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-accepted_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "document"], name="uniq_legal_acceptance"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} accepted {self.document}"

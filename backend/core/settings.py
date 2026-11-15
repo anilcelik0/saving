@@ -23,6 +23,10 @@ USE_X_FORWARDED_HOST = True
 SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = env.bool("DJANGO_SECURE_COOKIES", default=False)
 SECURE_HSTS_SECONDS = env.int("DJANGO_HSTS_SECONDS", default=0)
 
+# Legal texts (privacy policy, KVKK notice): data controller shown in the published documents
+LEGAL_CONTROLLER_NAME = env("LEGAL_CONTROLLER_NAME", default="")
+LEGAL_CONTACT_EMAIL = env("LEGAL_CONTACT_EMAIL", default="")
+
 # --- Apps ---
 DJANGO_APPS = [
     "django.contrib.admin",
@@ -39,6 +43,7 @@ THIRD_PARTY_APPS = [
 ]
 SHARED_APPS = [
     "accounts",
+    "support",
 ]
 SAVING_APPS = [
     "saving_budget",
@@ -125,6 +130,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "saving_invest.tasks.fetch_daily_prices",
         "schedule": crontab(hour=17, minute=0),
     },
+    "support-purge-issue-attachments": {
+        "task": "support.tasks.purge_issue_attachments",
+        "schedule": crontab(hour=3, minute=30),
+    },
 }
 
 # --- Market data (saving_invest) ---
@@ -153,7 +162,7 @@ REST_FRAMEWORK = {
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
     "DEFAULT_PAGINATION_CLASS": "core.pagination.DefaultPagination",
     "COERCE_DECIMAL_TO_STRING": True,
-    "DEFAULT_THROTTLE_RATES": {"auth": "10/min"},
+    "DEFAULT_THROTTLE_RATES": {"auth": "10/min", "support": "30/hour"},
     "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",
     "NUM_PROXIES": 1,  # nginx -> real client IP for throttling
 }
@@ -191,6 +200,11 @@ STORAGES = {
     },
 }
 STATEMENT_MAX_UPLOAD_MB = 10
+# Issue reports ("Sorun bildir"): attachment limits; files are deleted when the report is resolved/closed
+# or after the retention period (support.tasks.purge_issue_attachments). nginx body limit: 20 MB.
+ISSUE_ATTACHMENT_MAX_FILES = 3
+ISSUE_ATTACHMENT_MAX_MB = 10
+ISSUE_ATTACHMENT_RETENTION_DAYS = 30
 
 # --- Logging ---
 LOGGING = {

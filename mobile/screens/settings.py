@@ -2,6 +2,8 @@
 
 import flet as ft
 
+from config import APP_VERSION
+
 from .theme import THEME_MODES, card, muted, section
 from .transactions import account_options
 from .ui import dropdown, dropdown_value, guarded, toast
@@ -9,7 +11,6 @@ from .ui import dropdown, dropdown_value, guarded, toast
 THEMES = [("system", "Telefona uy"), ("light", "Açık"), ("dark", "Koyu")]
 UPCOMING = [("7", "7 gün"), ("14", "14 gün"), ("30", "30 gün"), ("60", "60 gün")]
 START_TABS = [("0", "Özet"), ("1", "Hareketler"), ("2", "Yatırımlar")]
-APP_VERSION = "0.1.0"
 
 
 def settings_view(state, on_changed) -> ft.View:

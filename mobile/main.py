@@ -12,6 +12,7 @@ from services.budget_service import BudgetService
 from services.invest_service import InvestService
 from services.report_service import ReportService
 from services.settings_store import SettingsStore
+from services.support_service import SupportService
 from services.token_store import TokenStore
 from state import AppState
 
@@ -59,6 +60,7 @@ async def main(page: ft.Page):
     state.budget = BudgetService(state.api)
     state.invest = InvestService(state.api)
     state.reports = ReportService(state.api)
+    state.support = SupportService(state.api)
 
     await state.start()
 

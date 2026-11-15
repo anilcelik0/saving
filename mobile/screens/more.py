@@ -2,9 +2,11 @@ import flet as ft
 
 from .autopay import AutoPaymentsScreen
 from .choices import ACCOUNT_TYPES, KINDS, label
+from .legal import LegalSettingsScreen
 from .reports import ReportsScreen
 from .settings import settings_view
 from .statements import StatementsScreen
+from .support import MyReportsScreen
 from .form_kit import Chips, QuickForm, big_amount, field, hero, inline_text, plain_input
 from .theme import (
     CARD, CATEGORY_ICONS, CHART, EXPENSE, MUTED, card, category_color, category_icon, grouped, icon_badge, muted,
@@ -57,9 +59,18 @@ class MoreTab:
                          "Tema, varsayılan hesap, açılış ekranı"),
                     item(ft.Icons.SCHOOL, "#0EA5E9", "Uygulama turu", lambda e: state.show_onboarding(),
                          "Uygulamanın kısa tanıtımı"),
+                    item(ft.Icons.PRIVACY_TIP, "#0F766E", "Gizlilik ve KVKK",
+                         lambda e: push(LegalSettingsScreen(state).view), "Metinler ve onaylarınız"),
                     item(ft.Icons.CATEGORY, "#D97706", "Kategoriler", lambda e: push(CategoriesScreen(state).view)),
                     item(ft.Icons.AUTO_FIX_HIGH, "#DB2777", "Öğrenilen kategoriler",
                          lambda e: push(CategoryRulesScreen(state).view), "İşyeri → kategori eşleştirmeleri"),
+                ]),
+                section("Destek"),
+                *grouped([
+                    item(ft.Icons.BUG_REPORT, "#DC2626", "Sorun bildir", lambda e: state.open_report(),
+                         "Hata, ekstre okuma sorunu veya öneri"),
+                    item(ft.Icons.INBOX, "#0EA5E9", "Bildirimlerim", lambda e: push(MyReportsScreen(state).view),
+                         "Gönderdiklerin ve yanıtlar"),
                 ]),
                 *grouped([
                     ft.ListTile(leading=icon_badge(ft.Icons.LOGOUT, "#DC2626", size=36),

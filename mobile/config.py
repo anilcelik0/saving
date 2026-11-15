@@ -1,6 +1,7 @@
 import os
 
 APP_SLUG = "saving"
+APP_VERSION = "0.1.0"  # keep in sync with pyproject.toml [project] version
 
 # Built app (flet build apk/aab): Flet sets FLET_PLATFORM inside the package -> production server over HTTPS.
 PRODUCTION_URL = "https://appmanager.com.tr/api/v1"

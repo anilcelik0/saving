@@ -81,8 +81,21 @@ def money_input_value(value) -> str:
 
 
 # ---------- feedback ----------
+_reporter = None  # set while logged in: callable(error_message) opening "Sorun bildir" with the error
+
+
+def set_reporter(fn):
+    global _reporter
+    _reporter = fn
+
+
 def toast(page: ft.Page, message: str, error=False):
-    page.show_dialog(ft.SnackBar(ft.Text(message), bgcolor=ft.Colors.ERROR if error else None))
+    """Error toasts offer "Bildir" (report the problem with this message) while a user is logged in."""
+    action = None
+    if error and _reporter:
+        reporter = _reporter
+        action = ft.SnackBarAction("Bildir", text_color=ft.Colors.ON_ERROR, on_click=lambda e: reporter(message))
+    page.show_dialog(ft.SnackBar(ft.Text(message), bgcolor=ft.Colors.ERROR if error else None, action=action))
 
 
 def guarded(page: ft.Page, fn):

@@ -107,6 +107,7 @@ def upload_dialog(state, picker: ft.FilePicker, on_done):
         statement = await state.budget.statements.upload(
             account.value, f.name, f.bytes, exclude_from_balance=bool(history_only.value)
         )
+        state.remember_statement_file(statement["id"], f.name, f.bytes)  # device memory only, for "Sorun bildir"
         state.router.push(StatementReview(state, statement["id"], on_done=on_done).view)
 
     page.show_dialog(
@@ -137,10 +138,15 @@ class StatementReview:
         self.delete_after = ft.Checkbox(
             label="Aktardıktan sonra ekstre bilgilerini sil (harcamalar kalır)", value=True, visible=False,
         )
+        report = lambda e: state.open_report("statement", related_statement=statement_id)  # noqa: E731
+        self.report_button = ft.TextButton("Okumada bir sorun mu var? Bildir", icon=ft.Icons.BUG_REPORT_OUTLINED,
+                                           visible=False, on_click=report)
         self.view = ft.View(
             route="/statement",
-            appbar=ft.AppBar(title=ft.Text("Ekstre önizleme")),
-            controls=[ft.Container(self.header, padding=ft.Padding.symmetric(horizontal=16)), self.list,
+            appbar=ft.AppBar(title=ft.Text("Ekstre önizleme"), actions=[
+                ft.IconButton(ft.Icons.BUG_REPORT_OUTLINED, tooltip="Sorun bildir", on_click=report)]),
+            controls=[ft.Container(ft.Column([self.header, self.report_button], spacing=0, tight=True),
+                                   padding=ft.Padding.symmetric(horizontal=16)), self.list,
                       ft.Container(ft.Column([self.delete_after, self.confirm_button], tight=True), padding=16)],
             padding=0,
         )
@@ -153,9 +159,11 @@ class StatementReview:
                 break
             await asyncio.sleep(POLL_SECONDS)
         s = self.statement
+        self.report_button.visible = s["status"] not in ("pending", "parsing")
         if s["status"] == "failed":
             self.header.value = f"Ekstre okunamadı: {s['error']}"
             self.header.color = EXPENSE
+            self.report_button.content = "Bu ekstreyi bize bildirin, okuyucuyu düzeltelim"
             self.page.update()
             return
         if s["status"] in ("pending", "parsing"):

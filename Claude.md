@@ -26,7 +26,10 @@ app_manager/                          # repo root
 │   ├── requirements.txt         # single file, pinned versions
 │   ├── manage.py
 │   ├── core/                    # Django project package: settings.py, urls.py, celery.py, wsgi/asgi, base_models.py
-│   ├── accounts/                # shared: ClientApp registry + app-scoped users + JWT auth
+│   ├── accounts/                # shared: ClientApp registry + app-scoped users + JWT auth + legal docs/consents
+│   ├── legal_texts/<app>/       # privacy.md, kvkk.md -> `publish_legal_documents <app>` (versioned in DB)
+│   ├── support/                 # shared: issue reports ("Sorun bildir") + attachments; client apps register
+│   │                            #   related-object snapshots in support.registry (e.g. "saving.statement")
 │   ├── saving_budget/           # accounts + computed balances, categories, transactions, payment plans (recurring/installment, auto-pay), monthly summary, statement parsing
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
 │   └── saving_reports/          # aggregated reporting endpoints

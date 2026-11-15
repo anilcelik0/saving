@@ -9,6 +9,7 @@ from services.budget_service import BudgetService
 from services.invest_service import InvestService
 from services.settings_store import SettingsStore
 from services.report_service import ReportService
+from services.support_service import SupportService
 
 
 @dataclass
@@ -23,10 +24,14 @@ class AppState:
     invest: InvestService = None
     reports: ReportService = None
     settings: SettingsStore = None
+    support: SupportService = None
     user: dict | None = None
     home: object = None  # HomeScreen of the current session
     categories: list = field(default_factory=list)
     accounts: list = field(default_factory=list)
+    # statements uploaded in this session: id -> (file name, bytes). Kept only in memory on the device so
+    # "Sorun bildir" can attach the file (the server deletes it right after parsing).
+    statement_files: dict = field(default_factory=dict)
 
     # --- session ---
     async def start(self):
@@ -58,12 +63,25 @@ class AppState:
 
     async def enter_app(self):
         from screens.home import HomeScreen
+        from screens.legal import consent_gate_view
+        from screens.ui import set_reporter
 
+        set_reporter(lambda error: self.open_report(error=error))  # error toasts offer "Bildir"
+
+        # new privacy policy / KVKK versions must be accepted before using the app
+        pending = (self.user or {}).get("pending_legal") or []
+        if pending:
+            self.router.reset(consent_gate_view(self, pending, self._after_consent))
+            return
         await self.load_refs()
         self.home = HomeScreen(self)
         self.router.reset(self.home.view)
         if self.settings and not self.settings.is_onboarded(self.user_key):
             self.show_onboarding()
+
+    async def _after_consent(self):
+        self.user = await self.auth.me()
+        await self.enter_app()
 
     @property
     def user_key(self) -> str:
@@ -86,11 +104,29 @@ class AppState:
 
     def show_login(self, message: str | None = None):
         from screens.auth import login_view
-        from screens.ui import toast
+        from screens.ui import set_reporter, toast
 
+        set_reporter(None)
+        self.statement_files.clear()
         self.router.reset(login_view(self))
         if message:
             toast(self.page, message, error=True)
+
+    # --- "Sorun bildir" ---
+    STATEMENT_FILES_KEPT = 3
+
+    def remember_statement_file(self, statement_id, name: str, content: bytes):
+        self.statement_files.pop(statement_id, None)
+        self.statement_files[statement_id] = (name, content)
+        while len(self.statement_files) > self.STATEMENT_FILES_KEPT:
+            self.statement_files.pop(next(iter(self.statement_files)))
+
+    def open_report(self, category: str = "bug", related_statement: str | None = None, error: str | None = None):
+        """Opens the report form; technical context is taken from the screen that is open right now."""
+        from screens.support import report_context, report_form
+
+        context = report_context(self, error)
+        self.router.push(report_form(self, category, related_statement, context))
 
     # --- reference data (categories/accounts) used by forms and list labels ---
     async def load_refs(self):

@@ -32,7 +32,12 @@ class HomeScreen:
         self.view = ft.View(
             route="/",
             controls=[ft.SafeArea(ft.Column([
-                ft.Container(self.title, padding=ft.Padding.only(left=20, right=20, top=12, bottom=4)),
+                ft.Container(ft.Row([
+                    ft.Container(self.title, expand=True),
+                    # testing phase: a problem can be reported from every tab
+                    ft.IconButton(ft.Icons.BUG_REPORT_OUTLINED, tooltip="Sorun bildir", icon_color=MUTED,
+                                  on_click=lambda e: state.open_report()),
+                ]), padding=ft.Padding.only(left=20, right=8, top=12, bottom=4)),
                 self.body,
             ], spacing=0, expand=True), expand=True)],
             padding=0,

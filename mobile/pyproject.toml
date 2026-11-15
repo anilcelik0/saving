@@ -10,9 +10,11 @@ dependencies = [
 ]
 
 [tool.flet]
-org = "com.anilcelik"
+org = "tr.com.appmanager"
+# Google Play package name: permanent once the app is published
+bundle_id = "tr.com.appmanager.saving"
 product = "Saving"
-company = "anilcelik"
+company = "appmanager"
 
 [tool.flet.app]
 # development-only server override must never ship (built apps use config.PRODUCTION_URL over HTTPS)

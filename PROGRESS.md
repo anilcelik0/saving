@@ -17,6 +17,15 @@ docker compose exec web python manage.py seed_demo_data
 #   remove COMPOSE_PROFILES=tunnel (and --reload from GUNICORN_CMD_ARGS if present)
 git pull; docker compose up -d --build; docker compose ps   # then open https://appmanager.com.tr/admin/
 
+# Legal texts (done on dev PC; server after pull). The two values belong in .env (dev + server), not .env.example:
+#   LEGAL_CONTROLLER_NAME=<ad soyad>   LEGAL_CONTACT_EMAIL=<e-posta>
+# "Sorun bildir" (dev PC): new shared app `support` + texts v2 (bug reports section)
+docker compose exec web python manage.py makemigrations support
+docker compose exec web python manage.py migrate
+docker compose restart celery_worker celery_beat   # new task: support.tasks.purge_issue_attachments
+docker compose exec web python manage.py publish_legal_documents saving   # privacy/kvkk v2 -> users re-accept
+# Server, after git pull: docker compose up -d --build; migrate; publish_legal_documents saving
+
 # APK (uses https://appmanager.com.tr automatically)
 cd mobile; New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
 start ms-settings:developers               # Developer Mode ON (Flutter plugins need symlinks)
@@ -261,6 +270,50 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
   - [ ] Build APK (Developer Mode on, Android SDK 36), install, check on the phone (login, forms, statement upload,
         session kept after restart)
   - [ ] Play Store: developer account registration pending; then `flet build aab`, signing key, store listing
+
+## Phase 6: Google Play readiness 🔄
+Decisions (2026-11-16): package `tr.com.appmanager.saving`; personal developer account (closed test: 12 testers ×
+14 days); data controller = the user's name + personal e-mail (from `.env`, approved for publishing); deletion =
+request -> 30 days locked (login offers cancel) -> Celery deletes everything; deactivation = user freezes, login
+reopens.
+- [x] Package name: `[tool.flet] bundle_id = "tr.com.appmanager.saving"`, org `tr.com.appmanager`
+- [x] Play Console declarations: `docs/PLAY_STORE.md` (privacy URL, app access, ads, IARC, audience 18+, financial
+      features, data safety table, closed test steps, legal notes: KVKK md. 9 Cloudflare, VERBİS)
+- [x] Legal texts + consents (shared `accounts` app); live check 30/30 (API: lists, Markdown body, web pages,
+      register without/partial/full consent, consents GET/POST, login payload; stub UI: register checkboxes, reader,
+      gate disabled until all checked, enter_app -> gate, settings screen). Fix: consent dates sent in local time
+  - [x] `LegalDocument` (per app/kind, auto version, immutable once published, Markdown + placeholders
+        `{{controller}}`/`{{email}}` from `LEGAL_CONTROLLER_NAME`/`LEGAL_CONTACT_EMAIL`), `LegalAcceptance`
+        (user, document, time, IP via X-Real-IP, user agent)
+  - [x] API: `GET legal/<app>/`, `GET legal/<app>/<kind>/` (public), `GET/POST auth/consents/`; register requires
+        `accepted_documents` (all current required docs); `pending_legal` in user payload (login/register/me)
+  - [x] Public pages `/legal/<app>/<kind>/` (Google Play privacy URL); admin: drafts editable, publish / new
+        version actions, read-only acceptance log; `publish_legal_documents <app>` from `legal_texts/<app>/*.md`
+  - [x] Texts: `legal_texts/saving/privacy.md`, `kvkk.md` (actual processing: no card numbers, statement files
+        deleted after parsing, device-only settings, Cloudflare transit, 30-day deletion, KVKK md. 11 rights)
+  - [x] Mobile: register checkboxes ("Okudum, kabul ediyorum" / KVKK "Okudum, bilgilendirildim") with reader;
+        gate before the app when `pending_legal` (new version); Diğer > Gizlilik ve KVKK (accepted version/date);
+        legal links on login; built app never downloads the font (system font if not bundled)
+- [~] "Sorun bildir" (testing phase; waiting on the user's migration + restart, then live check)
+  - [x] Shared app `support`: `IssueReport` (category bug/statement/suggestion/other, message, context JSON,
+        related_type/id + snapshot, status new/in_progress/resolved/closed, response shown to the user),
+        `IssueAttachment` (private storage, source upload/statement, deleted_at; file removed on row delete)
+  - [x] `support.registry`: client apps register snapshots; `saving_budget` registers "saving.statement" (bank,
+        parser, status, error, period, line counts by action; no file content or line texts)
+  - [x] API `support/issues/` GET own / POST multipart (`attachments` ≤3, `statement_file`, 10 MB each,
+        pdf/xlsx/xls/csv/images/txt, consent required with files, throttle 30/hour); admin: status/response,
+        snapshot + context view, staff-only attachment download; nightly `purge_issue_attachments` (resolved/
+        closed or older than 30 days)
+  - [x] Mobile: bug icon in the home header (all tabs), "Bildir" on every error toast (form opens with the error),
+        Diğer > Destek (Sorun bildir, Bildirimlerim with status/response), statement preview: icon + "Okumada bir
+        sorun mu var? Bildir" (failed: "Bu ekstreyi bize bildirin"); statements uploaded in this session stay in
+        device memory (last 3, cleared on logout) and are attached with consent, otherwise the user can pick the
+        file again; technical info shown before sending
+  - [x] Texts v2: privacy/kvkk sections for bug reports (data, purpose, 30-day attachment retention);
+        PLAY_STORE.md data safety rows (user-generated content, app performance data, files)
+  - [ ] Live check (`support_check.py` in scratchpad) after migration
+- [ ] Account deletion (30 days, Celery) + deactivation; web deletion page; add URL to PLAY_STORE.md
+- [ ] App icon + splash, version/build number, signed AAB, target API 36 check, store listing, closed test
 
 ---
 
