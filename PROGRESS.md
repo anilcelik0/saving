@@ -19,6 +19,13 @@ cd mobile; Copy-Item local_config.example.py local_config.py   # set API_URL to 
 New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
 .venv\Scripts\flet build apk               # first run downloads Flutter/JDK/Android SDK (long)
 # APK: mobile\build\apk\ -> copy to the phone and install (allow unknown sources)
+
+# Cloudflare Tunnel: create tunnel in Zero Trust, public hostname -> HTTP nginx:80
+# .env: COMPOSE_PROFILES=tunnel, CLOUDFLARE_TUNNEL_TOKEN=<token>, add the hostname to
+#       DJANGO_ALLOWED_HOSTS and https://<hostname> to DJANGO_CSRF_TRUSTED_ORIGINS
+docker compose up -d
+docker compose logs -f cloudflared          # expect "Registered tunnel connection"
+# mobile\local_config.py: API_URL = "https://<hostname>/api/v1"
 ```
 - [ ] Try the mobile app on desktop: `cd mobile; .venv\Scripts\flet run` (backend must be up)
 
@@ -238,6 +245,8 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
       extension is missing/not answering (3 s probe, e.g. desktop `flet run`; logged as a warning). Hakkında
       shows only the version (server URL and token status removed on request). Real check on the Android build
       (step 4)
+- [~] Cloudflare Tunnel: `cloudflared` service (compose profile `tunnel`, token from `.env`) -> nginx:80;
+      nginx keeps CF's `X-Forwarded-Proto` (Django sees https) and passes `CF-Connecting-IP` as `X-Real-IP`
 - [~] Step 4: Android build (`flet build apk`): prepared, waiting on the user's build + phone test
   - [x] Server URL for a real phone from git-ignored `mobile/local_config.py` (`local_config.example.py`)
   - [x] `usesCleartextTraffic` in `[tool.flet.android.manifest_application]` (plain HTTP on LAN; remove with HTTPS)

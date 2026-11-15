@@ -70,6 +70,18 @@ services:
       - web
     restart: unless-stopped
 
+  # Cloudflare Tunnel (remotely-managed): public hostname -> http://nginx:80 is set in the CF dashboard.
+  # Enabled via COMPOSE_PROFILES=tunnel in .env
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - nginx
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
