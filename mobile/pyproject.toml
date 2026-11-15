@@ -14,6 +14,6 @@ org = "com.anilcelik"
 product = "Saving"
 company = "anilcelik"
 
-[tool.flet.android.manifest_application]
-# the API is plain HTTP on the local network for now; remove once the server has HTTPS
-usesCleartextTraffic = true
+[tool.flet.app]
+# development-only server override must never ship (built apps use config.PRODUCTION_URL over HTTPS)
+exclude = ["local_config.py", "local_config.example.py"]

@@ -11,21 +11,16 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo
 # Demo user with ~6 months of data for looking at the UI (re-run = rebuild); login: demo / Demo-12345
 docker compose exec web python manage.py seed_demo_data
 
-# Phase 5 step 4: APK for a real phone on the same Wi-Fi (local backend)
-ipconfig                                   # note the Wi-Fi IPv4 address, e.g. 192.168.1.20
-# .env: DJANGO_ALLOWED_HOSTS=...,192.168.1.20   then: docker compose up -d
-New-NetFirewallRule -DisplayName "Saving API 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Private   # admin PowerShell
-cd mobile; Copy-Item local_config.example.py local_config.py   # set API_URL to http://<IP>/api/v1
-New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
-.venv\Scripts\flet build apk               # first run downloads Flutter/JDK/Android SDK (long)
-# APK: mobile\build\apk\ -> copy to the phone and install (allow unknown sources)
+# Two compose files (after the commit is pushed). Dev PC: nothing to do.
+# Server (docs/DEPLOY.md section 0): FIRST edit the server .env:
+#   add    COMPOSE_FILE=docker-compose.prod.yml
+#   remove COMPOSE_PROFILES=tunnel (and --reload from GUNICORN_CMD_ARGS if present)
+git pull; docker compose up -d --build; docker compose ps   # then open https://appmanager.com.tr/admin/
 
-# Cloudflare Tunnel: create tunnel in Zero Trust, public hostname -> HTTP nginx:80
-# .env: COMPOSE_PROFILES=tunnel, CLOUDFLARE_TUNNEL_TOKEN=<token>, add the hostname to
-#       DJANGO_ALLOWED_HOSTS and https://<hostname> to DJANGO_CSRF_TRUSTED_ORIGINS
-docker compose up -d
-docker compose logs -f cloudflared          # expect "Registered tunnel connection"
-# mobile\local_config.py: API_URL = "https://<hostname>/api/v1"
+# APK (uses https://appmanager.com.tr automatically)
+cd mobile; New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
+start ms-settings:developers               # Developer Mode ON (Flutter plugins need symlinks)
+.venv\Scripts\flet build apk
 ```
 - [ ] Try the mobile app on desktop: `cd mobile; .venv\Scripts\flet run` (backend must be up)
 
@@ -245,21 +240,35 @@ projection, spending ring, 6-month income/expense bars, net worth line, upcoming
       extension is missing/not answering (3 s probe, e.g. desktop `flet run`; logged as a warning). Hakkında
       shows only the version (server URL and token status removed on request). Real check on the Android build
       (step 4)
-- [~] Cloudflare Tunnel: `cloudflared` service (compose profile `tunnel`, token from `.env`) -> nginx:80;
+- [x] Cloudflare Tunnel: `cloudflared` service (token from `.env`) -> nginx:80;
       nginx keeps CF's `X-Forwarded-Proto` (Django sees https) and passes `CF-Connecting-IP` as `X-Real-IP`
-- [~] Step 4: Android build (`flet build apk`): prepared, waiting on the user's build + phone test
-  - [x] Server URL for a real phone from git-ignored `mobile/local_config.py` (`local_config.example.py`)
-  - [x] `usesCleartextTraffic` in `[tool.flet.android.manifest_application]` (plain HTTP on LAN; remove with HTTPS)
+- [x] Dev/prod split (2026-11-16, simplified on request): two self-contained files. `docker-compose.yml` =
+      development (unchanged services, no tunnel); `docker-compose.prod.yml` = same services + `cloudflared`
+      (always on, token required), chosen on the server by `COMPOSE_FILE=docker-compose.prod.yml` in its `.env`.
+      `COMPOSE_PROFILES` no longer used. Keep shared services identical in both files
+  - [ ] Apply on the server: `.env` edit + `git pull` + `docker compose up -d --build`
+- [~] Step 4: production + Android build
+  - [x] Decisions (2026-11-15): server = home PC (Windows 11) behind Cloudflare Tunnel, API on
+        https://appmanager.com.tr/api/v1; code via GitHub private repo; development stays local
+  - [x] Mobile server choice (`mobile/config.py`): built app (`FLET_PLATFORM` set) -> production HTTPS; `flet run`
+        (also `--android`, Python runs on the PC) -> http://localhost or git-ignored `local_config.py`, which is
+        excluded from builds (`[tool.flet.app] exclude`); cleartext HTTP permission removed
+  - [x] Django: `DJANGO_SECURE_COOKIES`, `DJANGO_HSTS_SECONDS` env flags for the server; port 80 for nginx
   - [x] Inter loaded from `assets/fonts/Inter.ttf` when present (`ft.run(..., assets_dir="assets")`), else URL
-  - [ ] Build, install, check on the phone (login, secure token status, forms, statement upload)
+  - [x] `docs/DEPLOY.md`: repo, server prep (auto start, no sleep), `.env` values, first run, Cloudflare, update,
+        backup/restore (pg_dump via `docker compose cp`; PowerShell `>` corrupts binary)
+  - [x] GitHub repo (`origin` = github.com/anilcelik0/saving), server installed by the user, site up
+  - [ ] Build APK (Developer Mode on, Android SDK 36), install, check on the phone (login, forms, statement upload,
+        session kept after restart)
+  - [ ] Play Store: developer account registration pending; then `flet build aab`, signing key, store listing
 
 ---
 
 ## Notes / Decisions
 - No django-celery-beat: schedules live in code (`CELERY_BEAT_SCHEDULE`).
 - No CORS package: Android native client does not need it.
-- Local runs production-like (`DEBUG=False`); errors are visible in `docker compose logs web`.
-- Android emulator reaches the host via `10.0.2.2` (nginx on port 80).
+- Both environments run with `DEBUG=False`; errors are visible in `docker compose logs web`.
+- Production server is updated only from GitHub (`git pull` + `docker compose up -d --build`); never edit code there.
 - Celery worker does not auto-reload: `docker compose restart celery_worker` after task code changes.
 - Login payload: `{"app": "saving", "identifier": "<username or email>", "password": "..."}`.
 - Account types are only bank/cash. No credit card accounts: card spending (manual or from card statement import)

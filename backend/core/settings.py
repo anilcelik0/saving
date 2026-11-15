@@ -15,9 +15,13 @@ DEBUG = env.bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost"])
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
-# Behind nginx
+# Behind nginx (+ Cloudflare Tunnel in production: HTTPS ends at Cloudflare, nginx forwards its scheme)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
+# Production only (local runs are plain HTTP): cookies over HTTPS only (admin login), optional HSTS.
+# HTTP -> HTTPS redirect is left to Cloudflare ("Always Use HTTPS").
+SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = env.bool("DJANGO_SECURE_COOKIES", default=False)
+SECURE_HSTS_SECONDS = env.int("DJANGO_HSTS_SECONDS", default=0)
 
 # --- Apps ---
 DJANGO_APPS = [

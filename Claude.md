@@ -7,14 +7,18 @@ First client: **Saving** (Android app built with Flet), which includes budget/tr
 - **Backend:** Python 3.14, Django 6.x, Django REST Framework, djangorestframework-simplejwt, PostgreSQL, Redis, Celery (+ celery-beat), Gunicorn.
 - **Parsing:** pdfplumber (PDF statements), openpyxl (Excel statements).
 - **Mobile:** Flet (Python/Flutter), target **Android only**.
-- **Infra:** Docker Compose running locally in a production-like setup (Gunicorn + Nginx). There are no separate dev/prod environments.
+- **Infra:** Docker Compose (Gunicorn + Nginx), two self-contained files:
+  - **Development** (this PC): `docker-compose.yml`.
+  - **Production** (home server, Windows 11, https://appmanager.com.tr): `docker-compose.prod.yml` = the same services + Cloudflare Tunnel; the server's `.env` sets `COMPOSE_FILE=docker-compose.prod.yml`. Keep shared services identical in both files. Deploy = push to GitHub (`origin`), then `git pull` + `docker compose up -d --build` on the server. See `docs/DEPLOY.md`.
 - **Config:** `.env` via django-environ. `.env` is never committed; `.env.example` is.
 
 ## Directory Structure
 ```text
 app_manager/                          # repo root
 ├── CLAUDE.md
-├── docker-compose.yml           # nginx, web, db, redis, celery_worker, celery_beat
+├── docker-compose.yml           # development: nginx, web, db, redis, celery_worker, celery_beat
+├── docker-compose.prod.yml      # production: same services + cloudflared tunnel
+├── docs/                        # FLOW.md (flow diagram), DEPLOY.md (server setup / update)
 ├── .env / .env.example
 ├── nginx/
 ├── backend/

@@ -1,3 +1,5 @@
+# Development (this PC): `docker compose ...` uses this file. No Cloudflare Tunnel here.
+# The production server uses docker-compose.prod.yml (selected by COMPOSE_FILE in the server's .env).
 name: app_manager
 
 x-backend: &backend
@@ -68,18 +70,6 @@ services:
       - media_data:/vol/media:ro
     depends_on:
       - web
-    restart: unless-stopped
-
-  # Cloudflare Tunnel (remotely-managed): public hostname -> http://nginx:80 is set in the CF dashboard.
-  # Enabled via COMPOSE_PROFILES=tunnel in .env
-  cloudflared:
-    image: cloudflare/cloudflared:2026.10.7
-    profiles: ["tunnel"]
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
-    depends_on:
-      - nginx
     restart: unless-stopped
 
 volumes:
