@@ -147,27 +147,46 @@ class AccountsScreen:
         self.state.router.push(account_form(self.state, account, on_saved=self.refresh))
 
 
+def delete_or_archive(state, title: str, archived: bool, text: str, on_delete, on_archive):
+    """Delete dialog that also offers archiving (hidden from new entries, history kept) / un-archiving."""
+    page = state.page
+
+    def run(action):
+        async def handler(e):
+            page.pop_dialog()
+            await guarded(page, action)()
+        return handler
+
+    page.show_dialog(ft.AlertDialog(
+        title=ft.Text(title),
+        content=ft.Text(text + (" Bu kayıt şu an arşivde." if archived else "")),
+        actions=[
+            ft.TextButton("Vazgeç", on_click=lambda e: page.pop_dialog()),
+            ft.TextButton("Arşivden çıkar" if archived else "Arşivle", on_click=run(on_archive)),
+            ft.TextButton("Sil", style=ft.ButtonStyle(color=ft.Colors.ERROR), on_click=run(on_delete)),
+        ],
+    ))
+
+
 def account_form(state, a: dict | None, on_saved) -> ft.View:
     a = a or {}
     is_edit = bool(a.get("id"))
     page = state.page
     opening = big_amount(a.get("opening_balance"), hint="0")
     name = inline_text(a.get("name"), hint="Hesap adı (ör. Ziraat Maaş)")
-    account_type = Chips(ACCOUNT_TYPES, a.get("account_type", "bank"))
-    has_card = Chips([("no", "Kart yok"), ("yes", "Kredi kartı var")], "yes" if a.get("statement_day") else "no",
-                     on_change=lambda v: refresh())
+    account_type = Chips(ACCOUNT_TYPES, a.get("account_type", "bank"), on_change=lambda v: refresh())
+    # a credit card always belongs to a bank account: one account, optionally with the card's cut-off day
     statement_day = plain_input("" if a.get("statement_day") is None else str(a["statement_day"]),
-                                hint="Ekstre kesim günü (1-31)", number=True)
-    card_name = plain_input(a.get("card_name"), hint="Kart adı (ör. Enpara Kredi Kartı)")
-    card_fields = ft.Column([
-        statement_day, card_name,
-        muted("Kart harcamaları aylık özette ekstre dönemine göre sayılır (ör. kesim 15 → 16 Ocak-15 Şubat "
-              "harcamaları Şubat'a). Kart ekstresi yüklenince boşsa otomatik doldurulur.", size=12),
-    ], spacing=10)
-    archived = ft.Switch(label="Arşivlendi (listelerde ve formlarda gizlenir)", value=a.get("is_archived", False))
+                                hint="Boş bırakılabilir (1-31)", number=True)
+    card_fields = field("Kredi kartı ekstre kesim günü (isteğe bağlı)", ft.Column([
+        statement_day,
+        muted("Bu hesaba bağlı bir kredi kartın varsa kesim gününü yaz: kart harcamaları aylık özette ekstre "
+              "dönemine göre sayılır (ör. kesim 15 → 16 Ocak-15 Şubat harcamaları Şubat'a). Kart ekstresi "
+              "yüklediğinde boşsa otomatik doldurulur.", size=12),
+    ], spacing=8))
 
     def refresh():
-        card_fields.visible = has_card.value == "yes"
+        card_fields.visible = account_type.value == "bank"
         try:
             page.update()
         except RuntimeError:
@@ -177,7 +196,7 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
         if not (name.value or "").strip():
             raise FormError("Hesap adı gerekli.")
         opening_value = parse_money(opening.value or "0", allow_negative=True, allow_zero=True)
-        day = parse_int(statement_day, "Kesim günü", required=True) if has_card.value == "yes" else None
+        day = parse_int(statement_day, "Kesim günü") if account_type.value == "bank" else None
         if day is not None and day > 31:
             raise FormError("Kesim günü 1 ile 31 arasında olmalı.")
         payload = {
@@ -185,8 +204,6 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
             "account_type": account_type.value,
             "opening_balance": opening_value,
             "statement_day": day,
-            "card_name": card_name.value if day else "",
-            "is_archived": archived.value,
         }
         if is_edit:
             await state.budget.accounts.update(a["id"], payload)
@@ -200,17 +217,24 @@ def account_form(state, a: dict | None, on_saved) -> ft.View:
         state.router.pop()
         await on_saved()
 
+    async def toggle_archive():
+        await state.budget.accounts.update(a["id"], {"is_archived": not a.get("is_archived")})
+        state.router.pop()
+        await on_saved()
+
     body = [
         hero("Açılış bakiyesi (bugünkü bakiye)", opening, name),
         field("Tür", account_type.control),
-        field("Kredi kartı", ft.Column([has_card.control, card_fields], spacing=10)),
+        card_fields,
     ]
-    if is_edit:
-        body.append(archived)
     refresh()
     return QuickForm(state, "/account", body, on_save=save, title="Hesabı düzenle" if is_edit else "Yeni hesap",
                      action_text="Değişiklikleri kaydet" if is_edit else "Hesabı ekle",
-                     on_delete=delete if is_edit else None).view
+                     delete_dialog=(lambda: delete_or_archive(
+                         state, "Hesabı sil", a.get("is_archived", False),
+                         "Hesap yalnızca içinde kayıt yoksa silinebilir. Kullanmadığın bir hesabı arşivleyebilirsin: "
+                         "yeni kayıtlarda ve seçim listelerinde görünmez, geçmiş kayıtların ve raporların korunur.",
+                         delete, toggle_archive)) if is_edit else None).view
 
 
 # ---------- categories ----------
@@ -269,7 +293,6 @@ def category_form(state, c: dict | None, on_saved) -> ft.View:
     preview = ft.Container()
     icons = ft.Row(wrap=True, spacing=8, run_spacing=8)
     colors = ft.Row(wrap=True, spacing=10, run_spacing=10)
-    archived = ft.Switch(label="Arşivlendi (yeni kayıtlarda gösterilmez)", value=c.get("is_archived", False))
 
     def pick(key, value):
         current[key] = value
@@ -296,7 +319,7 @@ def category_form(state, c: dict | None, on_saved) -> ft.View:
     async def save():
         if not (name.value or "").strip():
             raise FormError("Ad gerekli.")
-        payload = {"name": name.value.strip(), "kind": kind.value, "is_archived": archived.value,
+        payload = {"name": name.value.strip(), "kind": kind.value,
                    "icon": current["icon"].name.lower(), "color": current["color"]}
         if is_edit:
             await state.budget.categories.update(c["id"], payload)
@@ -310,6 +333,11 @@ def category_form(state, c: dict | None, on_saved) -> ft.View:
         state.router.pop()
         await on_saved()
 
+    async def toggle_archive():
+        await state.budget.categories.update(c["id"], {"is_archived": not c.get("is_archived")})
+        state.router.pop()
+        await on_saved()
+
     render()
     body = [
         hero("", preview, name),
@@ -317,13 +345,14 @@ def category_form(state, c: dict | None, on_saved) -> ft.View:
         field("Renk", colors),
         field("İkon", icons),
     ]
-    if is_edit:
-        body.append(archived)
     return QuickForm(state, "/category", body, on_save=save,
                      title="Kategoriyi düzenle" if is_edit else "Yeni kategori",
                      action_text="Değişiklikleri kaydet" if is_edit else "Kategoriyi ekle",
-                     on_delete=delete if is_edit else None,
-                     delete_message="Kategori silinecek; bu kategorideki işlemler kategorisiz kalır.").view
+                     delete_dialog=(lambda: delete_or_archive(
+                         state, "Kategoriyi sil", c.get("is_archived", False),
+                         "Silersen bu kategorideki kayıtlar kategorisiz kalır. Arşivlersen yeni kayıtlarda görünmez, "
+                         "eski kayıtlar kategorisini korur.",
+                         delete, toggle_archive)) if is_edit else None).view
 
 
 # ---------- learned category rules ----------

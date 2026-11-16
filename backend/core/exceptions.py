@@ -17,7 +17,8 @@ def api_exception_handler(exc, context):
     if response is not None and isinstance(exc, InvalidToken):
         response.data = {"detail": TOKEN_INVALID_MESSAGE, "code": "token_not_valid"}
     elif (response is not None and isinstance(response.data, dict) and set(response.data) == {"detail"}
-          and getattr(exc.detail, "code", None) not in (None, getattr(exc, "default_code", None))):
+          and getattr(getattr(exc, "detail", None), "code", None) not in (None, getattr(exc, "default_code", None))):
+        # (Django's Http404 / PermissionDenied have no .detail: DRF already gave them a response, nothing to add)
         # custom machine-readable codes (e.g. "account_inactive", "app_mismatch") reach the client
         response.data["code"] = exc.detail.code
     return response

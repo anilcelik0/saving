@@ -347,7 +347,9 @@ class QuickForm:
     """
 
     def __init__(self, state, route, body: list[ft.Control], on_save, action_text="Kaydet", title=None,
-                 center: ft.Control | None = None, on_delete=None, delete_message="Bu kayıt silinecek."):
+                 center: ft.Control | None = None, on_delete=None, delete_message="Bu kayıt silinecek.",
+                 delete_dialog=None):
+        """delete_dialog: callable opening a custom delete dialog (e.g. delete or archive) instead of confirm()."""
         page = state.page
         self.page = page
         self.button = ft.FilledButton(action_text, height=54, expand=True,
@@ -368,9 +370,13 @@ class QuickForm:
 
         if center is None and title:
             center = ft.Text(title, size=17, weight=ft.FontWeight.W_700)
-        right = (ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="Sil",
-                               on_click=lambda e: confirm(page, delete_message, on_delete))
-                 if on_delete else ft.Container(width=48))
+        if delete_dialog:
+            right = ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="Sil", on_click=lambda e: delete_dialog())
+        elif on_delete:
+            right = ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="Sil",
+                                  on_click=lambda e: confirm(page, delete_message, on_delete))
+        else:
+            right = ft.Container(width=48)
         top = ft.Container(
             ft.Row([ft.IconButton(ft.Icons.CLOSE, tooltip="Kapat", on_click=lambda e: state.router.pop()),
                     ft.Container(center, expand=True, alignment=ft.Alignment.CENTER), right],

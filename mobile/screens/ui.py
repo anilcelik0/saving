@@ -95,7 +95,12 @@ def toast(page: ft.Page, message: str, error=False):
     if error and _reporter:
         reporter = _reporter
         action = ft.SnackBarAction("Bildir", text_color=ft.Colors.ON_ERROR, on_click=lambda e: reporter(message))
-    page.show_dialog(ft.SnackBar(ft.Text(message), bgcolor=ft.Colors.ERROR if error else None, action=action))
+    # floating: shown above the bottom bar and the central + button instead of pushing the button up
+    page.show_dialog(ft.SnackBar(
+        ft.Text(message), bgcolor=ft.Colors.ERROR if error else None, action=action,
+        behavior=ft.SnackBarBehavior.FLOATING, shape=ft.RoundedRectangleBorder(radius=14),
+        margin=ft.Margin.symmetric(horizontal=16, vertical=12),
+    ))
 
 
 def guarded(page: ft.Page, fn):

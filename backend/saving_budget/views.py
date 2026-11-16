@@ -66,8 +66,8 @@ class CategoryViewSet(SavingViewSet):
         qs = super().get_queryset()
         if kind := self.request.query_params.get("kind"):
             qs = qs.filter(kind=kind)
-        if self.request.query_params.get("include_archived") != "true":
-            qs = qs.filter(is_archived=False)
+        if self.action == "list" and self.request.query_params.get("include_archived") != "true":
+            qs = qs.filter(is_archived=False)  # archived rows stay reachable by id (edit, un-archive, delete)
         return qs
 
 
@@ -78,8 +78,8 @@ class AccountViewSet(SavingViewSet):
 
     def get_queryset(self):
         qs = with_balance(super().get_queryset())
-        if self.request.query_params.get("include_archived") != "true":
-            qs = qs.filter(is_archived=False)
+        if self.action == "list" and self.request.query_params.get("include_archived") != "true":
+            qs = qs.filter(is_archived=False)  # archived rows stay reachable by id (edit, un-archive, delete)
         return qs
 
     def perform_create(self, serializer):

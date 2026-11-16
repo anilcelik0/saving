@@ -346,6 +346,17 @@ reopens.
 - [x] `manage.py bootstrap` (accounts, idempotent, run after every deploy): client apps from `settings.CLIENT_APPS`
       + `publish_legal_documents` per app. DEPLOY.md uses it
 
+- [x] Account form (2026-11-17): "Kart yok / Kredi kartı var" toggle and card name field removed; a card always belongs
+      to a bank account, so bank accounts just have an optional "Kredi kartı ekstre kesim günü" (hidden for cash).
+      Existing card names are kept (PATCH), lists fall back to "<hesap> kartı". Checked 5/5 against live API
+
+- [x] Toasts are floating SnackBars (above the bottom bar and the + button instead of pushing it up)
+- [x] Archive only offered when deleting: "Arşivlendi" switches removed from account/category forms; the delete icon
+      opens Sil / Arşivle (Arşivden çıkar) / Vazgeç with a short explanation; deleting an account with records shows
+      the 409 message. Backend: archive filter only on list actions (archived rows reachable by id). Checked 8/8
+- [x] Fix (regression from 53837d0): `core.exceptions` crashed on Django Http404 (no `.detail`) -> every 404 was a
+      500; now 404 again
+
 ## Statement reader v2: one general engine ✅
 Why (2026-11-16): VakıfBank switched its card statement from US to Turkish number format (+ points column,
 "Son Taksit") and the regex parser read 0 rows; per-bank regexes break on small layout changes.
