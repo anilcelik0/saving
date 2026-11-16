@@ -139,11 +139,13 @@ class StatementImportSerializer(serializers.ModelSerializer):
         fields = [
             "id", "account", "file", "exclude_from_balance", "original_name", "status", "error", "bank",
             "bank_label", "is_generic", "statement_type", "period_start", "period_end", "closing_balance",
-            "imported_count", "matched_count", "cancelled_count", "counts", "created_at",
+            "imported_count", "matched_count", "cancelled_count", "counts", "check_status", "check_message",
+            "created_at",
         ]
         read_only_fields = [
             "id", "original_name", "status", "error", "bank", "is_generic", "statement_type", "period_start",
-            "period_end", "closing_balance", "imported_count", "matched_count", "cancelled_count", "created_at",
+            "period_end", "closing_balance", "imported_count", "matched_count", "cancelled_count", "check_status",
+            "check_message", "created_at",
         ]
 
     def get_bank_label(self, obj):

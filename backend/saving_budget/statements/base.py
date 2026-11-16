@@ -15,12 +15,12 @@ class ParsedLine:
     raw_text: str = ""
     external_ref: str = ""  # bank's own transaction number, when available
     installment: str = ""  # "1/3", "kalan 2", "2. taksit" ...
-    hint: str = ""  # parser hint for classification, e.g. "card_payment", "investment"
+    hint: str = ""  # parser hint for classification, e.g. "card_payment"
 
 
 @dataclass
 class ParsedStatement:
-    bank: str  # parser key, e.g. "vakifbank"
+    bank: str  # bank slug, e.g. "vakifbank" ("other" if not recognized)
     statement_type: str  # "account" | "card"
     lines: list[ParsedLine] = field(default_factory=list)
     period_start: date | None = None
@@ -28,21 +28,7 @@ class ParsedStatement:
     closing_balance: Decimal | None = None
     holder_name: str = ""
     parser_key: str = ""  # set by the registry
-    generic: bool = False  # parsed by the fallback reader -> user should double-check lines
-
-
-class BaseParser:
-    """Subclass, set `key`, `bank`, `statement_type`, `extensions`, implement detect() and parse()."""
-
-    key: str = ""
-    bank: str = ""
-    statement_type: str = ""
-    extensions: tuple[str, ...] = ()
-    generic: bool = False
-
-    def detect(self, source) -> bool:
-        """source: first-page text (pdf) or openpyxl workbook (xlsx)."""
-        raise NotImplementedError
-
-    def parse(self, path: str) -> ParsedStatement:
-        raise NotImplementedError
+    generic: bool = False  # bank or table header not recognized -> user should double-check lines
+    # self-check against the statement's own totals: "ok" | "mismatch" | "unknown" + user-facing message
+    check_status: str = ""
+    check_message: str = ""

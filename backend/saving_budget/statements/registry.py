@@ -1,44 +1,25 @@
-import openpyxl
+from .base import ParsedStatement, StatementParseError
+from .engine import parse_pdf, parse_xlsx
 
-from .base import BaseParser, ParsedStatement, StatementParseError
-from .utils import first_page_text
-
-PARSERS: list[BaseParser] = []
-
-
-def register(cls):
-    PARSERS.append(cls())
-    return cls
+NOT_READ = ("Bu ekstreden hareket okunamadı. Ekstreyi \"Sorun bildir\" ile bize gönderirseniz okuyucuyu bu "
+            "formata göre geliştirebiliriz.")
 
 
 def detect_and_parse(path: str) -> ParsedStatement:
-    from . import parsers  # noqa: F401  (registers all parsers)
-
+    """One engine for every bank (statements/engine.py); bank and statement type are recognized from the text."""
     ext = path.rsplit(".", 1)[-1].lower()
+    if ext not in ("pdf", "xlsx"):
+        raise StatementParseError("Desteklenmeyen dosya türü. PDF veya Excel (.xlsx) yükleyin.")
     try:
-        if ext == "pdf":
-            source = first_page_text(path)
-        elif ext == "xlsx":
-            source = openpyxl.load_workbook(path, data_only=True, read_only=True)
-        else:
-            raise StatementParseError("Desteklenmeyen dosya türü. PDF veya Excel (.xlsx) yükleyin.")
+        result = parse_pdf(path) if ext == "pdf" else parse_xlsx(path)
     except StatementParseError:
         raise
     except Exception as exc:
         raise StatementParseError("Dosya okunamadı. Bozuk veya şifreli olabilir.") from exc
-
-    for parser in PARSERS:
-        if ext in parser.extensions and parser.detect(source):
-            result = parser.parse(path)
-            result.parser_key, result.generic = parser.key, parser.generic
-            if not result.lines:
-                if parser.generic:
-                    raise StatementParseError(
-                        "Bu ekstreden hareket okunamadı. Bankanız için özel destek eklenmesi gerekebilir."
-                    )
-                raise StatementParseError("Ekstrede aktarılacak hareket bulunamadı.")
-            return result
-    raise StatementParseError("Bu ekstre formatı henüz desteklenmiyor.")
+    if not result.lines:
+        raise StatementParseError(NOT_READ)
+    result.parser_key = f"engine_{ext}"
+    return result
 
 
 BANK_LABELS = {

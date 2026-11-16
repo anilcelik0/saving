@@ -128,6 +128,8 @@ def _compact(text: str) -> str:
 
 
 def skip_reason(line: ParsedLine, holder_name: str) -> str:
+    if line.hint == "card_payment":
+        return "card_payment"  # payment row of a card statement (the money left the bank account)
     folded = fold(line.raw_text or line.description)
     if any(k in folded for k in CARD_PAYMENT):
         return "card_payment"

@@ -230,20 +230,22 @@ flowchart TD
     V -- Hayır --> E400[400: Türkçe hata]
     V -- Evet --> SAVE[Dosya gizli klasöre<br/>/vol/private · nginx sunmaz]
     SAVE --> TASK[Celery: parse_statement_task]
-    TASK --> DET{Bankaya özel parser<br/>tanıdı mı?}
-    DET -- Evet --> PARSE["Özel parser<br/>VakıfBank hesap (PDF/Excel) · VakıfBank kart<br/>QNB kart · Garanti kart · Enpara kart"]
-    DET -- "Hayır (PDF)" --> GEN["Genel okuyucu (son çare)<br/>bozuk karakter çözücü (cid) +<br/>'tarih ... tutar' satır kalıpları"]
-    GEN --> GENOK{Satır bulundu mu?}
-    GENOK -- Hayır --> FAIL[Durum: Hata<br/>'Bu ekstreden hareket okunamadı']
-    GENOK -- Evet --> WARN[Önizlemede uyarı:<br/>'genel okuyucu kullanıldı, kontrol edin']
+    TASK --> ENG["Tek genel okuyucu (tüm bankalar)<br/>kelimeler + sayfadaki konumları → tarihle başlayan satırlar<br/>tutar sütunları hizalamadan bulunur, başlıktan adlandırılır<br/>(Tutar · Borç/Alacak · Bakiye · Taksit · Puan)<br/>sayı biçimi her sayıda ayrı: 1.234,56 / 1,234.56<br/>Excel: başlık satırı aynı kelimelerle bulunur"]
+    ENG --> META[Banka + tür metinden tanınır<br/>kart: hesap kesim, dönem · hesap: tarih aralığı, bakiye]
+    META --> OK{Satır bulundu mu?}
+    OK -- Hayır --> FAIL[Durum: Hata<br/>'Bu ekstreden hareket okunamadı' + Sorun bildir]
+    OK -- Evet --> CHK{"Öz-denetim<br/>kart: önceki borç + satırlar = dönem borcu<br/>hesap: bakiye zinciri"}
+    CHK -- Tutuyor --> GOOD[Önizlemede ✓ doğrulandı]
+    CHK -- Tutmuyor --> WARN[Önizlemede ⚠ fark X TL<br/>+ 'bu ekstreyi bize bildirin']
+    CHK -- Toplam yok --> UNK[Önizlemede 'kontrol edin']
+    GOOD --> RULES
     WARN --> RULES
-    PARSE --> DEL[Dosya silinir<br/>sadece satırlar kalır]
-    GEN --> DEL
-    PARSE --> RULES
+    UNK --> RULES
+    ENG --> DEL[Dosya silinir<br/>sadece satırlar kalır]
 
     subgraph RULES["Her satır için kurallar"]
-        K1{Daha önce aktarıldı mı?<br/>banka ref no / hash} -- Evet --> SK1[Atla: mükerrer]
-        K1 -- Hayır --> K2{Kart borcu ödemesi /<br/>kendi hesabına virman /<br/>fon, vadeli, yatırım?}
+        K1{Daha önce aktarıldı mı?<br/>banka ref no / hash /<br/>aynı tarih+tutar+tür} -- Evet --> SK1[Atla: mükerrer]
+        K1 -- Hayır --> K2{Kart borcu ödemesi<br/>(hesapta ya da kart ekstresinde) /<br/>kendi hesabına virman /<br/>fon, vadeli, yatırım?}
         K2 -- Evet --> SK2[Atla önerisi<br/>işaretsiz gelir]
         K2 -- Hayır --> K3{Aynı hesap + tutar,<br/>±7 gün bekleyen kayıt?<br/>taksitte: ekstre dönemi}
         K3 -- Evet --> MT[Eşleştir önerisi]

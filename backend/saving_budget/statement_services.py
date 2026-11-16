@@ -141,11 +141,23 @@ def _build_lines(statement, parsed):
     }
     rule_hits = Counter()
     existing_keys = imported_keys(statement.account)
-    seen, taken, lines = {}, set(), []
-    for no, p in enumerate(parsed.lines, start=1):
+    # Earlier imports by date + amount + kind: catches the same row read with a slightly different description
+    # (e.g. after a reader update), counted so two real same-day same-amount purchases are not merged.
+    imported = Counter(
+        Transaction.objects.filter(account=statement.account).exclude(external_key="")
+        .values_list("date", "amount", "kind")
+    )
+    seen, keys = {}, []
+    for p in parsed.lines:
         base = (p.date, p.amount, normalize(p.description))
         seen[base] = seen.get(base, 0) + 1
-        key = line_key(parsed.bank, p, seen[base])
+        keys.append(line_key(parsed.bank, p, seen[base]))
+    for p, key in zip(parsed.lines, keys):
+        slot = (p.date, abs(p.amount), Kind.EXPENSE if p.amount < 0 else Kind.INCOME)
+        if key in existing_keys and imported[slot] > 0:
+            imported[slot] -= 1  # exact matches use up their slot first
+    taken, lines = set(), []
+    for no, (p, key) in enumerate(zip(parsed.lines, keys), start=1):
         kind = Kind.EXPENSE if p.amount < 0 else Kind.INCOME
         line = StatementLine(
             statement=statement, line_no=no, date=p.date, description=p.description[:255],
@@ -162,7 +174,14 @@ def _build_lines(statement, parsed):
                 (kind, FALLBACK_CATEGORY[kind].casefold())
             )
 
-        reason = "duplicate" if key in existing_keys else skip_reason(p, parsed.holder_name)
+        slot = (p.date, abs(p.amount), kind)
+        if key in existing_keys:
+            reason = "duplicate"
+        elif imported[slot] > 0 and p.hint != "card_payment":
+            imported[slot] -= 1
+            reason = "duplicate"
+        else:
+            reason = skip_reason(p, parsed.holder_name)
         if reason:
             line.action, line.skip_reason = Action.SKIP, reason
         elif not statement.exclude_from_balance and (match := _find_pending_match(statement, line, taken)):
@@ -181,6 +200,7 @@ def _build_lines(statement, parsed):
     statement.statement_type = parsed.statement_type
     statement.period_start, statement.period_end = parsed.period_start, parsed.period_end
     statement.closing_balance = parsed.closing_balance
+    statement.check_status, statement.check_message = parsed.check_status, parsed.check_message
     statement.status = StatementImport.Status.READY
     statement.error = ""
     statement.save()
@@ -308,6 +328,7 @@ def statement_snapshot(user, statement_id) -> dict | None:
         "bank": s.bank,
         "bank_label": BANK_LABELS.get(s.bank, s.bank),
         "is_generic_parser": s.is_generic,
+        "check": [s.check_status, s.check_message],
         "statement_type": s.statement_type,
         "status": s.status,
         "error": s.error,

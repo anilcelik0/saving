@@ -7,13 +7,13 @@ from .transactions import account_options, category_options
 from .theme import EXPENSE, INCOME, MUTED, grouped, icon_badge
 from .ui import FormError, confirm, dropdown, dropdown_value, empty_text, fmt_date, fmt_money, guarded, toast
 
-GENERIC_WARNING = "Bu banka için özel okuyucu yok, genel okuyucu kullanıldı. Satırları kontrol edin."
+GENERIC_WARNING = "Banka ya da tablo başlığı tanınamadı; satırlar otomatik algılandı. Satırları kontrol edin."
 STATUSES = [("pending", "Sırada"), ("parsing", "Okunuyor"), ("ready", "Onay bekliyor"),
             ("failed", "Hata"), ("imported", "Aktarıldı")]
 TYPES = [("account", "Hesap ekstresi"), ("card", "Kart ekstresi")]
 SKIP_REASONS = {
     "duplicate": "Daha önce aktarılmış",
-    "card_payment": "Kart borcu ödemesi (kart ekstresinden gelir)",
+    "card_payment": "Kart borcu ödemesi (aktarılmaz)",
     "transfer": "Kendi hesabına virman",
     "investment": "Yatırım / mevduat hareketi",
     "user": "Aktarılmayacak",
@@ -59,6 +59,8 @@ class StatementsScreen:
             parts.append("Bakiyeye dahil değil")
         if s["error"]:
             parts.append(s["error"])
+        if s.get("check_status") == "mismatch":
+            parts.append("Toplam tutmuyor, kontrol edin")
         parts.append(self.state.account_name(s["account"]))
         return ft.ListTile(
             leading=icon_badge(ft.Icons.DESCRIPTION, "#DC2626" if s["status"] == "failed" else "#1D4ED8", size=36),
@@ -133,6 +135,7 @@ class StatementReview:
         self.statement = None
         self.lines: list = []
         self.header = ft.Text("Ekstre okunuyor...")
+        self.check_text = ft.Text("", size=13, visible=False)  # reader's self-check against the statement totals
         self.list = ft.ListView(expand=True)
         self.confirm_button = ft.FilledButton("Aktar", visible=False, on_click=guarded(self.page, self._confirm))
         self.delete_after = ft.Checkbox(
@@ -145,7 +148,8 @@ class StatementReview:
             route="/statement",
             appbar=ft.AppBar(title=ft.Text("Ekstre önizleme"), actions=[
                 ft.IconButton(ft.Icons.BUG_REPORT_OUTLINED, tooltip="Sorun bildir", on_click=report)]),
-            controls=[ft.Container(ft.Column([self.header, self.report_button], spacing=0, tight=True),
+            controls=[ft.Container(ft.Column([self.header, self.check_text, self.report_button], spacing=2,
+                                             tight=True),
                                    padding=ft.Padding.symmetric(horizontal=16)), self.list,
                       ft.Container(ft.Column([self.delete_after, self.confirm_button], tight=True), padding=16)],
             padding=0,
@@ -186,6 +190,12 @@ class StatementReview:
             f"Seçili {len(selected)}/{len(self.lines)} satır · gider {fmt_money(expense)} · gelir {fmt_money(income)}"
             + ("" if editable else f"\nAktarıldı: {s['imported_count']} yeni, {s['matched_count']} eşleşti")
         )
+        check, message = s.get("check_status"), s.get("check_message")
+        self.check_text.visible = bool(message)
+        self.check_text.value = ("✓ " if check == "ok" else "⚠ " if check == "mismatch" else "") + (message or "")
+        self.check_text.color = INCOME if check == "ok" else ft.Colors.ORANGE_800 if check == "mismatch" else MUTED
+        if check == "mismatch":
+            self.report_button.content = "Toplam tutmuyor: bu ekstreyi bize bildirin"
         self.list.controls = [self._tile(line, editable) for line in self.lines] or [empty_text("Satır yok.")]
         self.confirm_button.visible = self.delete_after.visible = editable
         self.confirm_button.content = f"{len(selected)} satırı aktar"

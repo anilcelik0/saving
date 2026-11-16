@@ -33,6 +33,11 @@ docker compose restart celery_worker celery_beat   # new task: accounts.tasks.de
 # permanent deletion right away (tests, or a KVKK request by e-mail):
 #   docker compose exec web python manage.py delete_account saving <username or e-mail> --now
 
+# Statement reader v2 (dev PC): new StatementImport fields check_status/check_message; worker runs the parser
+docker compose exec web python manage.py makemigrations saving_budget
+docker compose exec web python manage.py migrate
+docker compose restart celery_worker
+
 # APK (uses https://appmanager.com.tr automatically)
 cd mobile; New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
 start ms-settings:developers               # Developer Mode ON (Flutter plugins need symlinks)
@@ -336,7 +341,29 @@ reopens.
   - [x] `core.exceptions`: custom error codes reach the client (`{"detail", "code": "account_inactive"}`)
   - [x] Live check 27/27 (API, web page, mobile stub) + permanent deletion of a user with transactions, recurring
         series, trade and report attachment via `delete_account --now`: 3/3 (login gone, username free, no data)
-- [ ] App icon + splash, version/build number, signed AAB, target API 36 check, store listing, closed test
+- [ ] App icon + splash, version/build number, signed AAB, target API 36 check, store listing, closed test (paused 2026-11-16: back to statement reading)
+
+## Statement reader v2: one general engine ✅
+Why (2026-11-16): VakıfBank switched its card statement from US to Turkish number format (+ points column,
+"Son Taksit") and the regex parser read 0 rows; per-bank regexes break on small layout changes.
+- [x] `statements/` rewritten, per-bank parsers removed: `layout.py` (words + positions -> lines; date rows; amount
+      columns from right/left/center alignment clusters; roles from header phrases), `tokens.py` (TR/US amounts with
+      +/- markers, dates incl. "05 Ekim 2026", installment notes 2/6, 3. Taksit, AxN=T, 2x1.136,50, Son Taksit),
+      `profiles.py` (bank from the non-row text, Enpara before QNB; card vs account by hints), `engine.py` (card:
+      purchase sign from payment rows or the total; payments kept as `card_payment` lines; summary rows -> previous
+      balance; installment dates; account: amount/debit/credit, sign from running balance if unsigned, wrapped
+      description lines, FAST/EFT cleanup, ref no; Excel by header keywords; holder name)
+- [x] Self-check on every statement: card previous + rows = debt, account running balance; `check_status`/`message`
+      stored on StatementImport, shown on the preview (✓ / ⚠ with the difference + "bize bildirin"), flagged in the
+      list, included in issue-report snapshots
+- [x] Duplicate guard also by date + amount + kind of earlier imports (descriptions may change with the reader)
+- [x] Checked on all 9 samples (docs/extre_example, never committed): all read and verified against the statement
+      totals (before: 3 failed); vs. old output: account PDF/Excel, Enpara, QNB identical; differences are fixes
+      (VakıfBank "kalan 2" was points, "2. taksit" -> 2/3, Garanti period from previous cut-off). Also verified with
+      header recognition disabled (unknown-bank simulation): all 8 PDFs read and verified
+- [x] Live check 8/8: November card statement uploaded -> ready, check ok (29.338,38), 32 lines, payment
+      skipped as card_payment, installments 1/3 + 3/3, confirm, re-upload -> 31 duplicate + 1 card_payment;
+      test data removed, sample copies deleted from the container
 
 ---
 

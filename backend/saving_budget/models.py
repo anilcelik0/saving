@@ -211,6 +211,9 @@ class StatementImport(OwnedModel):
     imported_count = models.PositiveIntegerField(default=0)
     matched_count = models.PositiveIntegerField(default=0)
     cancelled_count = models.PositiveIntegerField(default=0)  # purchases cancelled by refunds
+    # reader's self-check against the statement's own totals: "ok" | "mismatch" | "unknown" (+ message for the user)
+    check_status = models.CharField(max_length=10, blank=True)
+    check_message = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ["-created_at"]

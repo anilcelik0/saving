@@ -55,7 +55,7 @@ app_manager/                          # repo root
 2. **API-First:** All business logic (parsing, calculations, price fetching, reports) lives in Django. Flet is a thin client consuming versioned JSON APIs (`/api/v1/...`) with JWT.
 3. **Data Isolation:** All user-owned data is scoped to the user (and so to the app). Querysets are always filtered by `request.user`.
 4. **Money:** Currency is TRY. Use `DecimalField` (never float) for amounts, asset quantities and prices.
-5. **Statement Parsing:** Lives in `saving_budget`. Use a registry pattern with one parser class per Turkish bank and format (PDF/Excel). Each parser returns normalized transaction DTOs. Parsing runs as a Celery task, not inside the request.
+5. **Statement Parsing:** Lives in `saving_budget/statements`. One layout-driven engine for every bank (no per-bank parser classes, by request 2026-11-16): PDF words with positions → date rows → amount columns found from alignment and named by the header (or by the data, e.g. running balance); Turkish/US number formats per token; Excel via the same header keywords. Bank/type are recognized from the text (`profiles.py`). Every result carries a self-check against the statement totals (card: previous + rows = debt; account: running balance) shown on the preview. Returns normalized DTOs; parsing runs as a Celery task, not inside the request. Never read card numbers or personal fields.
 6. **Market Data:** Lives in `saving_invest`. Prices come from a free external API, fetched **once per day** by a celery-beat task and stored as historical rows. The provider sits behind an adapter so it can be swapped.
 7. **Settings:** Single `settings.py`. All secrets, hosts and flags come from env variables.
 
