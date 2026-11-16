@@ -57,6 +57,12 @@ class AppState:
         self.user = None
         self.show_login()
 
+    async def end_session(self, message: str):
+        """After freezing / requesting deletion: the server already revoked the sessions; forget them here."""
+        await self.api.tokens.clear()
+        self.user = None
+        self.show_login(message=message, error=False)
+
     async def on_session_expired(self):
         self.user = None
         self.show_login(message="Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.")
@@ -68,6 +74,12 @@ class AppState:
 
         set_reporter(lambda error: self.open_report(error=error))  # error toasts offer "Bildir"
 
+        # frozen / deletion-pending account: reopen (or cancel deletion) before anything else
+        if (self.user or {}).get("account_status", "active") != "active":
+            from screens.account import account_status_view
+
+            self.router.reset(account_status_view(self, self.enter_app))
+            return
         # new privacy policy / KVKK versions must be accepted before using the app
         pending = (self.user or {}).get("pending_legal") or []
         if pending:
@@ -102,7 +114,7 @@ class AppState:
 
         self.router.push(onboarding_view(self, finished))
 
-    def show_login(self, message: str | None = None):
+    def show_login(self, message: str | None = None, error: bool = True):
         from screens.auth import login_view
         from screens.ui import set_reporter, toast
 
@@ -110,7 +122,7 @@ class AppState:
         self.statement_files.clear()
         self.router.reset(login_view(self))
         if message:
-            toast(self.page, message, error=True)
+            toast(self.page, message, error=error)
 
     # --- "Sorun bildir" ---
     STATEMENT_FILES_KEPT = 3

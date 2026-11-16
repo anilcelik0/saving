@@ -44,8 +44,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "app", "username", "email", "first_name", "last_name", "date_joined", "pending_legal"]
-        read_only_fields = ["id", "app", "username", "email", "date_joined"]
+        fields = ["id", "app", "username", "email", "first_name", "last_name", "date_joined", "pending_legal",
+                  "account_status", "delete_after"]
+        read_only_fields = ["id", "app", "username", "email", "date_joined", "account_status", "delete_after"]
 
     def get_pending_legal(self, obj):
         return LegalDocumentSerializer(legal.pending_documents(obj), many=True, context=self.context).data
@@ -161,3 +162,14 @@ class AppTokenRefreshSerializer(TokenRefreshSerializer):
 
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
+
+class PasswordConfirmSerializer(serializers.Serializer):
+    """Re-enter the password before freezing or deleting the account."""
+
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_password(self, value):
+        if not self.context["request"].user.check_password(value):
+            raise serializers.ValidationError("Şifre hatalı.")
+        return value

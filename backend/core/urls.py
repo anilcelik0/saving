@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 
-from accounts.views import LegalDocumentDetailView, LegalDocumentListView, legal_page
+from accounts.views import LegalDocumentDetailView, LegalDocumentListView, delete_account_page, legal_page
 from support.views import attachment_download
 
 from .views import health
@@ -24,4 +24,5 @@ urlpatterns = [
     path("api/v1/", include(api_v1)),
     # public web pages (Google Play privacy policy URL etc.)
     path("legal/<slug:app>/<slug:kind>/", legal_page, name="legal-page"),
+    path("account/delete/<slug:app>/", delete_account_page, name="account-delete-page"),
 ]

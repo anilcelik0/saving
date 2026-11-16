@@ -26,6 +26,13 @@ docker compose restart celery_worker celery_beat   # new task: support.tasks.pur
 docker compose exec web python manage.py publish_legal_documents saving   # privacy/kvkk v2 -> users re-accept
 # Server, after git pull: docker compose up -d --build; migrate; publish_legal_documents saving
 
+# Account freeze / deletion (dev PC). Until migrate, the dev API fails on user queries (new User columns).
+docker compose exec web python manage.py makemigrations accounts
+docker compose exec web python manage.py migrate
+docker compose restart celery_worker celery_beat   # new task: accounts.tasks.delete_scheduled_accounts
+# permanent deletion right away (tests, or a KVKK request by e-mail):
+#   docker compose exec web python manage.py delete_account saving <username or e-mail> --now
+
 # APK (uses https://appmanager.com.tr automatically)
 cd mobile; New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
 start ms-settings:developers               # Developer Mode ON (Flutter plugins need symlinks)
@@ -312,7 +319,23 @@ reopens.
   - [x] Texts v2: privacy/kvkk sections for bug reports (data, purpose, 30-day attachment retention);
         PLAY_STORE.md data safety rows (user-generated content, app performance data, files)
   - [ ] Live check (`support_check.py` in scratchpad) after migration
-- [ ] Account deletion (30 days, Celery) + deactivation; web deletion page; add URL to PLAY_STORE.md
+- [x] Account freeze + deletion
+  - [x] `User.account_status` active/deactivated/deletion_pending + `status_changed_at`, `delete_after`; login
+        still works (client shows reopen / cancel); `AppPermission` refuses client APIs for non-active accounts
+        (403 `account_inactive`); auth/support endpoints keep working
+  - [x] `accounts.lifecycle`: deactivate, request_deletion (+30 days, `ACCOUNT_DELETION_GRACE_DAYS`), reactivate,
+        delete_account (registered cleanups first: saving_budget removes Transaction/Series because of PROTECT to
+        Account, leftover statement files; then the user row cascades); every change revokes all refresh tokens
+  - [x] API `auth/account/deactivate|delete/` (password, throttled), `auth/account/reactivate/`; user payload has
+        `account_status`, `delete_after`; nightly `delete_scheduled_accounts` (02:15)
+  - [x] Web page `/account/delete/<app>/` (Google Play URL; credentials + confirmation, 10 failed tries / 15 min
+        per IP); shared public template; admin: status columns/filter, actions "Silme talebi oluştur" and
+        "HEMEN kalıcı sil" (the standard delete page is blocked by PROTECT); `delete_account <app> <user> [--now]`
+  - [x] Mobile: Diğer > Hesap (Hesabı dondur / Hesabı sil: points, password, confirmation, red button) -> signed out
+        with a message; status screen after login (reopen / cancel deletion) before the consent gate
+  - [x] `core.exceptions`: custom error codes reach the client (`{"detail", "code": "account_inactive"}`)
+  - [x] Live check 27/27 (API, web page, mobile stub) + permanent deletion of a user with transactions, recurring
+        series, trade and report attachment via `delete_account --now`: 3/3 (login gone, username free, no data)
 - [ ] App icon + splash, version/build number, signed AAB, target API 36 check, store listing, closed test
 
 ---

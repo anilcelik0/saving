@@ -62,10 +62,20 @@ class User(AbstractBaseUser, PermissionsMixin):
     each with its own password. app=NULL means a platform (admin) account.
     """
 
+    class AccountStatus(models.TextChoices):
+        ACTIVE = "active", "Aktif"
+        DEACTIVATED = "deactivated", "Dondurulmuş"
+        DELETION_PENDING = "deletion_pending", "Silinmeyi bekliyor"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid7, editable=False)
     app = models.ForeignKey(
         ClientApp, on_delete=models.PROTECT, null=True, blank=True, related_name="users"
     )
+    # Self-service lifecycle (accounts.lifecycle). Login still works so the user can reopen / cancel deletion;
+    # client app APIs refuse non-active accounts (AppPermission).
+    account_status = models.CharField(max_length=20, choices=AccountStatus.choices, default=AccountStatus.ACTIVE)
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    delete_after = models.DateTimeField(null=True, blank=True, help_text="Permanent deletion time (deletion_pending)")
     username = models.CharField(max_length=30, validators=[username_validator])
     email = models.EmailField(max_length=254)
     first_name = models.CharField(max_length=150, blank=True)

@@ -13,3 +13,10 @@ class SavingBudgetConfig(AppConfig):
 
         # "Sorun bildir" from a statement: the report keeps what the statement looked like at that moment
         register_related_provider("saving.statement", statement_snapshot)
+
+        # account deletion: transactions/series hold PROTECT links to accounts, so they are removed first
+        from accounts.lifecycle import register_user_data_cleanup
+
+        from .services import delete_user_budget_data
+
+        register_user_data_cleanup(delete_user_budget_data)

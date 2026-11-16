@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %} · {{ app.name }}</title>
+<style>
+  :root { --bg: #F6F7F9; --card: #FFFFFF; --text: #0F172A; --muted: #475569; --line: #E2E8F0; --accent: #0F766E;
+          --danger: #B91C1C; --danger-bg: #FEE2E2; --ok-bg: #DCFCE7; --ok: #15803D; --input: #FFFFFF; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0E1116; --card: #171B22; --text: #E6EAF0; --muted: #9AA4B2; --line: #2A313C; --accent: #2DD4BF;
+            --danger: #F87171; --danger-bg: #3B1515; --ok-bg: #12301C; --ok: #4ADE80; --input: #0E1116; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { margin-bottom: 20px; }
+  .app { color: var(--accent); font-weight: 600; font-size: 14px; letter-spacing: .3px; }
+  h1 { font-size: 28px; line-height: 1.25; margin: 6px 0 8px; }
+  .meta { color: var(--muted); font-size: 14px; }
+  article { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 8px 24px 24px; }
+  article h2 { font-size: 19px; margin: 28px 0 8px; }
+  article h3 { font-size: 16px; margin: 20px 0 6px; }
+  article a { color: var(--accent); }
+  article table { border-collapse: collapse; width: 100%; font-size: 14px; display: block; overflow-x: auto; }
+  article th, article td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
+  ul, ol { padding-left: 22px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 16px 0 6px; }
+  input[type=text], input[type=password] { width: 100%; padding: 12px 14px; border: 1px solid var(--line);
+         border-radius: 12px; background: var(--input); color: var(--text); font: inherit; }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin-top: 18px; }
+  .check input { margin-top: 5px; width: 18px; height: 18px; }
+  button { margin-top: 20px; width: 100%; min-height: 48px; border: 0; border-radius: 14px; font: 600 16px inherit;
+           background: var(--danger); color: #fff; cursor: pointer; }
+  .notice { border-radius: 12px; padding: 12px 14px; margin: 16px 0; }
+  .error { background: var(--danger-bg); color: var(--danger); }
+  .ok { background: var(--ok-bg); color: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="app">{{ app.name }}</div>
+    {% block header %}{% endblock %}
+  </header>
+  <article>{% block content %}{% endblock %}</article>
+</main>
+</body>
+</html>

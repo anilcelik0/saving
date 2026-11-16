@@ -9,7 +9,7 @@ Hesap tipi: **kişisel** → üretime çıkmadan önce kapalı test zorunlu (bkz
 | Kategori | Finans |
 | Gizlilik politikası URL'si | https://appmanager.com.tr/legal/saving/privacy/ |
 | KVKK aydınlatma metni | https://appmanager.com.tr/legal/saving/kvkk/ |
-| Hesap silme URL'si | *(hesap silme adımında eklenecek)* |
+| Hesap silme URL'si | https://appmanager.com.tr/account/delete/saving/ |
 
 > Sayfaların açılması için sunucuda metinlerin yayınlanmış olması gerekir:
 > `docker compose exec web python manage.py publish_legal_documents saving`
@@ -77,8 +77,14 @@ tanımına göre "paylaşım" sayılmaz). Tüm satırlarda: **Toplanır · Payla
 sağlık, analiz/izleme, web geçmişi, cihaz/reklam kimliği, kilitlenme günlükleri.
 
 ## 9. Hesap silme
-Hesap silme adımı tamamlanınca: uygulama içi yol (**Diğer > Hesabı sil**) ve web URL'si buraya ve Veri güvenliği
-formuna eklenecek. Silme: talep → 30 gün bekleme (girişte iptal edilebilir) → tüm verilerin kalıcı silinmesi.
+Play Console > Uygulama içeriği > **Veri güvenliği** formundaki silme sorularında ve "Hesap silme" bölümünde:
+- Uygulama içi yol: **Diğer > Hesap > Hesabı sil** (şifre + onay)
+- Web bağlantısı: **https://appmanager.com.tr/account/delete/saving/** (uygulamayı kurmadan, kullanıcı adı/e-posta +
+  şifre ile)
+- İşleyiş: talep → hesap kilitlenir, tüm oturumlar kapanır → **30 gün** içinde giriş yapılırsa iptal edilebilir →
+  süre dolunca hesap ve tüm verileri (finansal kayıtlar, ekstre satırları, bildirimler ve ekleri, onay kayıtları)
+  kalıcı olarak silinir. Kısmi veri silme sunulmaz (verilerin tamamı hesapla birlikte silinir).
+- Hesabı dondurma (**Diğer > Hesap > Hesabı dondur**) silme değildir; veriler korunur, girişte yeniden açılır.
 
 ## 10. Kapalı test (kişisel hesap)
 - Play Console > Test > **Kapalı test** kanalı oluştur, AAB yükle, test kullanıcılarını (Google hesabı e-postaları

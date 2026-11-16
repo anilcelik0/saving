@@ -1,5 +1,6 @@
 import flet as ft
 
+from .account import close_account_form
 from .autopay import AutoPaymentsScreen
 from .choices import ACCOUNT_TYPES, KINDS, label
 from .legal import LegalSettingsScreen
@@ -71,6 +72,13 @@ class MoreTab:
                          "Hata, ekstre okuma sorunu veya öneri"),
                     item(ft.Icons.INBOX, "#0EA5E9", "Bildirimlerim", lambda e: push(MyReportsScreen(state).view),
                          "Gönderdiklerin ve yanıtlar"),
+                ]),
+                section("Hesap"),
+                *grouped([
+                    item(ft.Icons.PAUSE_CIRCLE, "#475569", "Hesabı dondur",
+                         lambda e: push(close_account_form(state, "deactivate")), "Veriler kalır, istediğin zaman aç"),
+                    item(ft.Icons.DELETE_FOREVER, "#DC2626", "Hesabı sil",
+                         lambda e: push(close_account_form(state, "delete")), "30 gün sonra tüm veriler silinir"),
                 ]),
                 *grouped([
                     ft.ListTile(leading=icon_badge(ft.Icons.LOGOUT, "#DC2626", size=36),

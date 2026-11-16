@@ -2,6 +2,7 @@ from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils import timezone
 
+from . import lifecycle
 from .models import ClientApp, LegalAcceptance, LegalDocument, User
 
 
@@ -14,8 +15,8 @@ class ClientAppAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ["username", "email", "app", "is_active", "is_staff", "date_joined"]
-    list_filter = ["app", "is_active", "is_staff", "is_superuser"]
+    list_display = ["username", "email", "app", "account_status", "delete_after", "is_staff", "date_joined"]
+    list_filter = ["app", "account_status", "is_active", "is_staff", "is_superuser"]
     search_fields = ["username", "email", "first_name", "last_name"]
     ordering = ["-date_joined"]
     list_select_related = ["app"]
@@ -25,7 +26,27 @@ class UserAdmin(BaseUserAdmin):
         ("Personal info", {"fields": ["first_name", "last_name"]}),
         ("Permissions", {"fields": ["is_active", "is_staff", "is_superuser", "groups", "user_permissions"]}),
         ("Dates", {"fields": ["last_login", "date_joined"]}),
+        ("Hesap durumu", {"fields": ["account_status", "status_changed_at", "delete_after"]}),
     ]
+    readonly_fields = ["status_changed_at"]
+    actions = ["schedule_deletion", "delete_now"]
+
+    @admin.action(description="Silme talebi oluştur (30 gün sonra silinir, oturumlar kapanır)")
+    def schedule_deletion(self, request, queryset):
+        for user in queryset.filter(app__isnull=False):
+            lifecycle.request_deletion(user)
+        self.message_user(request, "Silme talepleri oluşturuldu.", messages.SUCCESS)
+
+    # the standard delete page refuses users with data (Transaction/Series -> Account are PROTECT);
+    # this uses the same ordered cleanup as the scheduled deletion
+    @admin.action(description="Tüm verileriyle HEMEN kalıcı sil (geri alınamaz)")
+    def delete_now(self, request, queryset):
+        count = 0
+        for user in queryset.filter(app__isnull=False):
+            lifecycle.delete_account(user)
+            count += 1
+        self.message_user(request, f"{count} hesap kalıcı olarak silindi.", messages.WARNING)
+
     add_fieldsets = [
         (None, {"classes": ["wide"], "fields": ["app", "username", "email", "password1", "password2"]}),
     ]

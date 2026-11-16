@@ -1,7 +1,10 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import ConsentView, LoginView, LogoutView, MeView, RegisterView
+from .views import (
+    AccountDeactivateView, AccountDeleteView, AccountReactivateView, ConsentView, LoginView, LogoutView, MeView,
+    RegisterView,
+)
 
 app_name = "accounts"
 
@@ -12,4 +15,7 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("me/", MeView.as_view(), name="me"),
     path("consents/", ConsentView.as_view(), name="consents"),
+    path("account/deactivate/", AccountDeactivateView.as_view(), name="account-deactivate"),
+    path("account/delete/", AccountDeleteView.as_view(), name="account-delete"),
+    path("account/reactivate/", AccountReactivateView.as_view(), name="account-reactivate"),
 ]

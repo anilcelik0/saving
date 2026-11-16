@@ -24,6 +24,18 @@ class AuthService:
     async def me(self) -> dict:
         return await self.api.get("auth/me/")
 
+    # ---- account lifecycle (password re-entered; the server signs out every device)
+    async def deactivate(self, password: str) -> dict:
+        return await self.api.post("auth/account/deactivate/", {"password": password})
+
+    async def request_deletion(self, password: str) -> dict:
+        """Account is locked now and deleted after 30 days (user["delete_after"])."""
+        return await self.api.post("auth/account/delete/", {"password": password})
+
+    async def reactivate(self) -> dict:
+        """Reopen a frozen account / cancel a pending deletion."""
+        return await self.api.post("auth/account/reactivate/", {})
+
     # ---- legal documents (privacy policy, KVKK notice) and the user's acceptances
     async def legal_documents(self) -> list:
         """Current documents (public; shown on the register screen)."""

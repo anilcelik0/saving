@@ -440,3 +440,17 @@ def bulk_set_status(user, *, account, date_from, date_to, status, paid_on=None) 
         return qs.filter(status=PENDING).update(status=PAID, paid_on=paid_on or timezone.localdate(),
                                                  updated_at=timezone.now())
     return qs.filter(status=PAID).update(status=PENDING, paid_on=None, updated_at=timezone.now())
+
+
+def delete_user_budget_data(user) -> None:
+    """
+    Account deletion (accounts.lifecycle): Transaction/Series -> Account are PROTECT, which blocks a plain
+    cascade from the user, so they go first; everything else cascades with the user row. Leftover statement
+    files (normally deleted right after parsing) are removed from disk too.
+    """
+    from .models import Series, StatementImport
+
+    Transaction.objects.filter(user=user).delete()
+    Series.objects.filter(user=user).delete()
+    for statement in StatementImport.objects.filter(user=user).exclude(file=""):
+        statement.file.delete(save=False)

@@ -1,0 +1,34 @@
+{% extends "accounts/public_base.html" %}
+{% block title %}Hesap silme{% endblock %}
+{% block header %}<h1>Hesabını sil</h1>{% endblock %}
+{% block content %}
+  {% if done %}
+    <div class="notice ok">
+      Silme talebiniz alındı. Hesabınız kilitlendi ve <strong>{{ delete_after|date:"d.m.Y" }}</strong> tarihinde
+      tüm verilerinizle birlikte kalıcı olarak silinecek.
+    </div>
+    <p>Bu tarihe kadar uygulamaya giriş yaparak talebinizi iptal edebilirsiniz.</p>
+  {% else %}
+    <p>Bu sayfadan, uygulamayı açmadan <strong>{{ app.name }}</strong> hesabınızın silinmesini isteyebilirsiniz.
+      Uygulamada aynı işlem <strong>Diğer &gt; Hesabı sil</strong> bölümündedir.</p>
+    <h2>Ne olur?</h2>
+    <ul>
+      <li>Hesabınız hemen kilitlenir ve tüm cihazlarda oturumunuz kapanır.</li>
+      <li><strong>{{ grace_days }} gün</strong> içinde uygulamaya giriş yaparak talebinizi iptal edebilirsiniz.</li>
+      <li>Süre dolunca hesabınız ve ona bağlı <strong>tüm veriler</strong> (hesaplar, gelir/gider kayıtları,
+        ekstre satırları, yatırım ve mevduat kayıtları, sorun bildirimleri, onay kayıtları) kalıcı olarak silinir;
+        bu işlem geri alınamaz. Yedek kopyalardaki veriler yedekleme döngüsü içinde silinir.</li>
+    </ul>
+    {% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <label for="identifier">Kullanıcı adı veya e-posta</label>
+      <input type="text" id="identifier" name="identifier" value="{{ identifier }}" autocomplete="username" required>
+      <label for="password">Şifre</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+      <label class="check"><input type="checkbox" name="confirm" required>
+        <span>Hesabımın ve tüm verilerimin {{ grace_days }} gün sonra kalıcı olarak silineceğini anladım.</span></label>
+      <button type="submit">Hesabımı sil</button>
+    </form>
+  {% endif %}
+{% endblock %}

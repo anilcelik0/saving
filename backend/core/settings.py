@@ -26,6 +26,8 @@ SECURE_HSTS_SECONDS = env.int("DJANGO_HSTS_SECONDS", default=0)
 # Legal texts (privacy policy, KVKK notice): data controller shown in the published documents
 LEGAL_CONTROLLER_NAME = env("LEGAL_CONTROLLER_NAME", default="")
 LEGAL_CONTACT_EMAIL = env("LEGAL_CONTACT_EMAIL", default="")
+# Account deletion: locked at request, permanently deleted after this many days (cancel by logging in)
+ACCOUNT_DELETION_GRACE_DAYS = 30
 
 # --- Apps ---
 DJANGO_APPS = [
@@ -129,6 +131,10 @@ CELERY_BEAT_SCHEDULE = {
     "saving-invest-daily-prices": {
         "task": "saving_invest.tasks.fetch_daily_prices",
         "schedule": crontab(hour=17, minute=0),
+    },
+    "accounts-delete-scheduled-accounts": {
+        "task": "accounts.tasks.delete_scheduled_accounts",
+        "schedule": crontab(hour=2, minute=15),
     },
     "support-purge-issue-attachments": {
         "task": "support.tasks.purge_issue_attachments",

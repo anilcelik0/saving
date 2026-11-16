@@ -1,3 +1,6 @@
+from django.conf import settings
+from django.contrib.auth import authenticate
+from django.core.cache import cache
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from rest_framework import generics, serializers, status
@@ -8,12 +11,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from . import legal
+from . import legal, lifecycle
 from .authentication import issue_tokens
 from .models import ClientApp, LegalAcceptance
 from .serializers import (
     ConsentSerializer, LegalDocumentDetailSerializer, LegalDocumentSerializer, LoginSerializer, LogoutSerializer,
-    RegisterSerializer, UserSerializer,
+    PasswordConfirmSerializer, RegisterSerializer, UserSerializer,
 )
 
 
@@ -65,6 +68,40 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+# ---------------------------------------------------------------- account lifecycle
+class _AccountActionView(APIView):
+    """POST {"password"}: confirm with the password, change the status, sign out every device."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+    action = None
+
+    def post(self, request):
+        PasswordConfirmSerializer(data=request.data, context={"request": request}).is_valid(raise_exception=True)
+        type(self).action(request.user)
+        return Response(UserSerializer(request.user, context={"request": request}).data)
+
+
+class AccountDeactivateView(_AccountActionView):
+    """Freeze: data kept, client app APIs closed until the user logs in and reopens the account."""
+
+    action = staticmethod(lifecycle.deactivate)
+
+
+class AccountDeleteView(_AccountActionView):
+    """Request deletion: locked now, deleted for good after the grace period (login offers to cancel)."""
+
+    action = staticmethod(lifecycle.request_deletion)
+
+
+class AccountReactivateView(APIView):
+    """Reopen a frozen account / cancel a pending deletion (after logging in again)."""
+
+    def post(self, request):
+        lifecycle.reactivate(request.user)
+        return Response(UserSerializer(request.user, context={"request": request}).data)
 
 
 # ---------------------------------------------------------------- legal documents
@@ -142,4 +179,35 @@ def legal_page(request, app, kind):
     doc = next((d for d in legal.current_documents(_active_app(app)) if d.kind == kind), None)
     if doc is None:
         raise Http404
-    return render(request, "accounts/legal_document.html", {"doc": doc, "body": legal.render_html(doc)})
+    return render(request, "accounts/legal_document.html",
+                  {"app": doc.app, "doc": doc, "body": legal.render_html(doc)})
+
+
+WEB_DELETE_MAX_ATTEMPTS, WEB_DELETE_LOCK_SECONDS = 10, 15 * 60
+
+
+def delete_account_page(request, app):
+    """
+    Public web page to request account deletion without the app (Google Play requirement). Same effect as
+    Diğer > Hesabı sil: locked now, deleted after the grace period unless the user logs in and cancels.
+    """
+    client_app = _active_app(app)
+    context = {"app": client_app, "grace_days": settings.ACCOUNT_DELETION_GRACE_DAYS, "identifier": ""}
+    if request.method == "POST":
+        key = f"web-delete-attempts:{legal.client_ip(request) or 'unknown'}"
+        attempts = cache.get(key, 0)
+        identifier = (request.POST.get("identifier") or "").strip()
+        context["identifier"] = identifier
+        if attempts >= WEB_DELETE_MAX_ATTEMPTS:
+            context["error"] = "Çok fazla hatalı deneme yapıldı. Lütfen 15 dakika sonra tekrar deneyin."
+        elif not request.POST.get("confirm"):
+            context["error"] = "Devam etmek için onay kutusunu işaretleyin."
+        else:
+            user = authenticate(request, username=identifier, password=request.POST.get("password", ""), app=app)
+            if user is None:
+                cache.set(key, attempts + 1, WEB_DELETE_LOCK_SECONDS)
+                context["error"] = "Kullanıcı adı/e-posta veya şifre hatalı."
+            else:
+                lifecycle.request_deletion(user)
+                context.update(done=True, delete_after=user.delete_after)
+    return render(request, "accounts/delete_account.html", context)
