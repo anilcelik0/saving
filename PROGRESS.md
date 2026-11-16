@@ -343,6 +343,9 @@ reopens.
         series, trade and report attachment via `delete_account --now`: 3/3 (login gone, username free, no data)
 - [ ] App icon + splash, version/build number, signed AAB, target API 36 check, store listing, closed test (paused 2026-11-16: back to statement reading)
 
+- [x] `manage.py bootstrap` (accounts, idempotent, run after every deploy): client apps from `settings.CLIENT_APPS`
+      + `publish_legal_documents` per app. DEPLOY.md uses it
+
 ## Statement reader v2: one general engine ✅
 Why (2026-11-16): VakıfBank switched its card statement from US to Turkish number format (+ points column,
 "Son Taksit") and the regex parser read 0 rows; per-bank regexes break on small layout changes.

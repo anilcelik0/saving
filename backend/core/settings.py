@@ -54,6 +54,12 @@ SAVING_APPS = [
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + SHARED_APPS + SAVING_APPS
 
+# Client applications served by this backend (slug -> display name); `manage.py bootstrap` registers them,
+# publishes their legal texts (legal_texts/<slug>/).
+CLIENT_APPS = {
+    "saving": "Saving",
+}
+
 AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = ["accounts.backends.AppScopedBackend"]
 # USERNAME_FIELD is unique per app (not globally); handled by AppScopedBackend.

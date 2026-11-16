@@ -66,10 +66,12 @@ Başlat ve veritabanını hazırla:
 ```powershell
 docker compose up -d --build
 docker compose exec web python manage.py migrate
-docker compose exec web python manage.py create_client_app saving Saving
+docker compose exec web python manage.py bootstrap
 docker compose exec web python manage.py createsuperuser
-docker compose exec web python manage.py fetch_prices
 ```
+`bootstrap`: istemci uygulamalarını kaydeder (`CLIENT_APPS`) ve gizlilik/KVKK metinlerini yayınlar
+(`backend/legal_texts/<app>/`). Kaç kez çalıştırılırsa çalıştırılsın güvenlidir; metin değişmediyse yeni sürüm açmaz.
+Fiyatlar günlük görevle gelir; hemen görmek için: `docker compose exec web python manage.py fetch_prices`.
 
 ## 4. Cloudflare ayarları (bir kez)
 - Zero Trust > Networks > Tunnels > tünel > **Public hostname**: `appmanager.com.tr` → Service **HTTP**, URL `nginx:80`.
@@ -83,8 +85,10 @@ cd C:\srv\app_manager
 git pull
 docker compose up -d --build
 docker compose exec web python manage.py migrate
+docker compose exec web python manage.py bootstrap
 ```
-Migration yoksa son satır "No migrations to apply" der, zararı yoktur.
+Migration yoksa "No migrations to apply" der, zararı yoktur. Gizlilik/KVKK metni değiştiyse `bootstrap` yeni
+sürümü yayınlar ve kullanıcılardan uygulamada yeniden onay istenir.
 
 ## 6. Yedek (önerilir)
 Veritabanı yedeği (Görev Zamanlayıcı ile her gece çalıştırılabilir):
