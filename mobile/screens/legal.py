@@ -138,6 +138,7 @@ class LegalSettingsScreen:
         self.list = ft.ListView(expand=True, padding=16, spacing=12)
         self.view = ft.View(route="/legal", appbar=ft.AppBar(title=ft.Text("Gizlilik ve KVKK")),
                             controls=[self.list], padding=0)
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):

@@ -17,6 +17,7 @@ from .serializers import (
     AccountSerializer,
     CategorySerializer,
     BulkStatusSerializer,
+    CycleSerializer,
     MerchantCategoryRuleSerializer,
     MonthlySummarySerializer,
     PaySerializer,
@@ -29,8 +30,8 @@ from .serializers import (
 )
 from .services import (
     activity_month, activity_upcoming, apply_to_following, bulk_set_status, cancel_transaction, card_cycle_q,
-    delete_with_following, learn_category, mark_paid, mark_unpaid, monthly_summary, restore_transaction,
-    with_balance,
+    delete_cycle, delete_with_following, learn_category, mark_paid, mark_unpaid, monthly_summary,
+    restore_transaction, sync_auto_pay_status, with_balance,
 )
 from .statement_services import confirm_statement, delete_statement_data
 from .tasks import parse_statement_task
@@ -129,7 +130,10 @@ class TransactionViewSet(SavingViewSet):
     def perform_update(self, serializer):
         scope = _scope(self.request)
         old_category_id = serializer.instance.category_id
+        old_due = (serializer.instance.date, serializer.instance.auto_pay)
         txn = serializer.save()
+        if (txn.date, txn.auto_pay) != old_due:
+            sync_auto_pay_status(txn)
         if scope == "following":
             apply_to_following(txn, serializer.validated_data)
         if txn.category_id != old_category_id and txn.description:
@@ -142,6 +146,13 @@ class TransactionViewSet(SavingViewSet):
         serializer.is_valid(raise_exception=True)
         updated = bulk_set_status(request.user, **serializer.validated_data)
         return Response({"updated": updated})
+
+    @action(detail=False, methods=["post"], url_path="delete-cycle")
+    def delete_cycle(self, request):
+        """Delete a whole card cycle (account + date range), e.g. a statement imported to the wrong card."""
+        serializer = CycleSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        return Response({"deleted": delete_cycle(request.user, **serializer.validated_data)})
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):

@@ -212,6 +212,18 @@ class CategoryGrid:
             self.on_change(self.value)
 
 
+def picked_day(value) -> date | None:
+    """Calendar day chosen in a DatePicker.
+
+    Flet carries datetimes as UTC: the chosen day's local midnight arrives shifted (25.11 00:00 +03:00 ->
+    24.11 21:00 UTC), so `.date()` gave the previous day (a payment due tomorrow became today and auto-pay
+    marked it paid at once). Half a day forward lands on the chosen day for every UTC offset from -12 to +12.
+    """
+    if isinstance(value, datetime):
+        return (value + timedelta(hours=12)).date() if value.tzinfo else value.date()
+    return value
+
+
 class DateChips:
     """Bugün / Dün / Tarih seç. `.value` is a date (or None when optional and cleared), `.iso` 'YYYY-MM-DD'."""
 
@@ -254,9 +266,9 @@ class DateChips:
         _safe_update(self.control)
 
     def _picked(self, e):
-        picked = e.control.value
+        picked = picked_day(e.control.value)
         if picked:
-            self.set(picked.date() if isinstance(picked, datetime) else picked)
+            self.set(picked)
 
     def set(self, value):
         self.value = value

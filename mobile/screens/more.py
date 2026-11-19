@@ -119,6 +119,7 @@ class AccountsScreen:
             floating_action_button=ft.FloatingActionButton(icon=ft.Icons.ADD, on_click=lambda e: self._open(None)),
             controls=[self.list],
         )
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):
@@ -249,6 +250,7 @@ class CategoriesScreen:
             floating_action_button=ft.FloatingActionButton(icon=ft.Icons.ADD, on_click=lambda e: self._open(None)),
             controls=[self.list],
         )
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):
@@ -365,6 +367,7 @@ class CategoryRulesScreen:
         self.list = ft.ListView(expand=True, padding=16, spacing=12)
         self.view = ft.View(route="/category-rules", appbar=ft.AppBar(title=ft.Text("Öğrenilen kategoriler")),
                             controls=[self.list])
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):

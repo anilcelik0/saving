@@ -278,10 +278,15 @@ def serialize_activity(items, context) -> list[dict]:
     return out
 
 
-class BulkStatusSerializer(serializers.Serializer):
+class CycleSerializer(serializers.Serializer):
+    """A card cycle of an account (bulk actions on the 'Ekstre' rows of Hareketler)."""
+
     account = OwnedPrimaryKeyRelatedField(queryset=Account.objects.all())
     date_from = serializers.DateField()
     date_to = serializers.DateField()
+
+
+class BulkStatusSerializer(CycleSerializer):
     status = serializers.ChoiceField(choices=[Transaction.Status.PAID, Transaction.Status.PENDING])
     paid_on = serializers.DateField(required=False)
 

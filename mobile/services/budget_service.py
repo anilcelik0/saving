@@ -54,6 +54,12 @@ class Transactions(Resource):
             "account": account_id, "date_from": date_from, "date_to": date_to, "status": status,
         })
 
+    async def delete_cycle(self, account_id, date_from: str, date_to: str) -> dict:
+        """Delete all card transactions of an account cycle -> {"deleted": n}."""
+        return await self.api.post(self.path + "delete-cycle/", {
+            "account": account_id, "date_from": date_from, "date_to": date_to,
+        })
+
     async def cancel(self, obj_id) -> dict:
         """Refunded purchase / skipped occurrence: kept in history, excluded from totals."""
         return await self.api.post(f"{self.path}{obj_id}/cancel/", {})

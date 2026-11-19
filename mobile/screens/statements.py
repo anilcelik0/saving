@@ -35,6 +35,7 @@ class StatementsScreen:
             floating_action_button=ft.FloatingActionButton(icon=ft.Icons.UPLOAD_FILE, on_click=lambda e: self._upload_dialog()),
             controls=[self.list],
         )
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):

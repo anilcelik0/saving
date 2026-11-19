@@ -56,6 +56,7 @@ async def main(page: ft.Page):
 
     state = AppState(page=page, router=Router(page), settings=settings)
     state.api = ApiClient(api_base_url(page.platform), tokens, on_session_expired=state.on_session_expired)
+    state.api.on_change = state.data_changed  # every successful write refreshes the open screens
     state.auth = AuthService(state.api)
     state.budget = BudgetService(state.api)
     state.invest = InvestService(state.api)

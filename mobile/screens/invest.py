@@ -191,6 +191,7 @@ class AssetView:
             ], expand=True, padding=16, spacing=12)],
             padding=0,
         )
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):
@@ -603,6 +604,7 @@ class DepositHistoryView:
         self.list = ft.ListView(expand=True, padding=16)
         self.view = ft.View(route="/deposit-history", appbar=ft.AppBar(title=ft.Text("Geçmiş mevduatlar")),
                             controls=[self.list], padding=0)
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):

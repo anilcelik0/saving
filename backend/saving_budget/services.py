@@ -201,6 +201,23 @@ def create_entry(*, user, repeat: str, data: dict, series_options: dict) -> Tran
     return Transaction.objects.get(pk=rows[0].pk)
 
 
+def sync_auto_pay_status(txn: Transaction) -> Transaction:
+    """After an edit of date / auto-pay: an auto-pay entry follows its date (due -> paid on that day,
+    moved to the future -> pending again). Only called when one of those two changed, so a future auto-pay
+    entry the user marked paid early stays paid."""
+    if not txn.auto_pay or txn.status == CANCELLED:
+        return txn
+    today = timezone.localdate()
+    if txn.status == PENDING and txn.date <= today:
+        txn.status, txn.paid_on = PAID, txn.date
+    elif txn.status == PAID and txn.date > today:
+        txn.status, txn.paid_on = PENDING, None
+    else:
+        return txn
+    txn.save(update_fields=["status", "paid_on", "updated_at"])
+    return txn
+
+
 def mark_paid(txn: Transaction, *, amount=None, paid_on=None) -> Transaction:
     if txn.status == PAID:
         raise ValidationError({"detail": "Bu kayıt zaten ödendi olarak işaretli."})
@@ -440,6 +457,15 @@ def bulk_set_status(user, *, account, date_from, date_to, status, paid_on=None) 
         return qs.filter(status=PENDING).update(status=PAID, paid_on=paid_on or timezone.localdate(),
                                                  updated_at=timezone.now())
     return qs.filter(status=PAID).update(status=PENDING, paid_on=None, updated_at=timezone.now())
+
+
+def delete_cycle(user, *, account, date_from, date_to) -> int:
+    """Delete every card transaction of an account cycle (e.g. a statement imported to the wrong card / twice).
+    Investment mirrors are kept (they belong to their investment movement)."""
+    qs = Transaction.objects.filter(card_cycle_q(account.id, date_from, date_to), user=user).exclude(
+        source=Transaction.Source.INVESTMENT)
+    _, per_model = qs.delete()
+    return per_model.get(Transaction._meta.label, 0)
 
 
 def delete_user_budget_data(user) -> None:

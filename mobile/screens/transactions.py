@@ -15,7 +15,7 @@ from .ui import (
 
 
 def transaction_tile(state, t, on_changed) -> ft.ListTile:
-    """Row for both pending and paid transactions. Pending manual ones get a quick pay button."""
+    """Row for both pending and paid transactions. Pending ones (auto-pay too) get a quick pay button."""
     is_expense = t["kind"] == "expense"
     title = t["description"] or state.category_name(t["category"])
     if t["series_info"]:
@@ -33,7 +33,7 @@ def transaction_tile(state, t, on_changed) -> ft.ListTile:
         ("-" if is_expense else "+") + fmt_money(t["amount"]),
         color=MUTED if cancelled else (EXPENSE if is_expense else INCOME), weight=ft.FontWeight.W_600,
     )
-    if t["status"] == "pending" and not t["auto_pay"]:
+    if t["status"] == "pending":  # auto-pay ones too: they can be paid before their due day
         trailing = ft.Row(
             [amount_text, ft.TextButton("Alındı" if not is_expense else "Öde",
                                         on_click=lambda e: pay_dialog(state, t, on_changed))],

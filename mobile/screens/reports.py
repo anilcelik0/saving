@@ -95,6 +95,7 @@ class _Report:
         )
         for control in options:
             control.on_select = lambda e: self.page.run_task(self.refresh)
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     @property
@@ -181,6 +182,7 @@ class CategoryTransactions:
         self.list = ft.ListView(expand=True, padding=16)
         self.view = ft.View(route="/report-category", appbar=ft.AppBar(title=ft.Text(item["name"])),
                             controls=[self.list], padding=0)
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):

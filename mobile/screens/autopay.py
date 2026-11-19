@@ -30,6 +30,7 @@ class AutoPaymentsScreen:
             ], expand=True, padding=16, spacing=12)],
             padding=0,
         )
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):

@@ -351,11 +351,30 @@ reopens.
       Existing card names are kept (PATCH), lists fall back to "<hesap> kartı". Checked 5/5 against live API
 
 - [x] Toasts are floating SnackBars (above the bottom bar and the + button instead of pushing it up)
+- [x] Every toast closes itself after 5 s, error toasts with "Bildir" too (`persist=False`; Flutter keeps snack bars
+      with an action open by default) (2026-11-19)
+- [x] Screens stay in sync (2026-11-19): `ApiClient.on_change` fires after every successful write (not GET, not
+      auth/); `AppState.data_changed` waits 0.4 s (one refresh per burst of requests), reloads accounts/categories
+      if they changed, then refreshes every open screen in the stack (screens link themselves: `view.data = self`)
+      and the current home tab. Forms have no refresh, so typed input is never lost; one failing screen doesn't
+      stop the others
+- [x] Fix: picked dates were one day early (2026-11-19). Flet carries datetimes as UTC, so the chosen day's local
+      midnight (UTC+3) arrived as the previous day 21:00 and `.date()` took that day -> a payment due tomorrow
+      became today and auto-pay marked it paid at once. `form_kit.picked_day` (all DateChips) fixes it.
+      Backend: editing date / auto-pay re-applies the auto-pay rule (`sync_auto_pay_status`: due -> paid on its
+      date, moved to the future -> pending)
+- [x] Pending auto-pay rows also show the quick "Öde" / "Alındı" button (pay before the due day)
 - [x] Archive only offered when deleting: "Arşivlendi" switches removed from account/category forms; the delete icon
       opens Sil / Arşivle (Arşivden çıkar) / Vazgeç with a short explanation; deleting an account with records shows
       the 409 message. Backend: archive filter only on list actions (archived rows reachable by id). Checked 8/8
 - [x] Fix (regression from 53837d0): `core.exceptions` crashed on Django Http404 (no `.detail`) -> every 404 was a
       500; now 404 again
+- [x] Notch / camera cutout (2026-11-19): views without an AppBar (every QuickForm incl. payment detail, login) slid
+      under the status bar, top buttons unreachable. `router.safe_area` wraps every pushed/reset view in a SafeArea
+      (keeps the view's alignment/spacing; views already starting with a SafeArea untouched) -> covers future views
+- [x] Delete a card statement cycle (2026-11-19): Hareketler -> Ekstre row -> trash icon -> confirm -> all card
+      transactions of that account cycle deleted (`POST transactions/delete-cycle/`, same cycle rule as bulk-status,
+      investment mirrors kept). Re-importing the statement afterwards works (dedupe keys are gone with the rows)
 
 ## Statement reader v2: one general engine ✅
 Why (2026-11-16): VakıfBank switched its card statement from US to Turkish number format (+ points column,

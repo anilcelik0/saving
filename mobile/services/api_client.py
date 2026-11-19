@@ -73,6 +73,7 @@ class ApiClient:
         self._on_session_expired = on_session_expired
         self._http = httpx.AsyncClient(base_url=base_url + "/", timeout=20)
         self._refresh_lock = asyncio.Lock()
+        self.on_change: Callable[[str], None] | None = None  # called with the path after a successful write
 
     async def get(self, path, params=None):
         return await self.request("GET", path, params=params)
@@ -102,7 +103,10 @@ class ApiClient:
             if response.status_code == 401:
                 await self._expire()
 
-        return self._parse(response)
+        result = self._parse(response)  # raises ApiError on failure -> no change notice
+        if method != "GET" and self.on_change and not path.startswith("auth/"):
+            self.on_change(path)
+        return result
 
     async def _send(self, method, path, body: dict, access):
         headers = {"Authorization": f"Bearer {access}"} if access else {}

@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 
 import flet as ft
@@ -141,6 +142,41 @@ class AppState:
         self.router.push(report_form(self, category, related_statement, context))
 
     # --- reference data (categories/accounts) used by forms and list labels ---
+    # --- keeping screens in sync ---
+    SYNC_DELAY = 0.4  # one action often sends several requests (e.g. bulk updates): refresh once after them
+    _sync_pending: bool = False
+    _refs_dirty: bool = False
+
+    def data_changed(self, path: str):
+        """ApiClient hook after every successful write: refresh every open screen (and the cached refs)."""
+        if not self.user or not self.home:
+            return
+        if any(part in path for part in ("/accounts/", "/categories/")):
+            self._refs_dirty = True
+        if not self._sync_pending:
+            self._sync_pending = True
+            self.page.run_task(self._sync)
+
+    async def _sync(self):
+        await asyncio.sleep(self.SYNC_DELAY)
+        self._sync_pending = False
+        home = self.home
+        # forms have no refresh (typed input is kept); screens link themselves with view.data = self
+        jobs = [s.refresh for s in (v.data for v in list(self.page.views))
+                if s is not None and s is not home and hasattr(s, "refresh")]
+        if home is not None:
+            jobs.append(home.refresh_current)
+        if self._refs_dirty:
+            self._refs_dirty = False
+            jobs.insert(0, self.load_refs)
+        for job in jobs:
+            if self.home is not home:
+                return  # logged out meanwhile
+            try:
+                await job()
+            except ApiError:
+                pass  # one failing screen must not stop the others (screens show their own errors)
+
     async def load_refs(self):
         self.categories = await self.budget.categories.list(include_archived="true")
         self.accounts = await self.budget.accounts.list(include_archived="true")

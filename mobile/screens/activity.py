@@ -106,7 +106,8 @@ class CardCycleView:
         self.list = ft.Column(spacing=0)
         self.view = ft.View(
             route="/card-cycle",
-            appbar=ft.AppBar(title=ft.Text(f"{cycle['card_name']} · {fmt_date(cycle['end'])}")),
+            appbar=ft.AppBar(title=ft.Text(f"{cycle['card_name']} · {fmt_date(cycle['end'])}"), actions=[
+                ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="Ekstreyi sil", on_click=lambda e: self._delete())]),
             controls=[ft.ListView([
                 card(self.header),
                 ft.Row(
@@ -122,6 +123,7 @@ class CardCycleView:
             ], expand=True, padding=16, spacing=12)],
             padding=0,
         )
+        self.view.data = self  # refreshed after every change (AppState.data_changed)
         self.page.run_task(self.refresh)
 
     async def refresh(self):
@@ -158,3 +160,15 @@ class CardCycleView:
             await self._changed()
 
         confirm(self.page, message, run)
+
+    def _delete(self):
+        c = self.cycle
+
+        async def run():
+            result = await self.state.budget.transactions.delete_cycle(c["account"], c["start"], c["end"])
+            self.state.router.pop()
+            toast(self.page, f"Ekstre silindi ({result['deleted']} işlem).")
+            await self.on_changed()
+
+        confirm(self.page, f"{c['card_name']} · {fmt_date(c['start'])} – {fmt_date(c['end'])} dönemindeki "
+                           f"{c['count']} işlemin tamamı kalıcı olarak silinecek. Bu geri alınamaz.", run)
