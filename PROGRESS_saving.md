@@ -123,7 +123,7 @@ start ms-settings:developers               # Developer Mode ON (Flutter plugins 
 - [x] Migrations + rebuild (user); E2E: xlsx import (12 new / 1 rent match / 7 skipped), re-upload as pdf → duplicates,
       card import (23), garanti → failed message, txt → 400, files deleted after parse; mobile review/confirm headless test
 - [x] `seed_default_categories` command (idempotent) — run for 10 existing saving users without categories
-- [x] `docs/FLOW.md` updated (statement import diagram)
+- [x] `docs/FLOW_saving.md` updated (statement import diagram)
 - [x] **Generic reader** (`parsers/generic.py`, registered last): date-first + amount-last rows (TR/US amounts,
       n/m installments, trailing extras), account "amount balance description" layout, card/account by header hints,
       bank name detection, `is_generic` flag → mobile warning. Matches dedicated parsers on all 4 sample formats;
@@ -205,7 +205,7 @@ at maturity the user renews (new deposit, principal = maturity amount) or closes
 - [x] Asset view: holding, average cost, last-30-day range, purchases/reductions list; trade form (asset picker,
       price prefilled with current sell price, optional account; reduction: optional TRY + account)
 - [x] Deposit form / detail (edit, renew, close, reopen, delete) / history; `services/invest_service.py`
-- [x] Screen check against live API with a stub page (forms → API → balances) OK; FLOW.md section 9
+- [x] Screen check against live API with a stub page (forms → API → balances) OK; FLOW_saving.md section 9
 
 ## Phase 4: saving_reports ✅
 Decisions (2026-11-10): all four reports; period = end month + 1/3/6/12 months, same month scope as the summary
