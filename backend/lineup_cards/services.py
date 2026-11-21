@@ -1,5 +1,7 @@
 """Card review: what blocks approval, what only deserves a look, and status changes."""
 
+import uuid
+
 from .models import Attribute, Card, CardTypeAttribute
 
 LOW_POPULARITY = 20
@@ -66,3 +68,16 @@ def extend_schema(card: Card) -> list[Attribute]:
             known.add(value.attribute_id)
             added.append(value.attribute)
     return added
+
+
+def card_snapshot(user, object_id: str):
+    """support.registry provider for "lineup.card": cards are shared content, any Line Up user may report one."""
+    if user.app_id is None or user.app.slug != "lineup":
+        return None
+    try:
+        card = Card.objects.select_related("card_type").prefetch_related("values__attribute").get(
+            pk=uuid.UUID(str(object_id)))
+    except (ValueError, Card.DoesNotExist):
+        return None
+    return {"title": str(card), "type": card.card_type.name, "status": card.status, "is_demo": card.is_demo,
+            "external_key": card.external_key, "values": [str(v) for v in card.values.all()]}

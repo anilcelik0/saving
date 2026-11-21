@@ -15,6 +15,7 @@ api_v1 = [
     path("saving/budget/", include("saving_budget.urls")),
     path("saving/invest/", include("saving_invest.urls")),
     path("saving/reports/", include("saving_reports.urls")),
+    path("lineup/games/", include("lineup_games.urls")),
 ]
 
 urlpatterns = [
