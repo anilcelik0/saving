@@ -1,6 +1,6 @@
 """Card review: what blocks approval, what only deserves a look, and status changes."""
 
-from .models import Card
+from .models import Attribute, Card, CardTypeAttribute
 
 LOW_POPULARITY = 20
 
@@ -35,8 +35,6 @@ def review_warnings(card: Card) -> list[str]:
     warnings = []
     if card.popularity < LOW_POPULARITY:
         warnings.append(f"Tanınırlık çok düşük ({card.popularity}).")
-    if not card.source_url and not card.is_demo and not any(v.source_url for v in card.values.all()):
-        warnings.append("Kaynak yok.")
     if card.is_demo:
         warnings.append("Demo kart (uydurma veri).")
     return warnings
@@ -56,3 +54,15 @@ def set_status(cards, status: str) -> tuple[int, list[tuple[Card, list[str]]]]:
             card.save(update_fields=["status", "updated_at"])
             changed += 1
     return changed, skipped
+
+
+def extend_schema(card: Card) -> list[Attribute]:
+    """Attributes the card has values for but its type lacks: added to the type as optional. Returns them."""
+    known = set(card.card_type.schema_attributes.values_list("attribute_id", flat=True))
+    added = []
+    for value in card.values.select_related("attribute"):
+        if value.attribute_id not in known:
+            CardTypeAttribute.objects.create(card_type=card.card_type, attribute=value.attribute, is_required=False)
+            known.add(value.attribute_id)
+            added.append(value.attribute)
+    return added

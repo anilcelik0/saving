@@ -90,18 +90,11 @@ class CardValueInline(admin.TabularInline):
     model = CardValue
     extra = 1
     fields = ["attribute", "number", "year", "month", "day", "source_url"]
-
-    def get_formset(self, request, obj=None, **kwargs):
-        request._lineup_card = obj  # the attribute choices below follow the card's type
-        return super().get_formset(request, obj, **kwargs)
+    verbose_name_plural = "değerler (türde olmayan bir nitelik seçilirse türe isteğe bağlı olarak eklenir)"
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "attribute":
-            card = getattr(request, "_lineup_card", None)
-            queryset = Attribute.objects.filter(is_active=True)
-            if card is not None:
-                queryset = queryset.filter(schema_entries__card_type=card.card_type_id)
-            kwargs["queryset"] = queryset
+            kwargs["queryset"] = Attribute.objects.filter(is_active=True)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
@@ -180,6 +173,10 @@ class CardAdmin(admin.ModelAdmin):
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
+        added = services.extend_schema(form.instance)
+        if added:
+            self.message_user(request, f"'{form.instance.card_type}' türüne isteğe bağlı nitelik eklendi: "
+                              + ", ".join(a.name for a in added), messages.INFO)
         # fresh copy: the edited object may carry prefetched values from before the inline save
         card = self.get_queryset(request).get(pk=form.instance.pk)
         if card.status == Card.Status.APPROVED:

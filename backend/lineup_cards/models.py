@@ -236,12 +236,5 @@ class CardValue(BaseModel):
             problems = values.date_problems(self.year, self.month, self.day)
             if problems:
                 errors["year"] = problems
-        try:
-            card = self.card  # may be the unsaved parent in an admin inline
-        except Card.DoesNotExist:
-            card = None
-        if card is not None and card.card_type_id and not card.card_type.schema_attributes.filter(
-                attribute=attribute).exists():
-            errors["attribute"] = "Bu nitelik kartın türünde tanımlı değil."
         if errors:
             raise ValidationError(errors)

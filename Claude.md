@@ -103,8 +103,9 @@ shared `billing` (AdMob SSV + subscription webhooks; client apps register reward
    - **Move timer:** Streak and Timeline moves must arrive within 10 s (+2 s network grace) of the server's `dealt_at`,
      else timeout. Mobile shows the countdown only. Daily puzzle has no timer.
    - **Energy:** lazy, no cron: `energy = min(max, stored + (now - last) / refill)`. Daily puzzle and accepting a challenge never cost energy.
-   - **Card values come from sources, never invented.** Exception: demo cards from the seed command, flagged `is_demo`,
-     purged before release. One import pipeline; sources (Excel/CSV upload, later Wikidata) are adapters feeding it.
+   - **Card values come from sources, never invented** (`source_url` is optional, not a review warning). Exception: demo
+     cards from the seed command, flagged `is_demo`, purged before release. A card value whose attribute is missing from
+     its type adds that attribute to the type as optional (admin save). One import pipeline; sources (Excel/CSV upload, later Wikidata) are adapters feeding it.
    - **Guests:** first launch creates a guest user (empty email allowed; email unique per app only when set); later link
      Google or set email + password.
    - Card error reports use the shared `support` app (registry key `lineup.card`).
