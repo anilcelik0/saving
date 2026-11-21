@@ -1,9 +1,10 @@
 """Unit tests of the pure-Python engine (no database). Run: python manage.py test lineup_games"""
 
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest import TestCase
 
-from lineup_games.engine import decks, timeline
+from lineup_games.engine import decks, energy, streak, timeline
 from lineup_games.engine.decks import DeckCard, DeckParams
 from lineup_games.engine.values import Value, compare, gap
 
@@ -207,3 +208,156 @@ class TimelineTests(TestCase):
 
     def test_deck_size(self):
         self.assertEqual(timeline.deck_size(), timeline.TARGET + timeline.LIVES)
+
+
+class StreakTests(TestCase):
+    def setUp(self):
+        self.values = make_values([1950, 1900, 2000, 2000, 1800])
+        self.state = streak.start(["c0", "c1", "c2", "c3", "c4"])
+
+    def test_start(self):
+        self.assertEqual((self.state.open, self.state.current), ("c0", "c1"))
+        self.assertEqual((self.state.lives, self.state.score, self.state.status), (1, 0, streak.PLAYING))
+
+    def test_right_guess_extends_and_moves_on(self):
+        result = streak.guess(self.state, streak.LOWER, self.values)  # 1900 < 1950
+        self.assertTrue(result.correct)
+        self.assertEqual(result.relation, streak.LOWER)
+        self.assertEqual((result.state.score, result.state.open, result.state.current), (1, "c1", "c2"))
+
+    def test_wrong_guess_loses_the_only_life(self):
+        result = streak.guess(self.state, streak.HIGHER, self.values)
+        self.assertFalse(result.correct)
+        self.assertEqual((result.state.status, result.state.lives, result.state.score), (streak.LOST, 0, 0))
+        self.assertIsNone(result.state.current)
+        with self.assertRaises(ValueError):
+            streak.guess(result.state, streak.LOWER, self.values)
+
+    def test_equal_values_accept_either_guess(self):
+        state = streak.guess(self.state, streak.LOWER, self.values).state
+        state = streak.guess(state, streak.HIGHER, self.values).state  # 2000 after 1900
+        for choice in streak.GUESSES:
+            result = streak.guess(state, choice, self.values)  # 2000 after 2000
+            self.assertTrue(result.correct)
+            self.assertEqual(result.relation, "equal")
+
+    def test_precision_tie(self):
+        values = {"a": year(2001, 5, 3), "b": year(2001)}
+        state = streak.start(["a", "b"])
+        self.assertTrue(streak.guess(state, streak.LOWER, values).correct)
+        self.assertTrue(streak.guess(state, streak.HIGHER, values).correct)
+
+    def test_deck_runs_out(self):
+        state = self.state
+        for choice in (streak.LOWER, streak.HIGHER, streak.HIGHER, streak.LOWER):
+            state = streak.guess(state, choice, self.values).state
+        self.assertEqual((state.status, state.score), (streak.FINISHED, 4))
+
+    def test_unknown_guess(self):
+        with self.assertRaises(ValueError):
+            streak.guess(self.state, "same", self.values)
+
+    def test_continue_once(self):
+        lost = streak.guess(self.state, streak.HIGHER, self.values).state
+        self.assertTrue(streak.can_continue(lost))
+        resumed = streak.resume(lost)
+        self.assertEqual((resumed.status, resumed.lives, resumed.continues_used), (streak.PLAYING, 1, 1))
+        self.assertEqual(resumed.current, "c2")
+        lost_again = streak.guess(resumed, streak.LOWER, self.values).state  # 2000 after 1900: wrong
+        self.assertFalse(streak.can_continue(lost_again))
+        with self.assertRaises(ValueError):
+            streak.resume(lost_again)
+
+    def test_no_continue_while_playing_or_without_cards(self):
+        self.assertFalse(streak.can_continue(self.state))
+        values = make_values([1950, 2000])
+        lost = streak.guess(streak.start(["c0", "c1"]), streak.LOWER, values).state
+        self.assertEqual(lost.status, streak.LOST)
+        self.assertFalse(streak.can_continue(lost))
+
+
+class StreakDeckTests(TestCase):
+    def setUp(self):
+        self.pool = [DeckCard(id=f"y{1900 + i * 3}", value=year(1900 + i * 3), popularity=(90, 50, 10)[i % 3])
+                     for i in range(40)]
+
+    def test_same_seed_same_deck_any_input_order(self):
+        a = decks.streak_deck("s1", self.pool, 30, True)
+        b = decks.streak_deck("s1", list(reversed(self.pool)), 30, True)
+        self.assertEqual(a, b)
+        self.assertEqual(len(a), 30)
+        self.assertEqual(len(set(a)), 30)
+        self.assertNotEqual(a, decks.streak_deck("s2", self.pool, 30, True))
+
+    def test_famous_cards_and_wide_gaps_first(self):
+        by_id = {c.id: c for c in self.pool}
+        deck = [by_id[i] for i in decks.streak_deck("s1", self.pool, 30, True)]
+        self.assertTrue(all(c.popularity >= 60 for c in deck[:6]))
+        for previous, card in zip(deck[:5], deck[1:6]):  # positions 1..5 = easy stage
+            self.assertGreaterEqual(gap(previous.value, card.value), 15)
+
+    def test_small_pool_is_whole_pool(self):
+        deck = decks.streak_deck("s1", self.pool[:4], 60, True)
+        self.assertEqual(sorted(deck), sorted(c.id for c in self.pool[:4]))
+        self.assertEqual(decks.streak_deck("s1", [], 60, True), [])
+
+    def test_numbers_use_relative_gap(self):
+        pool = [DeckCard(id=f"n{i}", value=num(n), popularity=90) for i, n in enumerate([100, 105, 200, 110, 400])]
+        deck = decks.streak_deck("s1", pool, 3, False)
+        values = {c.id: c.value for c in pool}
+        for a, b in zip(deck, deck[1:]):
+            self.assertGreaterEqual(gap(values[a], values[b]), 0.3)
+
+
+class EnergyTests(TestCase):
+    rules = energy.EnergyRules(max=5, refill=timedelta(minutes=25))
+    t0 = datetime(2026, 1, 1, 12, 0)
+
+    def at(self, minutes):
+        return self.t0 + timedelta(minutes=minutes)
+
+    def test_full_start_and_spend_starts_the_clock(self):
+        e = energy.spend(energy.full(self.t0, self.rules), self.at(10), self.rules)
+        self.assertEqual((e.stored, e.since), (4, self.at(10)))
+        self.assertEqual(energy.next_at(e, self.rules), self.at(35))
+        self.assertEqual(energy.full_at(e, self.rules), self.at(35))
+
+    def test_refill_keeps_partial_progress(self):
+        e = energy.Energy(stored=1, since=self.t0)
+        e = energy.spend(e, self.at(30), self.rules)  # +1 at 25 -> 2, spend -> 1, period started at 25 continues
+        self.assertEqual((e.stored, e.since), (1, self.at(25)))
+        self.assertEqual(energy.settle(e, self.at(49), self.rules).stored, 1)
+        self.assertEqual(energy.settle(e, self.at(50), self.rules).stored, 2)
+
+    def test_capped_at_max(self):
+        e = energy.settle(energy.Energy(stored=0, since=self.t0), self.at(1000), self.rules)
+        self.assertEqual((e.stored, e.since), (5, self.at(1000)))
+        self.assertIsNone(energy.next_at(e, self.rules))
+        self.assertIsNone(energy.full_at(e, self.rules))
+
+    def test_not_enough(self):
+        e = energy.Energy(stored=0, since=self.t0)
+        with self.assertRaises(energy.NotEnoughEnergy):
+            energy.spend(e, self.at(24), self.rules)
+        self.assertEqual(energy.spend(e, self.at(25), self.rules).stored, 0)
+
+    def test_full_at_counts_missing_points(self):
+        e = energy.Energy(stored=2, since=self.t0)
+        self.assertEqual(energy.full_at(e, self.rules), self.at(75))
+
+    def test_grant_above_max_and_clock_idle(self):
+        e = energy.grant(energy.full(self.t0, self.rules), self.at(5), self.rules, 2)
+        self.assertEqual(e.stored, 7)
+        e = energy.spend(e, self.at(6), self.rules)
+        self.assertEqual((e.stored, e.since), (6, self.at(6)))
+        self.assertIsNone(energy.next_at(e, self.rules))
+
+    def test_clock_going_backwards_adds_nothing(self):
+        e = energy.Energy(stored=2, since=self.t0)
+        self.assertEqual(energy.settle(e, self.at(-60), self.rules).stored, 2)
+
+    def test_grace(self):
+        grace = timedelta(days=3)
+        self.assertTrue(energy.in_grace(self.t0, self.t0 + timedelta(days=2, hours=23), grace))
+        self.assertFalse(energy.in_grace(self.t0, self.t0 + timedelta(days=3), grace))
+        self.assertFalse(energy.in_grace(self.t0, self.t0, timedelta(0)))

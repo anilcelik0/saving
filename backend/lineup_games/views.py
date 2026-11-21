@@ -18,16 +18,32 @@ class StartRunSerializer(serializers.Serializer):
 
 
 class MoveSerializer(serializers.Serializer):
-    slot = serializers.IntegerField(min_value=0, help_text="Gap index (0 = before the first card)")
+    slot = serializers.IntegerField(min_value=0, required=False, help_text="Timeline: gap index (0 = before the first card)")
+    guess = serializers.ChoiceField(choices=["higher", "lower"], required=False, help_text="Streak: next card vs open card")
+
+
+class HomeView(APIView):
+    """GET: energy, the runs being played per mode (resume), best streak, timeline wins."""
+
+    permission_classes = [IsLineupUser]
+
+    def get(self, request):
+        return Response(services.home_payload(request.user))
 
 
 class RunListView(APIView):
-    """GET: the playing run (resume) + last finished runs. POST {mode, difficulty, attribute?}: new run."""
+    """
+    GET ?mode=: the playing run of that mode (resume) + last finished runs.
+    POST {mode, difficulty, attribute?}: new run for one energy point (409 no_energy).
+    """
 
     permission_classes = [IsLineupUser]
 
     def get(self, request):
         runs = Run.objects.filter(user=request.user).select_related("attribute")
+        mode = request.query_params.get("mode")
+        if mode:
+            runs = runs.filter(mode=mode)
         playing = runs.filter(status=Run.Status.PLAYING).first()
         recent = runs.exclude(status=Run.Status.PLAYING)[:10]
         return Response({
@@ -39,8 +55,8 @@ class RunListView(APIView):
     def post(self, request):
         data = StartRunSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        run = services.start_timeline(request.user, data.validated_data["difficulty"],
-                                      data.validated_data.get("attribute"))
+        run = services.start_run(request.user, data.validated_data["mode"], data.validated_data["difficulty"],
+                                 data.validated_data.get("attribute"))
         return Response(services.run_payload(run), status=status.HTTP_201_CREATED)
 
 
@@ -55,13 +71,13 @@ class RunDetailView(APIView):
 
 
 class RunMoveView(APIView):
-    """POST {slot}: place the current card into a gap."""
+    """POST {slot} (Timeline: place the current card into a gap) or {guess} (Streak: higher / lower)."""
 
     permission_classes = [IsLineupUser]
 
     def post(self, request, pk):
         data = MoveSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        slot = data.validated_data["slot"]
-        run, result = services.play_move(request.user, pk, slot)
-        return Response(services.move_payload(run, result, slot))
+        slot, guess = data.validated_data.get("slot"), data.validated_data.get("guess")
+        run, result = services.play_move(request.user, pk, slot=slot, guess=guess)
+        return Response(services.move_payload(run, result, slot=slot, guess=guess))

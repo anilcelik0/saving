@@ -4,12 +4,11 @@ its neighbours (ties allowed). A wrong card costs a life and is discarded. The l
 """
 
 from dataclasses import dataclass, replace
+from .status import FINISHED, LOST, PLAYING, WON
 from .values import Value, compare
 
 TARGET = 10
 LIVES = 3
-
-PLAYING, WON, LOST, FINISHED = "playing", "won", "lost", "finished"  # finished = deck ran out
 
 
 def deck_size(target: int = TARGET, lives: int = LIVES) -> int:

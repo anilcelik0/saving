@@ -66,6 +66,10 @@ CLIENT_APPS = {
     "lineup": {"name": "Line Up", "allow_guests": True},
 }
 
+# Line Up energy (Timeline / Streak starts cost 1): max points, minutes per point, no limit for new players' first days
+LINEUP_ENERGY_MAX = env.int("LINEUP_ENERGY_MAX", default=5)
+LINEUP_ENERGY_REFILL_MINUTES = env.int("LINEUP_ENERGY_REFILL_MINUTES", default=25)
+LINEUP_ENERGY_GRACE_DAYS = env.int("LINEUP_ENERGY_GRACE_DAYS", default=3)
 
 # Firebase service account keys, one per client app: <dir>/firebase-<slug>.json (git-ignored, copied by hand)
 FIREBASE_CREDENTIALS_DIR = env("FIREBASE_CREDENTIALS_DIR", default=str(BASE_DIR / "secrets"))

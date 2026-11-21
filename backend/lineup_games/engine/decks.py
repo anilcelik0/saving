@@ -68,3 +68,40 @@ def generate(seed: str, candidates: list[DeckCard], params: DeckParams) -> list[
             return [c.id for c in picked]
         # relax: halve three times (15 -> 7.5 -> 3.75 -> 1.875 years), then no gap at all
         min_gap = min_gap / 2 if min_gap / 2 >= params.min_gap / 8 else 0
+
+
+# Streak: famous cards first and wide gaps at the start; the gap to the previous card shrinks as the streak grows.
+STREAK_STAGES = (
+    # (last deck position of the stage, difficulty whose popularity tier / gap applies)
+    (5, "easy"),
+    (15, "normal"),
+)
+
+
+def _streak_stage(position: int) -> str:
+    return next((name for last, name in STREAK_STAGES if position <= last), "hard")
+
+
+def streak_deck(seed: str, candidates: list[DeckCard], size: int, is_date: bool) -> list[str]:
+    """
+    Card ids in play order. Pool order: seeded shuffle, then popularity tier (easy, normal, rest) so famous cards come
+    first. Each next card is the first one in that order far enough from the previous card for its stage; when none
+    is, the farthest one is taken.
+    """
+    rng = random.Random(seed)
+    pool = sorted(candidates, key=lambda c: c.id)
+    rng.shuffle(pool)
+    tiers = [DIFFICULTY["easy"][0], DIFFICULTY["normal"][0]]
+    pool.sort(key=lambda c: next((i for i, t in enumerate(tiers) if c.popularity >= t), len(tiers)))
+    if not pool:
+        return []
+    deck = [pool.pop(0)]
+    while pool and len(deck) < size:
+        _, date_gap, number_gap = DIFFICULTY[_streak_stage(len(deck))]
+        needed = date_gap if is_date else number_gap
+        previous = deck[-1].value
+        index = next((i for i, c in enumerate(pool) if gap(c.value, previous) >= needed), None)
+        if index is None:
+            index = max(range(len(pool)), key=lambda i: gap(pool[i].value, previous))
+        deck.append(pool.pop(index))
+    return [c.id for c in deck]
