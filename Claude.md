@@ -50,7 +50,12 @@ app_manager/                          # repo root
 │   ├── state.py / router.py     # session lifecycle, cached refs; view-stack navigation
 │   ├── screens/                 # one module per feature; ui.py = shared helpers, choices.py = backend choice mirrors
 │   └── services/                # api_client (async httpx, JWT auto-refresh), token_store, per-backend-app services
-└── mobile_lineup/               # Line Up: Flutter Android client (lib/, pubspec.yaml)
+└── mobile_lineup/               # Line Up: Flutter Android client (applicationId tr.com.appmanager.lineup, provisional)
+    └── lib/
+        ├── main.dart / router.dart  # ProviderScope + MaterialApp.router; go_router redirects follow the session
+        ├── config.dart          # API URL: debug -> http://10.0.2.2 (emulator), release -> production, --dart-define=API_URL
+        ├── core/                # api_client (dio, JWT renewal: refresh -> guest re-login), token_store, models, providers
+        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/, ...)
 ```
 Planned later (decided in their phase): `lineup_social` (challenges), shared `notifications` (FCM device tokens + sends),
 shared `billing` (AdMob SSV + subscription webhooks; client apps register reward handlers like `support.registry`).

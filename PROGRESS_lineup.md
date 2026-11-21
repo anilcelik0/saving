@@ -7,7 +7,16 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ---
 
 ## ⏳ Waiting on user (pending commands)
-_(none yet)_
+
+```powershell
+# 0.5 (dev PC): docker stack up, emulator running, then:
+cd mobile_lineup; flutter pub get; flutter run
+# Expect: "Hoş geldin" -> open both texts -> tick -> Devam -> home "Merhaba, guest-xxxx", "Sunucu: ok".
+# Hot restart (R) / app restart must land on home directly (stored session, no second guest).
+# Admin: Users filtered by app=lineup, Misafir=yes -> exactly one new guest.
+
+# Server (after git push + pull): docker compose up -d --build; migrate; bootstrap
+```
 
 ---
 
@@ -15,20 +24,27 @@ _(none yet)_
 Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a real device, and the risky plugins (rewarded ad, FCM) are proven before game work.
 
 - [x] **0.1** Docs (S): per-client `PROGRESS_<slug>.md` / `docs/FLOW_<slug>.md`, CLAUDE.md rules for Line Up, commit scopes.
-- [ ] **0.2** Register client (S) · after 0.1
+- [x] **0.2** Register client (S) · after 0.1
   - `settings.CLIENT_APPS["lineup"] = "Line Up"`; `bootstrap` creates it; `legal_texts/lineup/` privacy + kvkk drafts.
   - Done when: `bootstrap` is idempotent and shows `lineup` in admin; `publish_legal_documents lineup` works.
-- [ ] **0.3** Guest accounts in shared `accounts` (M) · after 0.2
-  - Email may be empty; `UniqueConstraint(email, app)` only when email is set. `POST /api/v1/accounts/guest/`
-    creates a guest (generated username + random password, returned once for the device's secure storage) + JWT pair. Throttled.
-  - Legal consent: same acceptance flow as Saving, shown on first launch.
-  - Done when: Saving register/login unchanged; many lineup guests coexist; a lineup token is rejected by Saving endpoints.
-- [ ] **0.4** Flutter toolchain (S, user): Flutter SDK, Android SDK, VS Code Dart/Flutter extensions, `flutter doctor` clean, phone in USB debugging.
-- [ ] **0.5** `mobile_lineup/` skeleton (M) · after 0.3, 0.4
-  - flutter_riverpod, go_router, dio, flutter_secure_storage; API URL config with a dev override (like Saving's `local_config`);
-    API client with JWT auto-refresh; first launch → guest + consent → home showing username.
-  - Provisional applicationId for debug builds; the permanent package name is decided in 5.0.
-  - Done when: runs on a real device against dev and production backends.
+- [x] **0.3** Guest accounts in shared `accounts` (M) · after 0.2 (migration 0005 applied on dev)
+  - `ClientApp.allow_guests` (from `CLIENT_APPS` via bootstrap), `User.is_guest`, email unique per app only when set,
+    `POST /api/v1/auth/guest/` {app, accepted_documents} → user + credentials (once) + JWT pair (throttle `guest` 10/hour),
+    `is_guest` in `/auth/me/`, admin filters. Saving: email still required, guests refused (`guests_not_allowed`).
+- [x] **0.4** Flutter toolchain (S, user): Flutter SDK, Android SDK, VS Code Dart/Flutter extensions, `flutter doctor` clean, phone in USB debugging.
+  - Done: Flutter 3.50.1 at `C:\dev\flutter`, shares Flet's Android SDK (`C:\Users\anilc\Android\sdk`, API 34-37), licenses OK.
+  - Honor VKJ-NX9: installs over wireless adb, but logcat is blocked → `flutter run` hangs after install (no hot reload).
+    Dev loop = emulator; real-device checks with `flutter run --release` or another phone later.
+  - [x] Emulator: `hello_test` runs and hot reload works (first install may time out on a slow first boot; re-run).
+- [~] **0.5** `mobile_lineup/` skeleton (M) · after 0.3, 0.4 — code done (`flutter analyze` clean), waiting on the emulator run
+  - Flutter 3.50 project, applicationId `tr.com.appmanager.lineup` (provisional, final in 5.0), label "Line Up".
+    Packages: flutter_riverpod 3, go_router 18, dio 5, flutter_secure_storage 11, material_ui (Material moved out of
+    the framework in Flutter 3.47: import `package:material_ui/material_ui.dart`, not `flutter/material.dart`).
+  - `config.dart` (debug → `http://10.0.2.2`, release → production, `--dart-define=API_URL`); debug-only cleartext HTTP.
+  - `ApiClient`: Bearer token, on 401 renew once (refresh → guest re-login) and repeat; Turkish `detail` → `ApiException`.
+  - `SessionController` (AsyncNotifier): stored session → `/auth/me/` (pending texts → consent) else legal texts → guest.
+    Router redirects follow it: `/` (loading/error + retry), `/consent`, `/home` (mode placeholders + server health).
+  - Done when: emulator run passes the checks above; production check with `flutter run --release` (after server deploy).
 - [ ] **0.6** Plugin proof (M) · after 0.5 (no Play account needed)
   - AdMob **test** rewarded ad shows and the reward callback fires.
   - Firebase project + `firebase_messaging` token; a management command (firebase-admin) sends a test push that arrives.
