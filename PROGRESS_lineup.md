@@ -11,7 +11,7 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ```powershell
 # 0.7 Production server (home server), after the push:
 #  1) copy the Firebase key by hand (never via git), e.g. USB stick / scp:
-#     dev PC  backend\secretsirebase-lineup.json  ->  server  <repo>ackend\secretsirebase-lineup.json
+#     dev PC  backend/secrets/firebase-lineup.json  ->  server  <repo>/backend/secrets/firebase-lineup.json
 #  2) on the server, in the repo folder:
 git pull
 docker compose up -d --build
