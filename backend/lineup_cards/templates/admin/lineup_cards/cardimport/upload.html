@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Başlangıç</a> ›
+  <a href="{% url 'admin:app_list' app_label='lineup_cards' %}">{{ opts.app_config.verbose_name }}</a> ›
+  <a href="{% url 'admin:lineup_cards_cardimport_changelist' %}">İçe aktarmalar</a> › Dosya yükle
+</div>
+{% endblock %}
+{% block content %}
+<h1>Kart içe aktar</h1>
+<ol>
+  <li>Kart türünün sayfasından (<a href="{% url 'admin:lineup_cards_cardtype_changelist' %}">Kart türleri</a>)
+      <b>Şablon indir</b> ile Excel şablonunu alın.</li>
+  <li>Her satıra bir kart yazın (açıklamalar şablonun ikinci sayfasında). CSV de yüklenebilir.</li>
+  <li>Dosyayı yükleyin: önce satır satır önizleme gösterilir, onayınızdan sonra kartlar
+      <b>onay bekliyor</b> durumuna eklenir.</li>
+</ol>
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <input type="submit" class="default" value="Yükle ve önizle">
+</form>
+{% endblock %}

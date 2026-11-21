@@ -1,0 +1,58 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}
+<style>
+  .imp-table td { vertical-align: top; }
+  .imp-create { color: #1b7f3b; font-weight: bold; }
+  .imp-update { color: #1d5fa8; font-weight: bold; }
+  .imp-unchanged { color: #777; }
+  .imp-error { color: #b42318; font-weight: bold; }
+  .imp-msg { margin: 0; padding-left: 1em; }
+  .imp-summary span { margin-right: 1.5em; }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Başlangıç</a> ›
+  <a href="{% url 'admin:app_list' app_label='lineup_cards' %}">{{ opts.app_config.verbose_name }}</a> ›
+  <a href="{% url 'admin:lineup_cards_cardimport_changelist' %}">İçe aktarmalar</a> › {{ obj.file_name }}
+</div>
+{% endblock %}
+{% block content %}
+<h1>{{ obj.card_type }} · {{ obj.file_name }} <small>({{ obj.get_status_display }})</small></h1>
+<p class="imp-summary">
+  <span class="imp-create">Yeni: {{ obj.summary.create }}</span>
+  <span class="imp-update">Güncellenecek: {{ obj.summary.update }}</span>
+  <span class="imp-unchanged">Değişmeyen: {{ obj.summary.unchanged }}</span>
+  <span class="imp-error">Hatalı (atlanır): {{ obj.summary.error }}</span>
+</p>
+{% if obj.result %}<p><b>Sonuç:</b> {{ obj.result.created }} kart eklendi, {{ obj.result.updated }} kart güncellendi
+  (hepsi onay bekliyor). <a href="{% url 'admin:lineup_cards_card_changelist' %}?status__exact=staging&card_type__id__exact={{ obj.card_type_id }}">Onay bekleyenleri aç</a></p>{% endif %}
+{% for w in obj.file_warnings %}<p class="errornote">{{ w }}</p>{% endfor %}
+
+{% if obj.status == "preview" %}
+<form method="post" style="margin: 1em 0">
+  {% csrf_token %}
+  {% if can_apply %}<input type="submit" name="apply" class="default" value="Geçerli satırları içe aktar">{% endif %}
+  <input type="submit" name="cancel" value="Vazgeç">
+</form>
+{% endif %}
+
+<table class="imp-table">
+  <thead><tr><th>Satır</th><th>İşlem</th><th>Başlık</th><th>Değerler</th><th>Hata / uyarı</th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td>{{ row.number }}</td>
+      <td class="imp-{{ row.action }}">{{ row.action_label }}</td>
+      <td>{{ row.data.title|default:"-" }}{% if row.data.subtitle %} ({{ row.data.subtitle }}){% endif %}
+        {% if row.data.external_key %}<br><small>{{ row.data.external_key }}</small>{% endif %}</td>
+      <td>{{ row.display|default:"-" }}</td>
+      <td>{% if row.errors or row.warnings %}<ul class="imp-msg">
+        {% for e in row.errors %}<li class="imp-error">{{ e }}</li>{% endfor %}
+        {% for w in row.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if hidden %}<p>... ve {{ hidden }} satır daha (ilk {{ rows|length }} satır gösteriliyor).</p>{% endif %}
+{% endblock %}

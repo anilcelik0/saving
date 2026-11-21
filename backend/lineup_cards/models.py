@@ -6,6 +6,7 @@ Cards are shared content, not user data. Values come from sources (CardValue.sou
 (`is_demo`) are the only exception and are purged before release.
 """
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, RegexValidator
 from django.db import models
@@ -238,3 +239,31 @@ class CardValue(BaseModel):
                 errors["year"] = problems
         if errors:
             raise ValidationError(errors)
+
+
+class CardImport(BaseModel):
+    """One upload through the import pipeline (importer.py): validated rows wait in preview until applied."""
+
+    class Status(models.TextChoices):
+        PREVIEW = "preview", "Önizleme"
+        APPLIED = "applied", "İçe aktarıldı"
+        CANCELLED = "cancelled", "Vazgeçildi"
+
+    card_type = models.ForeignKey(CardType, on_delete=models.PROTECT, related_name="imports", verbose_name="tür")
+    file_name = models.CharField("dosya", max_length=255)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name="+", verbose_name="yükleyen")
+    status = models.CharField("durum", max_length=10, choices=Status.choices, default=Status.PREVIEW)
+    rows = models.JSONField(default=list, blank=True)
+    file_warnings = models.JSONField(default=list, blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    applied_at = models.DateTimeField("içe aktarıldı", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "içe aktarma"
+        verbose_name_plural = "içe aktarmalar"
+
+    def __str__(self):
+        return f"{self.card_type} · {self.file_name}"

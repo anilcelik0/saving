@@ -1,11 +1,17 @@
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.utils import flatten_fieldsets
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q
-from django.utils.html import format_html_join
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
+from django.utils import timezone
+from django.utils.html import format_html, format_html_join
 
-from . import services
-from .models import Attribute, Card, CardType, CardTypeAttribute, CardTypeField, CardValue, Tag
+from . import importer, services
+from .models import Attribute, Card, CardImport, CardType, CardTypeAttribute, CardTypeField, CardValue, Tag
 
 EXTRA_PREFIX = "extra__"
 
@@ -31,9 +37,30 @@ class CardTypeFieldInline(admin.TabularInline):
 
 @admin.register(CardType)
 class CardTypeAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "key", "attribute_names", "approved_count", "staging_count"]
+    list_display = ["__str__", "key", "attribute_names", "approved_count", "staging_count", "template_link"]
     search_fields = ["name", "key"]
+    readonly_fields = ["template_link"]
     inlines = [CardTypeAttributeInline, CardTypeFieldInline]
+
+    def get_urls(self):
+        custom = [path("<uuid:pk>/template/", self.admin_site.admin_view(self.template_view),
+                       name="lineup_cards_cardtype_template")]
+        return custom + super().get_urls()
+
+    def template_view(self, request, pk):
+        card_type = get_object_or_404(CardType, pk=pk)
+        response = HttpResponse(importer.build_template(card_type),
+                                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response["Content-Disposition"] = f'attachment; filename="lineup-{card_type.key}-sablon.xlsx"'
+        return response
+
+    @admin.display(description="içe aktarma")
+    def template_link(self, obj):
+        if obj is None or obj.pk is None:
+            return "Kaydettikten sonra şablon indirilebilir."
+        return format_html('<a href="{}">Şablon indir</a> · <a href="{}">Dosya yükle</a>',
+                           reverse("admin:lineup_cards_cardtype_template", args=[obj.pk]),
+                           reverse("admin:lineup_cards_cardimport_add") + f"?card_type={obj.pk}")
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related("attributes").annotate(
@@ -223,3 +250,74 @@ class CardAdmin(admin.ModelAdmin):
     def back_to_staging(self, request, queryset):
         changed, _ = services.set_status(queryset, Card.Status.STAGING)
         self.message_user(request, f"{changed} kart onay bekliyor durumuna alındı.", messages.SUCCESS)
+
+
+# ---------------------------------------------------------------- import
+ACTION_LABELS = {"create": "Yeni", "update": "Güncelle", "unchanged": "Değişmedi", "error": "Hata"}
+PREVIEW_ROWS = 300
+
+
+class CardImportForm(forms.Form):
+    card_type = forms.ModelChoiceField(CardType.objects.all(), label="Kart türü")
+    file = forms.FileField(label="Dosya (.xlsx veya .csv)")
+
+
+@admin.register(CardImport)
+class CardImportAdmin(admin.ModelAdmin):
+    """Upload (add view) -> preview (change view) -> apply. Rows are validated by lineup_cards.importer."""
+
+    list_display = ["created_at", "card_type", "file_name", "status", "summary_text", "uploaded_by"]
+    list_filter = ["status", "card_type"]
+    list_select_related = ["card_type", "uploaded_by"]
+
+    @admin.display(description="özet")
+    def summary_text(self, obj):
+        s = obj.summary or {}
+        return (f"yeni {s.get('create', 0)} · güncelle {s.get('update', 0)} · "
+                f"değişmedi {s.get('unchanged', 0)} · hata {s.get('error', 0)}")
+
+    def add_view(self, request, form_url="", extra_context=None):
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+        form = CardImportForm(request.POST or None, request.FILES or None,
+                              initial={"card_type": request.GET.get("card_type")})
+        if request.method == "POST" and form.is_valid():
+            card_type, upload = form.cleaned_data["card_type"], form.cleaned_data["file"]
+            try:
+                raw_rows = importer.read_file(upload.name, upload.read())
+            except ValueError as e:
+                form.add_error("file", str(e))
+            else:
+                results, warnings = importer.validate(card_type, raw_rows)
+                obj = CardImport.objects.create(
+                    card_type=card_type, file_name=upload.name[:255], uploaded_by=request.user,
+                    rows=importer.to_json(results), file_warnings=warnings, summary=importer.summarize(results))
+                return redirect("admin:lineup_cards_cardimport_change", obj.pk)
+        context = {**self.admin_site.each_context(request), "opts": self.opts, "form": form,
+                   "title": "Kart içe aktar"}
+        return TemplateResponse(request, "admin/lineup_cards/cardimport/upload.html", context)
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        obj = get_object_or_404(CardImport.objects.select_related("card_type"), pk=object_id)
+        if not self.has_view_permission(request, obj):
+            raise PermissionDenied
+        if request.method == "POST" and obj.status == CardImport.Status.PREVIEW:
+            if not self.has_change_permission(request, obj):
+                raise PermissionDenied
+            if "apply" in request.POST:
+                obj.result = importer.apply(obj.card_type, obj.rows)
+                obj.status, obj.applied_at = CardImport.Status.APPLIED, timezone.now()
+                obj.save(update_fields=["result", "status", "applied_at", "updated_at"])
+                self.message_user(request, f"{obj.result['created']} kart eklendi, {obj.result['updated']} kart "
+                                  "güncellendi; hepsi onay bekliyor.", messages.SUCCESS)
+            elif "cancel" in request.POST:
+                obj.status = CardImport.Status.CANCELLED
+                obj.save(update_fields=["status", "updated_at"])
+                self.message_user(request, "İçe aktarma iptal edildi.", messages.INFO)
+            return redirect("admin:lineup_cards_cardimport_change", obj.pk)
+        rows = [{**row, "action_label": ACTION_LABELS.get(row["action"], row["action"])}
+                for row in obj.rows[:PREVIEW_ROWS]]
+        context = {**self.admin_site.each_context(request), "opts": self.opts, "obj": obj, "rows": rows,
+                   "hidden": max(0, len(obj.rows) - PREVIEW_ROWS), "title": str(obj),
+                   "can_apply": bool(obj.summary.get("create") or obj.summary.get("update"))}
+        return TemplateResponse(request, "admin/lineup_cards/cardimport/preview.html", context)
