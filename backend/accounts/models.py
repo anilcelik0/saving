@@ -4,6 +4,7 @@ from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from core.base_models import TimeStampedModel
@@ -20,6 +21,9 @@ class ClientApp(TimeStampedModel):
     slug = models.SlugField(max_length=50, unique=True)
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
+    allow_guests = models.BooleanField(
+        default=False, help_text="Clients may create guest accounts (no email) on first launch; set by bootstrap"
+    )
 
     class Meta:
         ordering = ["slug"]
@@ -34,7 +38,7 @@ class UserManager(BaseUserManager):
     def _create_user(self, username, email, password, **extra_fields):
         if not username:
             raise ValueError("Username is required.")
-        if not email:
+        if not email and not extra_fields.get("is_guest"):
             raise ValueError("Email is required.")
         user = self.model(username=username, email=email, **extra_fields)
         user.set_password(password)
@@ -77,7 +81,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     status_changed_at = models.DateTimeField(null=True, blank=True)
     delete_after = models.DateTimeField(null=True, blank=True, help_text="Permanent deletion time (deletion_pending)")
     username = models.CharField(max_length=30, validators=[username_validator])
-    email = models.EmailField(max_length=254)
+    email = models.EmailField(max_length=254, blank=True, help_text="Empty only for guest accounts")
+    is_guest = models.BooleanField(
+        default=False, help_text="Created automatically by the client (no email); can be linked later"
+    )
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     is_active = models.BooleanField(default=True)
@@ -96,7 +103,7 @@ class User(AbstractBaseUser, PermissionsMixin):
                 fields=["app", "username"], name="uniq_username_per_app", nulls_distinct=False
             ),
             models.UniqueConstraint(
-                fields=["app", "email"], name="uniq_email_per_app", nulls_distinct=False
+                fields=["app", "email"], name="uniq_email_per_app", nulls_distinct=False, condition=~Q(email="")
             ),
         ]
 

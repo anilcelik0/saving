@@ -54,10 +54,11 @@ SAVING_APPS = [
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + SHARED_APPS + SAVING_APPS
 
-# Client applications served by this backend (slug -> display name); `manage.py bootstrap` registers them,
-# publishes their legal texts (legal_texts/<slug>/).
+# Client applications served by this backend (slug -> config); `manage.py bootstrap` registers them (name,
+# allow_guests) and publishes their legal texts (legal_texts/<slug>/).
 CLIENT_APPS = {
-    "saving": "Saving",
+    "saving": {"name": "Saving"},
+    "lineup": {"name": "Line Up", "allow_guests": True},
 }
 
 AUTH_USER_MODEL = "accounts.User"
@@ -174,7 +175,7 @@ REST_FRAMEWORK = {
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
     "DEFAULT_PAGINATION_CLASS": "core.pagination.DefaultPagination",
     "COERCE_DECIMAL_TO_STRING": True,
-    "DEFAULT_THROTTLE_RATES": {"auth": "10/min", "support": "30/hour"},
+    "DEFAULT_THROTTLE_RATES": {"auth": "10/min", "guest": "10/hour", "support": "30/hour"},
     "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",
     "NUM_PROXIES": 1,  # nginx -> real client IP for throttling
 }

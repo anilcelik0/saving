@@ -1,3 +1,5 @@
+import secrets
+
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
@@ -45,11 +47,23 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "app", "username", "email", "first_name", "last_name", "date_joined", "pending_legal",
-                  "account_status", "delete_after"]
-        read_only_fields = ["id", "app", "username", "email", "date_joined", "account_status", "delete_after"]
+                  "account_status", "delete_after", "is_guest"]
+        read_only_fields = ["id", "app", "username", "email", "date_joined", "account_status", "delete_after",
+                            "is_guest"]
 
     def get_pending_legal(self, obj):
         return LegalDocumentSerializer(legal.pending_documents(obj), many=True, context=self.context).data
+
+
+def _accepted_documents(app, ids) -> tuple[list[LegalDocument], str | None]:
+    """Current documents among the accepted ids + an error message if a required one is missing."""
+    accepted_ids = set(ids or [])
+    required = legal.required_documents(app)
+    missing = None
+    if any(doc.pk not in accepted_ids for doc in required):
+        names = " ve ".join(doc.get_kind_display() for doc in required)
+        missing = f"Kayıt olmak için {names} onaylanmalı."
+    return [doc for doc in legal.current_documents(app) if doc.pk in accepted_ids], missing
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -72,12 +86,9 @@ class RegisterSerializer(serializers.Serializer):
         app = attrs["app"]
 
         errors = {}
-        required = legal.required_documents(app)
-        accepted_ids = set(attrs.get("accepted_documents") or [])
-        if any(doc.pk not in accepted_ids for doc in required):
-            names = " ve ".join(doc.get_kind_display() for doc in required)
-            errors["accepted_documents"] = [f"Kayıt olmak için {names} onaylanmalı."]
-        attrs["accepted_documents"] = [doc for doc in legal.current_documents(app) if doc.pk in accepted_ids]
+        attrs["accepted_documents"], missing = _accepted_documents(app, attrs.get("accepted_documents"))
+        if missing:
+            errors["accepted_documents"] = [missing]
         try:
             username_validator(attrs["username"])
         except DjangoValidationError as e:
@@ -103,6 +114,43 @@ class RegisterSerializer(serializers.Serializer):
         documents = validated_data.pop("accepted_documents")
         user = User.objects.create_user(password=password, **validated_data)
         legal.record_acceptances(user, documents, self.context.get("request"))
+        return user
+
+
+class GuestRegisterSerializer(serializers.Serializer):
+    """
+    First launch of a client that allows guests: a user without email, with a generated username and password.
+    The password is returned once; the client keeps it in secure storage to log in again when the refresh expires.
+    """
+
+    app = serializers.SlugField()
+    accepted_documents = serializers.ListField(
+        child=serializers.UUIDField(), required=False, allow_empty=True,
+        help_text="Ids of the current legal documents the user accepted (all required ones must be included)",
+    )
+
+    def validate_app(self, value):
+        app = ClientApp.objects.filter(slug=value, is_active=True, allow_guests=True).first()
+        if app is None:
+            raise serializers.ValidationError("Bu uygulamada misafir hesap açılamaz.", code="guests_not_allowed")
+        return app
+
+    def validate(self, attrs):
+        attrs["accepted_documents"], missing = _accepted_documents(attrs["app"], attrs.get("accepted_documents"))
+        if missing:
+            raise serializers.ValidationError({"accepted_documents": [missing]})
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        app = validated_data["app"]
+        username = f"guest-{secrets.token_hex(6)}"
+        while User.objects.filter(app=app, username=username).exists():
+            username = f"guest-{secrets.token_hex(6)}"
+        password = secrets.token_urlsafe(32)
+        user = User.objects.create_user(username=username, email="", password=password, app=app, is_guest=True)
+        legal.record_acceptances(user, validated_data["accepted_documents"], self.context.get("request"))
+        user.generated_password = password  # returned once by the view, never stored in plain text
         return user
 
 

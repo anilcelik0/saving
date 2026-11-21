@@ -8,21 +8,22 @@ from .models import ClientApp, LegalAcceptance, LegalDocument, User
 
 @admin.register(ClientApp)
 class ClientAppAdmin(admin.ModelAdmin):
-    list_display = ["slug", "name", "is_active", "created_at"]
-    list_filter = ["is_active"]
+    list_display = ["slug", "name", "is_active", "allow_guests", "created_at"]
+    list_filter = ["is_active", "allow_guests"]
     search_fields = ["slug", "name"]
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ["username", "email", "app", "account_status", "delete_after", "is_staff", "date_joined"]
-    list_filter = ["app", "account_status", "is_active", "is_staff", "is_superuser"]
+    list_display = ["username", "email", "app", "is_guest", "account_status", "delete_after", "is_staff",
+                    "date_joined"]
+    list_filter = ["app", "is_guest", "account_status", "is_active", "is_staff", "is_superuser"]
     search_fields = ["username", "email", "first_name", "last_name"]
     ordering = ["-date_joined"]
     list_select_related = ["app"]
 
     fieldsets = [
-        (None, {"fields": ["app", "username", "email", "password"]}),
+        (None, {"fields": ["app", "username", "email", "is_guest", "password"]}),
         ("Personal info", {"fields": ["first_name", "last_name"]}),
         ("Permissions", {"fields": ["is_active", "is_staff", "is_superuser", "groups", "user_permissions"]}),
         ("Dates", {"fields": ["last_login", "date_joined"]}),

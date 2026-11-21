@@ -15,7 +15,7 @@ from . import legal, lifecycle
 from .authentication import issue_tokens
 from .models import ClientApp, LegalAcceptance
 from .serializers import (
-    ConsentSerializer, LegalDocumentDetailSerializer, LegalDocumentSerializer, LoginSerializer, LogoutSerializer,
+    ConsentSerializer, GuestRegisterSerializer, LegalDocumentDetailSerializer, LegalDocumentSerializer, LoginSerializer, LogoutSerializer,
     PasswordConfirmSerializer, RegisterSerializer, UserSerializer,
 )
 
@@ -38,6 +38,25 @@ class RegisterView(PublicAuthView):
         user = serializer.save()
         return Response(
             {"user": UserSerializer(user, context={"request": request}).data, **issue_tokens(user)},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class GuestRegisterView(PublicAuthView):
+    """POST {"app", "accepted_documents"}: guest account for apps with allow_guests (e.g. lineup)."""
+
+    throttle_scope = "guest"
+
+    def post(self, request):
+        serializer = GuestRegisterSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(
+            {
+                "user": UserSerializer(user, context={"request": request}).data,
+                "credentials": {"username": user.username, "password": user.generated_password},
+                **issue_tokens(user),
+            },
             status=status.HTTP_201_CREATED,
         )
 
