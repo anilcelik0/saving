@@ -39,6 +39,8 @@ app_manager/                          # repo root
 │   ├── legal_texts/<app>/       # privacy.md, kvkk.md -> `publish_legal_documents <app>` (versioned in DB)
 │   ├── support/                 # shared: issue reports ("Sorun bildir") + attachments; client apps register
 │   │                            #   related-object snapshots in support.registry (e.g. "saving.statement")
+│   ├── notifications/           # shared: FCM sends, one Firebase project per client (fcm.py, `send_test_push <app>`)
+│   ├── secrets/                 # git/docker-ignored keys: firebase-<app>.json (copied to the server by hand)
 │   ├── saving_budget/           # accounts + computed balances, categories, transactions, payment plans (recurring/installment, auto-pay), monthly summary, statement parsing
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
 │   ├── saving_reports/          # aggregated reporting endpoints
@@ -57,7 +59,7 @@ app_manager/                          # repo root
         ├── core/                # api_client (dio, JWT renewal: refresh -> guest re-login), token_store, models, providers
         └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/, ...)
 ```
-Planned later (decided in their phase): `lineup_social` (challenges), shared `notifications` (FCM device tokens + sends),
+Planned later (decided in their phase): `lineup_social` (challenges), device tokens + Celery sends in `notifications`,
 shared `billing` (AdMob SSV + subscription webhooks; client apps register reward handlers like `support.registry`).
 
 ### Working Across Clients (IMPORTANT)

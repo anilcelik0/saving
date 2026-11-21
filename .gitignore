@@ -27,6 +27,10 @@ mobile/dist/
 mobile/storage/
 mobile/local_config.py
 
+# Secrets: Firebase service account keys (backend/secrets/firebase-<app>.json), client Firebase configs
+backend/secrets/
+mobile_lineup/android/app/google-services.json
+
 # Real bank statements (personal data) - never commit
 statement_samples/
 docs/extre_example/

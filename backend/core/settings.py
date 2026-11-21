@@ -46,6 +46,7 @@ THIRD_PARTY_APPS = [
 SHARED_APPS = [
     "accounts",
     "support",
+    "notifications",
 ]
 SAVING_APPS = [
     "saving_budget",
@@ -60,6 +61,9 @@ CLIENT_APPS = {
     "saving": {"name": "Saving"},
     "lineup": {"name": "Line Up", "allow_guests": True},
 }
+
+# Firebase service account keys, one per client app: <dir>/firebase-<slug>.json (git-ignored, copied by hand)
+FIREBASE_CREDENTIALS_DIR = env("FIREBASE_CREDENTIALS_DIR", default=str(BASE_DIR / "secrets"))
 
 AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = ["accounts.backends.AppScopedBackend"]
