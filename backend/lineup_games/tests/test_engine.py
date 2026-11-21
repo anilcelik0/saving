@@ -1,6 +1,5 @@
 """Unit tests of the pure-Python engine (no database). Run: python manage.py test lineup_games"""
 
-from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest import TestCase
 
@@ -136,6 +135,10 @@ class TimelineTests(TestCase):
     def correct_slot(self, state):
         return timeline.valid_slots([self.values[c] for c in state.line], self.values[state.current])[0]
 
+    def wrong_slot(self, state):
+        slots = timeline.valid_slots([self.values[c] for c in state.line], self.values[state.current])
+        return next(i for i in range(len(state.line) + 1) if i not in slots)
+
     def test_start(self):
         self.assertEqual(self.state.line, ("c0",))
         self.assertEqual(self.state.current, "c1")
@@ -156,14 +159,6 @@ class TimelineTests(TestCase):
         self.assertEqual(result.state.lives, 2)
         self.assertEqual(result.state.current, "c2")
 
-    def test_timeout_is_wrong(self):
-        result = timeline.place(self.state, None, self.values)
-        self.assertTrue(result.timed_out)
-        self.assertFalse(result.correct)
-        self.assertEqual(result.state.lives, 2)
-        late = timeline.place(self.state, 0, self.values, timed_out=True)  # right slot but too late
-        self.assertFalse(late.correct)
-
     def test_slot_out_of_range(self):
         with self.assertRaises(ValueError):
             timeline.place(self.state, 5, self.values)
@@ -171,7 +166,7 @@ class TimelineTests(TestCase):
     def test_three_mistakes_lose(self):
         state = self.state
         for _ in range(3):
-            state = timeline.place(state, None, self.values).state
+            state = timeline.place(state, self.wrong_slot(state), self.values).state
         self.assertEqual((state.status, state.lives), (timeline.LOST, 0))
         self.assertIsNone(state.current)
         with self.assertRaises(ValueError):
@@ -187,8 +182,8 @@ class TimelineTests(TestCase):
         self.assertEqual(line_years, sorted(line_years))
 
     def test_win_with_mistakes_on_the_way(self):
-        state = timeline.place(self.state, None, self.values).state
-        state = timeline.place(state, None, self.values).state
+        state = timeline.place(self.state, self.wrong_slot(self.state), self.values).state
+        state = timeline.place(state, self.wrong_slot(state), self.values).state
         while state.status == timeline.PLAYING:
             state = timeline.place(state, self.correct_slot(state), self.values).state
         self.assertEqual((state.status, state.lives), (timeline.WON, 1))
@@ -212,11 +207,3 @@ class TimelineTests(TestCase):
 
     def test_deck_size(self):
         self.assertEqual(timeline.deck_size(), timeline.TARGET + timeline.LIVES)
-
-
-class TimerTests(TestCase):
-    def test_within_limit_and_grace(self):
-        dealt = datetime(2026, 1, 1, 12, 0, 0)
-        self.assertFalse(timeline.is_timed_out(dealt, dealt + timedelta(seconds=10)))
-        self.assertFalse(timeline.is_timed_out(dealt, dealt + timedelta(seconds=12)))
-        self.assertTrue(timeline.is_timed_out(dealt, dealt + timedelta(seconds=12, milliseconds=1)))

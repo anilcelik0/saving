@@ -3,7 +3,7 @@
 Line Up istemcisinin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 1 (kart havuzu, içe aktarma, oyun motoru, Zaman Çizgisi) — 2026-11-22
+**Son güncelleme:** Faz 1 (kart havuzu, içe aktarma, oyun motoru, Zaman Çizgisi; hamle süresi kaldırıldı) — 2026-11-22
 
 ---
 
@@ -14,7 +14,7 @@ flowchart LR
     subgraph Mobil["Android (Flutter) · mobile_lineup"]
         UI[Ekranlar<br/>Başlangıç · Metin onayı · Ana ekran]
         DEV[Geliştirici araçları<br/>test reklamı · push]
-        MODES[Zaman Çizgisi<br/>sürükle-bırak · dokun · geri sayım]
+        MODES[Zaman Çizgisi<br/>sürükle-bırak · dokun]
         LATER[Seri · Günlük bulmaca]
         API[ApiClient<br/>JWT + yenileme + misafir girişi]
         STORE[(Şifreli depo<br/>token + misafir şifresi)]
@@ -27,7 +27,7 @@ flowchart LR
         ACC[accounts<br/>misafir hesap, giriş, metin onayı]
         NOTIF[notifications<br/>FCM gönderimi]
         CARDS[lineup_cards<br/>kart havuzu + içe aktarma]
-        GAMES[lineup_games<br/>tur, hamle, süre kontrolü]
+        GAMES[lineup_games<br/>tur, hamle]
         ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar]
         SUP[support<br/>kart hata bildirimi]
         DB[(PostgreSQL)]
@@ -95,10 +95,10 @@ sequenceDiagram
     participant E as Motor (saf Python)
     M->>S: POST /lineup/games/runs/ {difficulty}
     S->>E: aday kartlar + tohum → deste (13 kart)
-    S-->>M: çizgi (değerleriyle) + yeni kart (değersiz) + kalan süre
-    loop her kart (10 sn + 2 sn ağ payı)
-        M->>S: POST moves/ {slot} (süre bitince slot=null)
-        S->>E: süre kontrolü + doğru boşluklar (eşitlikte iki taraf da doğru)
+    S-->>M: çizgi (değerleriyle) + yeni kart (değersiz)
+    loop her kart (süre sınırı yok)
+        M->>S: POST moves/ {slot}
+        S->>E: doğru boşluklar (eşitlikte iki taraf da doğru)
         S-->>M: doğru/yanlış + kartın değeri + yeni durum
     end
     Note over M,S: 10 kartlık çizgi = kazandın · 3 hata = kaybettin · deste biterse tur biter

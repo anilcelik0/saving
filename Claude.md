@@ -102,8 +102,7 @@ shared `billing` (AdMob SSV + subscription webhooks; client apps register reward
      fields such as team or region) · `CardValue` (typed: Decimal number or date + precision, own source) · hierarchical `Tag`.
    - **Ties:** dates keep their precision (year/month/day); two values equal at the coarser precision, or equal numbers,
      accept either order.
-   - **Move timer:** Streak and Timeline moves must arrive within 10 s (+2 s network grace) of the server's `dealt_at`,
-     else timeout. Mobile shows the countdown only. Daily puzzle has no timer.
+   - **No move timer** (removed 2026-11-22 by request): moves are never judged by time. `Move.elapsed_ms` is only recorded.
    - **Energy:** lazy, no cron: `energy = min(max, stored + (now - last) / refill)`. Daily puzzle and accepting a challenge never cost energy.
    - **Card values come from sources, never invented** (`source_url` is optional, not a review warning). Exception: demo
      cards from the seed command, flagged `is_demo`, purged before release. A card value whose attribute is missing from

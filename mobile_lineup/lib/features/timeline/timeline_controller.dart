@@ -52,7 +52,7 @@ class TimelineController extends AsyncNotifier<TimelineView> {
   /// Back to the difficulty picker after a finished run.
   void newRun() => state = const AsyncData(TimelineView());
 
-  Future<void> place(int? slot) async {
+  Future<void> place(int slot) async {
     final current = state.value;
     final run = current?.run;
     if (current == null || run == null || !run.isPlaying || current.busy) return;

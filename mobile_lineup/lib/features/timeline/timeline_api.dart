@@ -19,8 +19,8 @@ class TimelineApi {
     return RunState.fromJson(data as Map<String, dynamic>);
   }
 
-  /// [slot] = gap index (0 = above the first card); null = the countdown ran out.
-  Future<(MoveResult, RunState)> move(String runId, int? slot) async {
+  /// [slot] = gap index (0 = above the first card).
+  Future<(MoveResult, RunState)> move(String runId, int slot) async {
     final data = await _api.post('lineup/games/runs/$runId/moves/', data: {'slot': slot});
     return (
       MoveResult.fromJson(data['result'] as Map<String, dynamic>),

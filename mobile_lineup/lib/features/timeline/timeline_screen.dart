@@ -10,7 +10,7 @@ import 'timeline_controller.dart';
 import 'timeline_models.dart';
 
 /// Timeline mode: a vertical line (lower values on top), the new card at the bottom. Drag the card onto a gap,
-/// or tap a gap. Every rule is checked by the server; the countdown only mirrors the server's timer.
+/// or tap a gap. Every rule is checked by the server; there is no move timer.
 class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
 
@@ -67,7 +67,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     }
   }
 
-  void _place(int? slot) {
+  void _place(int slot) {
     _stopAutoScroll();
     ref.read(timelineProvider.notifier).place(slot);
   }
@@ -161,7 +161,6 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           _CurrentCardPanel(
             run: run,
             busy: view.busy,
-            onExpired: () => _place(null),
             onDragStarted: _startAutoScroll,
             onDragUpdate: _onDragUpdate,
             onDragFinished: _stopAutoScroll,
@@ -190,8 +189,7 @@ class _DifficultyPicker extends ConsumerWidget {
           children: [
             Text('Kartları doğru sıraya diz', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            const Text('Her yeni kartı çizgide doğru yere koy. 10 kartlık çizgiyi tamamla; 3 hata hakkın var, '
-                'her kart için 10 saniyen var.', textAlign: TextAlign.center),
+            const Text('Her yeni kartı çizgide doğru yere koy. 10 kartlık çizgiyi tamamla; 3 hata hakkın var.', textAlign: TextAlign.center),
             const SizedBox(height: 24),
             if (busy)
               const CircularProgressIndicator()
@@ -326,7 +324,6 @@ class _CurrentCardPanel extends StatelessWidget {
   const _CurrentCardPanel({
     required this.run,
     required this.busy,
-    required this.onExpired,
     required this.onDragStarted,
     required this.onDragUpdate,
     required this.onDragFinished,
@@ -334,7 +331,6 @@ class _CurrentCardPanel extends StatelessWidget {
 
   final RunState run;
   final bool busy;
-  final VoidCallback onExpired;
   final VoidCallback onDragStarted;
   final void Function(DragUpdateDetails) onDragUpdate;
   final VoidCallback onDragFinished;
@@ -348,13 +344,6 @@ class _CurrentCardPanel extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _Countdown(
-            key: ValueKey(card.id),
-            totalMs: run.moveSeconds * 1000,
-            remainingMs: run.remainingMs ?? run.moveSeconds * 1000,
-            onExpired: onExpired,
-          ),
-          const SizedBox(height: 8),
           Draggable<String>(
             data: card.id,
             maxSimultaneousDrags: busy ? 0 : 1,
@@ -376,63 +365,6 @@ class _CurrentCardPanel extends StatelessWidget {
   }
 }
 
-/// Mirrors the server's move timer; when it runs out the client reports a timeout (the server checks it anyway).
-class _Countdown extends StatefulWidget {
-  const _Countdown({super.key, required this.totalMs, required this.remainingMs, required this.onExpired});
-
-  final int totalMs;
-  final int remainingMs;
-  final VoidCallback onExpired;
-
-  @override
-  State<_Countdown> createState() => _CountdownState();
-}
-
-class _CountdownState extends State<_Countdown> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: Duration(milliseconds: widget.totalMs))
-      ..addStatusListener((status) {
-        if (status == AnimationStatus.dismissed) widget.onExpired();
-      })
-      ..reverse(from: (widget.remainingMs / widget.totalMs).clamp(0.0, 1.0));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final seconds = (_controller.value * widget.totalMs / 1000).ceil();
-        final low = _controller.value < 0.3;
-        return Row(
-          children: [
-            Expanded(
-              child: LinearProgressIndicator(
-                value: _controller.value,
-                minHeight: 6,
-                color: low ? Colors.red : null,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(width: 28, child: Text('$seconds sn', textAlign: TextAlign.end)),
-          ],
-        );
-      },
-    );
-  }
-}
-
 class _ResultBanner extends StatelessWidget {
   const _ResultBanner({required this.result, required this.onReport});
 
@@ -442,7 +374,7 @@ class _ResultBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ok = result.correct;
-    final label = ok ? 'Doğru!' : (result.timedOut ? 'Süre doldu' : 'Yanlış yer');
+    final label = ok ? 'Doğru!' : 'Yanlış yer';
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),

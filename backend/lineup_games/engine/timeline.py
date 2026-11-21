@@ -1,17 +1,13 @@
 """
 Timeline mode: one card starts the line, each next card is placed into a gap. A card is right when it fits between
-its neighbours (ties allowed). A wrong or late card costs a life and is discarded. The line wins at `target` cards.
+its neighbours (ties allowed). A wrong card costs a life and is discarded. The line wins at `target` cards.
 """
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
-
 from .values import Value, compare
 
 TARGET = 10
 LIVES = 3
-MOVE_SECONDS = 10
-GRACE_SECONDS = 2
 
 PLAYING, WON, LOST, FINISHED = "playing", "won", "lost", "finished"  # finished = deck ran out
 
@@ -47,7 +43,6 @@ class PlaceResult:
     state: TimelineState
     card_id: str
     correct: bool
-    timed_out: bool
     valid_slots: tuple[int, ...]
 
 
@@ -68,23 +63,15 @@ def valid_slots(line_values: list[Value], value: Value) -> tuple[int, ...]:
     return tuple(slots)
 
 
-def is_timed_out(dealt_at: datetime, now: datetime, seconds: int = MOVE_SECONDS, grace: int = GRACE_SECONDS) -> bool:
-    return now - dealt_at > timedelta(seconds=seconds + grace)
-
-
-def place(state: TimelineState, slot: int | None, values: dict[str, Value], timed_out: bool = False) -> PlaceResult:
-    """
-    Apply the move for the current card. slot None (or timed_out) = time ran out. `values` must hold the line's
-    cards and the current card.
-    """
+def place(state: TimelineState, slot: int, values: dict[str, Value]) -> PlaceResult:
+    """Apply the move for the current card. `values` must hold the line's cards and the current card."""
     card_id = state.current
     if card_id is None:
         raise ValueError("The run is over.")
     slots = valid_slots([values[c] for c in state.line], values[card_id])
-    if slot is not None and not 0 <= slot <= len(state.line):
+    if not 0 <= slot <= len(state.line):
         raise ValueError("Slot out of range.")
-    timed_out = timed_out or slot is None
-    correct = not timed_out and slot in slots
+    correct = slot in slots
 
     line, lives = state.line, state.lives
     if correct:
@@ -101,4 +88,4 @@ def place(state: TimelineState, slot: int | None, values: dict[str, Value], time
     else:
         status = PLAYING
     new_state = replace(state, line=line, lives=lives, next_index=next_index, status=status)
-    return PlaceResult(state=new_state, card_id=card_id, correct=correct, timed_out=timed_out, valid_slots=slots)
+    return PlaceResult(state=new_state, card_id=card_id, correct=correct, valid_slots=slots)

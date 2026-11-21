@@ -30,7 +30,7 @@ class Run(BaseModel):
     lives = models.PositiveSmallIntegerField(default=timeline.LIVES)
     target = models.PositiveSmallIntegerField(default=timeline.TARGET)
     status = models.CharField("durum", max_length=10, choices=Status.choices, default=Status.PLAYING)
-    dealt_at = models.DateTimeField(null=True, blank=True, help_text="When the current card was shown (move timer)")
+    dealt_at = models.DateTimeField(null=True, blank=True, help_text="When the current card was shown (for elapsed_ms)")
     finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -58,9 +58,8 @@ class Move(BaseModel):
     run = models.ForeignKey(Run, on_delete=models.CASCADE, related_name="moves")
     number = models.PositiveSmallIntegerField()
     card = models.ForeignKey(Card, on_delete=models.SET_NULL, null=True, related_name="+")
-    slot = models.SmallIntegerField(null=True, blank=True, help_text="Chosen gap; empty = time ran out")
+    slot = models.SmallIntegerField(null=True, blank=True, help_text="Chosen gap")
     correct = models.BooleanField()
-    timed_out = models.BooleanField(default=False)
     elapsed_ms = models.PositiveIntegerField(default=0)
 
     class Meta:

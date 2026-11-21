@@ -7,7 +7,7 @@ class MoveInline(admin.TabularInline):
     model = Move
     extra = 0
     can_delete = False
-    fields = ["number", "card", "slot", "correct", "timed_out", "elapsed_ms", "created_at"]
+    fields = ["number", "card", "slot", "correct", "elapsed_ms", "created_at"]
     readonly_fields = fields
 
 

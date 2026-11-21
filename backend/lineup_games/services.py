@@ -4,9 +4,7 @@ lock and builds the payloads (a card's value is only ever sent after it was play
 """
 
 import secrets
-from datetime import timedelta
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -26,10 +24,6 @@ class GameConflict(APIException):
     status_code = 409
     default_detail = "Bu işlem şu an yapılamaz."
     default_code = "game_conflict"
-
-
-def move_seconds() -> int:
-    return settings.LINEUP_MOVE_SECONDS
 
 
 # ---------------------------------------------------------------- cards -> engine
@@ -83,8 +77,15 @@ def start_timeline(user, difficulty: str = "normal", attribute_key: str | None =
     return run
 
 
+MAX_ELAPSED_MS = 2**31 - 1  # Move.elapsed_ms column limit (~24 days); a run can be resumed much later
+
+
+def _elapsed_ms(dealt_at, now) -> int:
+    return min(MAX_ELAPSED_MS, int((now - dealt_at).total_seconds() * 1000)) if dealt_at else 0
+
+
 @transaction.atomic
-def play_move(user, run_id, slot: int | None) -> tuple[Run, timeline.PlaceResult]:
+def play_move(user, run_id, slot: int) -> tuple[Run, timeline.PlaceResult]:
     run = Run.objects.select_for_update().select_related("attribute").filter(user=user, pk=run_id).first()
     if run is None:
         raise NotFound("Tur bulunamadı.", code="run_not_found")
@@ -97,15 +98,13 @@ def play_move(user, run_id, slot: int | None) -> tuple[Run, timeline.PlaceResult
               for cv in CardValue.objects.filter(attribute=run.attribute, card_id__in=ids)}
     if len(values) != len(ids):  # a card was deleted or lost its value after the deck was frozen
         raise GameConflict("Bu kart artık oyunda değil; lütfen yeni tur başlatın.", code="card_missing")
-    timed_out = run.dealt_at is None or timeline.is_timed_out(run.dealt_at, now, move_seconds(),
-                                                               settings.LINEUP_MOVE_GRACE_SECONDS)
     try:
-        result = timeline.place(state, slot, values, timed_out=timed_out)
+        result = timeline.place(state, slot, values)
     except ValueError:
         raise GameConflict("Geçersiz yer.", code="invalid_slot") from None
     Move.objects.create(run=run, number=run.moves.count() + 1, card_id=result.card_id, slot=slot,
-                        correct=result.correct, timed_out=result.timed_out,
-                        elapsed_ms=int((now - run.dealt_at).total_seconds() * 1000) if run.dealt_at else 0)
+                        correct=result.correct,
+                        elapsed_ms=_elapsed_ms(run.dealt_at, now))
     run.set_timeline_state(result.state)
     playing = run.status == Run.Status.PLAYING
     run.dealt_at = now if playing else None
@@ -140,11 +139,6 @@ def run_payload(run: Run) -> dict:
     state = run.timeline_state()
     current = state.current
     cards = _cards([*run.line, *([current] if current else [])], run.attribute)
-    now = timezone.now()
-    remaining_ms = None
-    if current and run.dealt_at:
-        deadline = run.dealt_at + timedelta(seconds=move_seconds())
-        remaining_ms = max(0, int((deadline - now).total_seconds() * 1000))
     a = run.attribute
     return {
         "id": str(run.pk), "mode": run.mode, "difficulty": run.difficulty, "status": run.status,
@@ -153,15 +147,14 @@ def run_payload(run: Run) -> dict:
                       "lower_label": a.lower_label, "higher_label": a.higher_label},
         "line": [card_payload(*cards[c]) for c in run.line if c in cards],
         "current": card_payload(cards[current][0]) if current and current in cards else None,
-        "move_seconds": move_seconds(), "remaining_ms": remaining_ms,
         "created_at": run.created_at.isoformat(),
     }
 
 
-def move_payload(run: Run, result: timeline.PlaceResult, slot: int | None) -> dict:
+def move_payload(run: Run, result: timeline.PlaceResult, slot: int) -> dict:
     card, value = _cards([result.card_id], run.attribute)[result.card_id]
     return {
-        "result": {"correct": result.correct, "timed_out": result.timed_out, "slot": slot,
+        "result": {"correct": result.correct, "slot": slot,
                    "valid_slots": list(result.valid_slots), "card": card_payload(card, value)},
         "run": run_payload(run),
     }

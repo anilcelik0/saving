@@ -9,13 +9,8 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# Phase 1 device check (dev PC): docker up; demo pool already seeded (re-run any time):
-docker compose exec web python manage.py seed_lineup_demo
-# VS Code F5 "Line Up (dev backend)" -> Ana ekran -> Zaman Çizgisi -> Normal
-#  - drag the bottom card onto a gap (line auto-scrolls near its edges), or tap a gap
-#  - countdown runs out -> "Süre doldu", a life lost; wrong gap -> red banner with the real value
+# 1.7 device check: VS Code F5 "Line Up (dev backend)" -> Zaman Çizgisi
 #  - long press a line card or "Hata bildir" on the banner -> report (admin: Support > Issue reports)
-#  - win (10 cards) / lose (3 mistakes) -> end panel -> Yeni tur
 ```
 
 ---
@@ -82,18 +77,20 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   - Per-type xlsx template generated from the schema → upload → dry-run preview with per-row errors → confirm →
     upsert by `(card_type, external_key)` into staging. `CardImport` record keeps the report; large files run in Celery.
 - [x] **1.4** Engine core + tests (M) — `lineup_games/engine/` (values.py, decks.py, timeline.py), 33 tests OK
-  (`python manage.py test lineup_games`). Wrong/late card = life lost + card discarded; deck = target + lives (13).
+  (`python manage.py test lineup_games`). Wrong card = life lost + card discarded; deck = target + lives (13).
   - DTOs, comparison with precision + ties, seeded RNG, base generator (popularity threshold, min gap, category mix),
-    `TimelineGenerator`, slot validation, lives (3), win (line reaches 10 cards), 10 s + 2 s timer check.
+    `TimelineGenerator`, slot validation, lives (3), win (line reaches 10 cards).
   - Done when: tests pass; same seed + pool → same deck.
 - [x] **1.5** `lineup_games` runs + API (M) — `/api/v1/lineup/games/runs/` (GET playing + recent, POST start),
-  `runs/<id>/`, `runs/<id>/moves/` {slot|null}; end-to-end check 19/19 (rolled back). Timer from settings
-  `LINEUP_MOVE_SECONDS` / `LINEUP_MOVE_GRACE_SECONDS`.
-  - `Run` (mode, seed, params, frozen deck ids, lives, score, `dealt_at`, status), `Move` log; start / state / move / timeout.
+  `runs/<id>/`, `runs/<id>/moves/` {slot}; end-to-end check 19/19 (rolled back).
+  - `Run` (mode, seed, params, frozen deck ids, lives, score, `dealt_at`, status), `Move` log; start / state / move.
     Row lock against double submit. Done when: API E2E; no unrevealed value ever appears in a response.
-- [~] **1.6a** Mobile Timeline: tap-a-gap placement, countdown, correct/wrong feedback (color + haptics), end screen
-  (M) — code done (`features/timeline/`), `flutter analyze` clean, waiting on the device check
-- [~] **1.6b** Mobile Timeline: drag & drop with auto-scroll (M) — code done, waiting on the real-device check
+- [x] **1.6a** Mobile Timeline: tap-a-gap placement, correct/wrong feedback (color + haptics), end screen (M) —
+  checked on the Honor
+- [x] **1.6b** Mobile Timeline: drag & drop with auto-scroll (M) — checked on the Honor
+- [x] **1.9** Move timer removed (S, 2026-11-22, by request): engine/API/mobile countdown, `Move.timed_out` dropped
+  (migration 0002), `LINEUP_MOVE_*` settings gone; engine tests 31 OK, API check 5/5 (rolled back).
+  `elapsed_ms` capped at the column limit (a run can be resumed weeks later).
 - [~] **1.7** "Hata bildir" on a card (S) — backend checked (snapshot stored); mobile: result banner button +
   long press on a line card, waiting on the device check
 - [x] **1.8** `docs/FLOW_lineup.md` updated (card pool/import + timeline run diagrams).
@@ -173,7 +170,7 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
 - Mobile = Flutter (Flet lacks official rewarded ads, IAP and FCM support). Subscriptions: RevenueCat.
 - Audience 13+. Package name decided at 5.0. Play developer account: handled by the user.
 - Ties: equal at the coarser date precision (or equal numbers) → either order is correct.
-- Timer: 10 s (+2 s grace) on Streak and Timeline, enforced by the server; none on the daily puzzle.
+- ~~Timer: 10 s (+2 s grace) on Streak and Timeline~~ → 2026-11-22: no move timer in any mode (by request).
 - Defaults to tune later: Timeline win = line reaches 10 cards (start card + 9), 3 lives; Streak 1 life + one ad
   continue per run; energy max 5, +1 every 25 min, no limit for new players' first days.
 - Fake test data is fine until Phase 7, flagged `is_demo`.

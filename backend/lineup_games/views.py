@@ -18,7 +18,7 @@ class StartRunSerializer(serializers.Serializer):
 
 
 class MoveSerializer(serializers.Serializer):
-    slot = serializers.IntegerField(allow_null=True, min_value=0, help_text="Gap index; null = time ran out")
+    slot = serializers.IntegerField(min_value=0, help_text="Gap index (0 = before the first card)")
 
 
 class RunListView(APIView):
@@ -55,7 +55,7 @@ class RunDetailView(APIView):
 
 
 class RunMoveView(APIView):
-    """POST {slot}: place the current card into a gap (null when the countdown ran out)."""
+    """POST {slot}: place the current card into a gap."""
 
     permission_classes = [IsLineupUser]
 

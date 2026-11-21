@@ -66,9 +66,6 @@ CLIENT_APPS = {
     "lineup": {"name": "Line Up", "allow_guests": True},
 }
 
-# Line Up move timer: a move must arrive within MOVE_SECONDS (+ GRACE for the network) of the card being dealt
-LINEUP_MOVE_SECONDS = env.int("LINEUP_MOVE_SECONDS", default=10)
-LINEUP_MOVE_GRACE_SECONDS = env.int("LINEUP_MOVE_GRACE_SECONDS", default=2)
 
 # Firebase service account keys, one per client app: <dir>/firebase-<slug>.json (git-ignored, copied by hand)
 FIREBASE_CREDENTIALS_DIR = env("FIREBASE_CREDENTIALS_DIR", default=str(BASE_DIR / "secrets"))

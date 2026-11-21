@@ -55,8 +55,6 @@ class RunState {
     required this.attribute,
     required this.line,
     required this.current,
-    required this.moveSeconds,
-    required this.remainingMs,
   });
 
   factory RunState.fromJson(Map<String, dynamic> json) => RunState(
@@ -68,8 +66,6 @@ class RunState {
         attribute: RunAttribute.fromJson(json['attribute'] as Map<String, dynamic>),
         line: [for (final c in json['line'] as List) GameCard.fromJson(c as Map<String, dynamic>)],
         current: json['current'] == null ? null : GameCard.fromJson(json['current'] as Map<String, dynamic>),
-        moveSeconds: json['move_seconds'] as int,
-        remainingMs: json['remaining_ms'] as int?,
       );
 
   final String id;
@@ -82,8 +78,6 @@ class RunState {
   final RunAttribute attribute;
   final List<GameCard> line;
   final GameCard? current;
-  final int moveSeconds;
-  final int? remainingMs;
 
   bool get isPlaying => status == 'playing';
 
@@ -92,17 +86,15 @@ class RunState {
 }
 
 class MoveResult {
-  const MoveResult({required this.correct, required this.timedOut, required this.validSlots, required this.card});
+  const MoveResult({required this.correct, required this.validSlots, required this.card});
 
   factory MoveResult.fromJson(Map<String, dynamic> json) => MoveResult(
         correct: json['correct'] as bool,
-        timedOut: json['timed_out'] as bool,
         validSlots: [for (final s in json['valid_slots'] as List) s as int],
         card: GameCard.fromJson(json['card'] as Map<String, dynamic>),
       );
 
   final bool correct;
-  final bool timedOut;
   final List<int> validSlots;
   final GameCard card;
 }
