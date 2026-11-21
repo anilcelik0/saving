@@ -46,7 +46,7 @@ app_manager/                          # repo root
 │   ├── saving_reports/          # aggregated reporting endpoints
 │   ├── lineup_cards/            # card pool: flexible schema, importer.py (template -> preview -> staging),
 │   │                            #   `seed_lineup_demo [--purge]` (fictional demo cards)
-│   └── lineup_games/            # runs + moves API (/api/v1/lineup/games/); engine/ = pure-Python game engine,
+│   └── lineup_games/            # runs + moves + home/energy API (/api/v1/lineup/games/); engine/ = pure-Python engine,
 │                                #   tests: `python manage.py test lineup_games`
 ├── mobile/                      # Saving: Flet 1.x Android client (pyproject.toml, own .venv)
 │   ├── main.py                  # entry: builds AppState, ft.run(main)
@@ -59,7 +59,7 @@ app_manager/                          # repo root
         ├── main.dart / router.dart  # ProviderScope + MaterialApp.router; go_router redirects follow the session
         ├── config.dart          # API URL: debug -> http://10.0.2.2 (emulator), release -> production, --dart-define=API_URL
         ├── core/                # api_client (dio, JWT renewal: refresh -> guest re-login), token_store, models, providers
-        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/, ...)
+        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, ...)
 ```
 Planned later (decided in their phase): `lineup_social` (challenges), device tokens + Celery sends in `notifications`,
 shared `billing` (AdMob SSV + subscription webhooks; client apps register reward handlers like `support.registry`).
@@ -94,8 +94,9 @@ shared `billing` (AdMob SSV + subscription webhooks; client apps register reward
      response reveals them. Mobile only displays.
    - **Seeded, frozen decks:** a seed always yields the same deck for the same pool; the resolved card ids are stored on
      the run / daily puzzle / challenge at creation, so later pool changes never alter them.
-   - **Engine:** `lineup_games/engine/` is pure Python (no ORM/request), takes plain DTOs; one generator class per mode
-     holds its difficulty params (min value gap, popularity threshold, category mix).
+   - **Engine:** `lineup_games/engine/` is pure Python (no ORM/request), takes plain DTOs: one rules module per mode
+     (`timeline.py`, `streak.py`), deck generators with their difficulty params (min value gap, popularity threshold,
+     category mix) in `decks.py`, lazy energy in `energy.py`.
    - **Flexible card model:** new categories need no migration. `Attribute` (comparable value: number or date + unit +
      compare labels) · `CardType` (schema: required/optional attributes, display fields) · `Card` (title, popularity
      0-100, status staging/approved/rejected, `external_key` for idempotent import, `extra` JSON for display-only
@@ -113,7 +114,7 @@ shared `billing` (AdMob SSV + subscription webhooks; client apps register reward
 
 ## AI Operational Constraints (IMPORTANT)
 - **NO Automatic Tests:** Do NOT generate tests unless explicitly requested. Exception: the Line Up game engine
-  (`lineup_games/engine/`: deck generation, move validation, ties, timer, energy) is always covered by unit tests.
+  (`lineup_games/engine/`: deck generation, move validation, ties, energy) is always covered by unit tests.
 - **DB Actions (dev PC only):** Claude may run `makemigrations` and `migrate` on the development stack
   (`docker compose exec web python manage.py ...`), and small one-off data checks through `manage.py shell` that run
   inside one transaction and roll back (no leftovers). Never on the production server, and nothing destructive

@@ -9,8 +9,14 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# 1.7 device check: VS Code F5 "Line Up (dev backend)" -> Zaman Çizgisi
-#  - long press a line card or "Hata bildir" on the banner -> report (admin: Support > Issue reports)
+# Phase 2 device check: VS Code F5 "Line Up (dev backend)" (backend already migrated)
+#  - Home: energy line. Your guest is < 3 days old -> "Enerji: sınırsız" (new-player grace).
+#  - To see the limit, add to .env:  LINEUP_ENERGY_GRACE_DAYS=0  and  LINEUP_ENERGY_REFILL_MINUTES=2 , then:
+docker compose up -d web
+#  - Seri: swipe the card up/down (or the buttons); wrong guess ends the run; record on the end panel + home
+#  - start runs until energy is 0 -> "Enerjin bitti" dialog; after 2 min the home line shows +1
+#  - leave a run and come back: home shows "Devam eden ..." and the screen resumes it (no energy spent)
+#  - afterwards delete the two .env lines and run `docker compose up -d web` again
 ```
 
 ---
@@ -91,16 +97,27 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
 - [x] **1.9** Move timer removed (S, 2026-11-22, by request): engine/API/mobile countdown, `Move.timed_out` dropped
   (migration 0002), `LINEUP_MOVE_*` settings gone; engine tests 31 OK, API check 5/5 (rolled back).
   `elapsed_ms` capped at the column limit (a run can be resumed weeks later).
-- [~] **1.7** "Hata bildir" on a card (S) — backend checked (snapshot stored); mobile: result banner button +
-  long press on a line card, waiting on the device check
+- [x] **1.7** "Hata bildir" on a card (S) — result banner button + long press on a line card; checked on the Honor
 - [x] **1.8** `docs/FLOW_lineup.md` updated (card pool/import + timeline run diagrams).
 
 ## Phase 2: Streak mode + energy
-- [ ] **2.1** Engine `StreakGenerator` + tests: higher/lower, ties correct, 1 life, one continue per run (S/M)
-- [ ] **2.2** Energy (S): lazy formula, spent on Timeline/Streak start; max / refill / new-player grace from env; tests.
-- [ ] **2.3** API: start streak, move, energy on the home endpoint (S)
-- [ ] **2.4** Mobile: Streak screen (drag up/down + buttons), energy indicator with "full at", out-of-energy dialog (ad/Pro placeholders) (M)
-- [ ] **2.5** FLOW updated.
+- [x] **2.1** Engine streak + tests (S/M) — `engine/streak.py`: higher/lower, ties (also precision ties) accept both,
+  1 life, `can_continue` / `resume` (max 1 per run; the API for it comes with the reward in 5.1). Revealed card always
+  becomes the open card. `decks.streak_deck`: up to 60 cards, famous cards first, gap to the previous card shrinks
+  (positions 1-5 easy gap, 6-15 normal, then none; farthest card when none fits). Statuses moved to `engine/status.py`
+  (+ `abandoned`).
+- [x] **2.2** Energy (S) — `engine/energy.py` (settle / spend / grant / next_at / full_at / in_grace), `Energy` model
+  (stored + since, created full), settings `LINEUP_ENERGY_MAX` 5, `_REFILL_MINUTES` 25, `_GRACE_DAYS` 3 (date_joined).
+  1 point per Timeline/Streak start, spent in the start transaction under a row lock. Engine tests 52 OK.
+- [x] **2.3** API (S) — `GET home/` (energy with seconds to next/full, playing run per mode, best streak, timeline
+  wins); `POST runs/ {mode: streak}`; `moves/ {guess}`; `runs/?mode=`; starting a mode abandons its playing run;
+  409 `no_energy` / `invalid_guess`. `Run.score` stored (migration 0003 fills old timeline runs), `continues_used`,
+  `Move.guess`; Energy admin. Check 26/26 (rolled back).
+- [~] **2.4** Mobile (M) — `features/streak/` (open card with value, swipe up/down or buttons, history, end panel with
+  record + disabled "Reklam izle, devam et"), `home/energy_widgets.dart` (live countdown, "Enerjin bitti" dialog with
+  disabled ad/Pro buttons), home tiles with resume/record, ⚡1 on start buttons. `flutter analyze` clean; waiting on
+  the device check.
+- [x] **2.5** FLOW updated (energy + streak run diagram).
 
 ## Phase 3: Daily puzzle + share
 - [ ] **3.1** Engine `DailyGenerator` (6 cards) + per-position attempt scoring + tests (S)
@@ -171,6 +188,7 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
 - Audience 13+. Package name decided at 5.0. Play developer account: handled by the user.
 - Ties: equal at the coarser date precision (or equal numbers) → either order is correct.
 - ~~Timer: 10 s (+2 s grace) on Streak and Timeline~~ → 2026-11-22: no move timer in any mode (by request).
+- Streak has no difficulty picker: difficulty rises with the streak (2.1). New-player grace = 3 days (tunable).
 - Defaults to tune later: Timeline win = line reaches 10 cards (start card + 9), 3 lives; Streak 1 life + one ad
   continue per run; energy max 5, +1 every 25 min, no limit for new players' first days.
 - Fake test data is fine until Phase 7, flagged `is_demo`.

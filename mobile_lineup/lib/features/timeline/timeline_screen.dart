@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../home/energy_widgets.dart';
 import '../support/card_report_dialog.dart';
 import 'timeline_controller.dart';
 import 'timeline_models.dart';
@@ -82,6 +83,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           SnackBar(content: Text(view.error!), behavior: SnackBarBehavior.floating),
         );
       }
+      if (view.noEnergy) showNoEnergyDialog(context, ref);
       final last = view.last;
       if (last != null && !identical(last, previous?.value?.last)) {
         last.correct ? HapticFeedback.lightImpact() : HapticFeedback.heavyImpact();
@@ -199,7 +201,7 @@ class _DifficultyPicker extends ConsumerWidget {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: SizedBox(
                     width: 220,
-                    child: FilledButton.tonal(onPressed: () => controller.start(key), child: Text(label)),
+                    child: FilledButton.tonal(onPressed: () => controller.start(key), child: Text('$label · ⚡1')),
                   ),
                 ),
           ],

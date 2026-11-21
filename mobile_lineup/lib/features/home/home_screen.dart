@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import '../../config.dart';
 import '../../core/providers.dart';
 import '../session/session_controller.dart';
+import 'energy_widgets.dart';
+import 'home_data.dart';
 
 /// Backend health (`/api/v1/health/`), shown on the home screen during development.
 final _healthProvider = FutureProvider.autoDispose<String>((ref) async {
@@ -13,7 +15,7 @@ final _healthProvider = FutureProvider.autoDispose<String>((ref) async {
   return '${data['status']}';
 });
 
-/// Main menu. Game modes arrive in Phases 1-3.
+/// Main menu: energy, game modes (resume a run being played), records.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -23,43 +25,75 @@ class HomeScreen extends ConsumerWidget {
     if (session is! SessionReady) return const Scaffold();
     final user = session.user;
     final health = ref.watch(_healthProvider);
+    final home = ref.watch(homeProvider);
+    final info = home.value;
+    final timeline = info?.playing['timeline'];
+    final streak = info?.playing['streak'];
     return Scaffold(
       appBar: AppBar(title: const Text('Line Up')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Merhaba, ${user.username}', style: Theme.of(context).textTheme.titleLarge),
-          if (user.isGuest) const Text('Misafir hesap · ilerlemen bu cihazda saklanıyor'),
-          const SizedBox(height: 24),
-          _ModeTile(
-            icon: Icons.timeline,
-            title: 'Zaman Çizgisi',
-            subtitle: 'Kartları çizgide doğru yere yerleştir',
-            onTap: () => context.go('/home/timeline'),
-          ),
-          const _ModeTile(icon: Icons.swap_vert, title: 'Seri', subtitle: 'Yakında (Faz 2)'),
-          const _ModeTile(icon: Icons.today, title: 'Günlük Bulmaca', subtitle: 'Yakında (Faz 3)'),
-          const SizedBox(height: 24),
-          ListTile(
-            dense: true,
-            leading: const Icon(Icons.dns_outlined),
-            title: Text(apiBaseUrl),
-            subtitle: Text(health.when(
-              data: (status) => 'Sunucu: $status',
-              loading: () => 'Sunucu kontrol ediliyor...',
-              error: (error, _) => 'Sunucu: $error',
-            )),
-            onTap: () => ref.invalidate(_healthProvider),
-          ),
-          if (!kReleaseMode)
+      body: RefreshIndicator(
+        onRefresh: () => ref.refresh(homeProvider.future),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('Merhaba, ${user.username}', style: Theme.of(context).textTheme.titleLarge),
+            if (user.isGuest) const Text('Misafir hesap · ilerlemen bu cihazda saklanıyor'),
+            const SizedBox(height: 16),
+            if (info != null)
+              EnergyBadge(energy: info.energy)
+            else if (home.hasError)
+              ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: Text('${home.error}'),
+                trailing: const Icon(Icons.refresh),
+                onTap: () => ref.invalidate(homeProvider),
+              )
+            else
+              const LinearProgressIndicator(),
+            const SizedBox(height: 8),
+            _ModeTile(
+              icon: Icons.timeline,
+              title: 'Zaman Çizgisi',
+              subtitle: timeline != null
+                  ? 'Devam eden tur · ${timeline.score} kart'
+                  : 'Kartları çizgide doğru yere yerleştir · ⚡1'
+                        '${(info?.timelineWins ?? 0) > 0 ? ' · ${info!.timelineWins} galibiyet' : ''}',
+              onTap: () => context.go('/home/timeline'),
+            ),
+            _ModeTile(
+              icon: Icons.swap_vert,
+              title: 'Seri',
+              subtitle: streak != null
+                  ? 'Devam eden seri · ${streak.score}'
+                  : 'Daha büyük mü, küçük mü? · ⚡1'
+                        '${(info?.bestStreak ?? 0) > 0 ? ' · rekor ${info!.bestStreak}' : ''}',
+              onTap: () => context.go('/home/streak'),
+            ),
+            const _ModeTile(icon: Icons.today, title: 'Günlük Bulmaca', subtitle: 'Yakında (Faz 3)'),
+            const SizedBox(height: 24),
             ListTile(
               dense: true,
-              leading: const Icon(Icons.build_outlined),
-              title: const Text('Geliştirici araçları'),
-              subtitle: const Text('Test reklamı, push bildirimi'),
-              onTap: () => context.go('/home/dev'),
+              leading: const Icon(Icons.dns_outlined),
+              title: Text(apiBaseUrl),
+              subtitle: Text(
+                health.when(
+                  data: (status) => 'Sunucu: $status',
+                  loading: () => 'Sunucu kontrol ediliyor...',
+                  error: (error, _) => 'Sunucu: $error',
+                ),
+              ),
+              onTap: () => ref.invalidate(_healthProvider),
             ),
-        ],
+            if (!kReleaseMode)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.build_outlined),
+                title: const Text('Geliştirici araçları'),
+                subtitle: const Text('Test reklamı, push bildirimi'),
+                onTap: () => context.go('/home/dev'),
+              ),
+          ],
+        ),
       ),
     );
   }

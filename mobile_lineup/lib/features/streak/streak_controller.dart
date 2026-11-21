@@ -1,0 +1,70 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/api_client.dart';
+import '../../core/providers.dart';
+import '../home/home_data.dart';
+import 'streak_api.dart';
+import 'streak_models.dart';
+
+final streakApiProvider = Provider<StreakApi>((ref) => StreakApi(ref.watch(apiClientProvider)));
+
+class StreakView {
+  const StreakView({this.run, this.last, this.busy = false, this.error, this.noEnergy = false});
+
+  final StreakRun? run;
+  final GuessResult? last;
+  final bool busy;
+
+  /// One-off message for a SnackBar.
+  final String? error;
+
+  /// One-off: the start was refused for lack of energy.
+  final bool noEnergy;
+}
+
+final streakProvider = AsyncNotifierProvider.autoDispose<StreakController, StreakView>(StreakController.new);
+
+/// The server decides every guess (CLAUDE.md rule 8); this only sends them and keeps the latest payload.
+class StreakController extends AsyncNotifier<StreakView> {
+  StreakApi get _api => ref.read(streakApiProvider);
+
+  @override
+  Future<StreakView> build() async => StreakView(run: await _api.playing());
+
+  Future<void> start() async {
+    final current = state.value ?? const StreakView();
+    if (current.busy) return;
+    state = AsyncData(StreakView(run: current.run, busy: true));
+    try {
+      state = AsyncData(StreakView(run: await _api.start()));
+      ref.invalidate(homeProvider);
+    } on ApiException catch (e) {
+      state = AsyncData(StreakView(
+        run: current.run,
+        last: current.last,
+        error: e.code == 'no_energy' ? null : e.message,
+        noEnergy: e.code == 'no_energy',
+      ));
+    }
+  }
+
+  Future<void> guess(String guess) async {
+    final current = state.value;
+    final run = current?.run;
+    if (current == null || run == null || !run.isPlaying || current.busy) return;
+    state = AsyncData(StreakView(run: run, last: current.last, busy: true));
+    try {
+      final (result, next) = await _api.guess(run.id, guess);
+      state = AsyncData(StreakView(run: next, last: result));
+      if (!next.isPlaying) ref.invalidate(homeProvider);
+    } on ApiException catch (e) {
+      StreakRun? fresh;
+      try {
+        fresh = await _api.playing();
+      } on ApiException {
+        fresh = null;
+      }
+      state = AsyncData(StreakView(run: fresh ?? run, last: current.last, error: e.message));
+    }
+  }
+}

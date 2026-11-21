@@ -9,7 +9,7 @@ class TimelineApi {
 
   /// The run being played, if any (to resume after leaving the screen).
   Future<RunState?> playing() async {
-    final data = await _api.get('lineup/games/runs/');
+    final data = await _api.get('lineup/games/runs/', query: {'mode': 'timeline'});
     final playing = data['playing'];
     return playing == null ? null : RunState.fromJson(playing as Map<String, dynamic>);
   }

@@ -3,7 +3,7 @@
 Line Up istemcisinin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 1 (kart havuzu, içe aktarma, oyun motoru, Zaman Çizgisi; hamle süresi kaldırıldı) — 2026-11-22
+**Son güncelleme:** Faz 2 (Seri modu, enerji, ana ekran) — 2026-11-22
 
 ---
 
@@ -12,10 +12,10 @@ Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 ```mermaid
 flowchart LR
     subgraph Mobil["Android (Flutter) · mobile_lineup"]
-        UI[Ekranlar<br/>Başlangıç · Metin onayı · Ana ekran]
+        UI[Ekranlar<br/>Başlangıç · Metin onayı · Ana ekran + enerji]
         DEV[Geliştirici araçları<br/>test reklamı · push]
-        MODES[Zaman Çizgisi<br/>sürükle-bırak · dokun]
-        LATER[Seri · Günlük bulmaca]
+        MODES[Zaman Çizgisi · Seri<br/>sürükle-bırak · kaydır · dokun]
+        LATER[Günlük bulmaca]
         API[ApiClient<br/>JWT + yenileme + misafir girişi]
         STORE[(Şifreli depo<br/>token + misafir şifresi)]
         UI --> API
@@ -27,8 +27,8 @@ flowchart LR
         ACC[accounts<br/>misafir hesap, giriş, metin onayı]
         NOTIF[notifications<br/>FCM gönderimi]
         CARDS[lineup_cards<br/>kart havuzu + içe aktarma]
-        GAMES[lineup_games<br/>tur, hamle]
-        ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar]
+        GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran]
+        ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar, enerji]
         SUP[support<br/>kart hata bildirimi]
         DB[(PostgreSQL)]
         ACC --> DB
@@ -93,7 +93,8 @@ sequenceDiagram
     participant M as Mobil
     participant S as Sunucu (lineup_games)
     participant E as Motor (saf Python)
-    M->>S: POST /lineup/games/runs/ {difficulty}
+    M->>S: POST /lineup/games/runs/ {mode: timeline, difficulty}
+    S->>S: enerji −1 (yoksa 409 no_energy) · aynı moddaki açık tur yarıda bırakılır
     S->>E: aday kartlar + tohum → deste (13 kart)
     S-->>M: çizgi (değerleriyle) + yeni kart (değersiz)
     loop her kart (süre sınırı yok)
@@ -102,4 +103,29 @@ sequenceDiagram
         S-->>M: doğru/yanlış + kartın değeri + yeni durum
     end
     Note over M,S: 10 kartlık çizgi = kazandın · 3 hata = kaybettin · deste biterse tur biter
+```
+
+## 5. Seri turu ve enerji
+
+```mermaid
+sequenceDiagram
+    participant M as Mobil
+    participant S as Sunucu (lineup_games)
+    participant E as Motor (saf Python)
+    M->>S: GET /lineup/games/home/
+    S->>E: enerji = min(maks, kayıtlı + geçen süre / dolum)
+    S-->>M: enerji (sonraki / dolu için saniye) · açık turlar · rekor
+    M->>S: POST runs/ {mode: streak}
+    alt Enerji yok
+        S-->>M: 409 no_energy → "Enerjin bitti" (reklam / Pro: Faz 5)
+    else Enerji var (ya da ilk 3 gün sınırsız)
+        S->>E: tohum → deste (önce tanınmış kartlar, aralık seri uzadıkça daralır)
+        S-->>M: açık kart (değeriyle) + sıradaki kart (değersiz)
+        loop her tahmin
+            M->>S: POST moves/ {guess: higher | lower}
+            S->>E: karşılaştır (eşitse iki tahmin de doğru)
+            S-->>M: doğru/yanlış + kartın değeri · açılan kart yeni açık kart olur
+        end
+        Note over M,S: ilk hatada tur biter (1 can) · rekor = en uzun seri · devam hakkı Faz 5'te
+    end
 ```
