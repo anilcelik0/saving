@@ -9,13 +9,14 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# 0.5 (dev PC): docker stack up, emulator running, then:
-cd mobile_lineup; flutter pub get; flutter run
-# Expect: "Hoş geldin" -> open both texts -> tick -> Devam -> home "Merhaba, guest-xxxx", "Sunucu: ok".
-# Hot restart (R) / app restart must land on home directly (stored session, no second guest).
-# Admin: Users filtered by app=lineup, Misafir=yes -> exactly one new guest.
+# 0.6 (dev PC): new requirement firebase-admin + new shared app `notifications` (no models, no migration)
+docker compose up -d --build        # rebuild the backend image (web, celery_worker, celery_beat)
+# phone: adb reverse tcp:8000 tcp:80 ; cd mobile_lineup ; flutter run --dart-define=API_URL=http://localhost:8000/api/v1
+# app: Ana ekran -> Geliştirici araçları -> allow notifications -> "Reklam izle" (test ad -> "Ödül kazanıldı")
+docker compose exec web python manage.py send_test_push lineup                   # app open: shown on the dev screen
+docker compose exec web python manage.py send_test_push lineup --title "Arka plan" # app in background: system tray
 
-# Server (after git push + pull): docker compose up -d --build; migrate; bootstrap
+# Server, later: copy backend/secrets/firebase-lineup.json by hand (never via git), then pull + up -d --build + migrate + bootstrap
 ```
 
 ---
@@ -36,7 +37,8 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   - Honor VKJ-NX9: installs over wireless adb, but logcat is blocked → `flutter run` hangs after install (no hot reload).
     Dev loop = emulator; real-device checks with `flutter run --release` or another phone later.
   - [x] Emulator: `hello_test` runs and hot reload works (first install may time out on a slow first boot; re-run).
-- [~] **0.5** `mobile_lineup/` skeleton (M) · after 0.3, 0.4 — code done (`flutter analyze` clean), waiting on the emulator run
+- [x] **0.5** `mobile_lineup/` skeleton (M) · after 0.3, 0.4 — checked on the Honor phone over USB (`adb reverse`):
+  consent → guest → home, "Sunucu: ok"
   - Flutter 3.50 project, applicationId `tr.com.appmanager.lineup` (provisional, final in 5.0), label "Line Up".
     Packages: flutter_riverpod 3, go_router 18, dio 5, flutter_secure_storage 11, material_ui (Material moved out of
     the framework in Flutter 3.47: import `package:material_ui/material_ui.dart`, not `flutter/material.dart`).
@@ -44,12 +46,19 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   - `ApiClient`: Bearer token, on 401 renew once (refresh → guest re-login) and repeat; Turkish `detail` → `ApiException`.
   - `SessionController` (AsyncNotifier): stored session → `/auth/me/` (pending texts → consent) else legal texts → guest.
     Router redirects follow it: `/` (loading/error + retry), `/consent`, `/home` (mode placeholders + server health).
-  - Done when: emulator run passes the checks above; production check with `flutter run --release` (after server deploy).
-- [ ] **0.6** Plugin proof (M) · after 0.5 (no Play account needed)
+  - Production check with `flutter run --release` after the server deploy (moved to 0.7).
+- [~] **0.6** Plugin proof (M) · after 0.5 (no Play account needed) — code done, waiting on the device check above
+  - Firebase project `lineup-53c97` (Analytics off); `google-services.json` + `backend/secrets/firebase-lineup.json` git-ignored
+    (secrets also docker-ignored; the container reads them through the `./backend:/app` mount).
+  - Backend: shared `notifications` app (`fcm.send(app, ...)`, a firebase_admin app per client slug), `send_test_push`.
+  - Mobile: google-services Gradle plugin 4.6.0, firebase_core / firebase_messaging (token via `register()` +
+    `onRegistered`; `getToken` is deprecated), google_mobile_ads with Google's TEST app id + rewarded test unit;
+    debug-only "Geliştirici araçları" screen (`/home/dev`), subscribes to topic `lineup-dev`.
   - AdMob **test** rewarded ad shows and the reward callback fires.
   - Firebase project + `firebase_messaging` token; a management command (firebase-admin) sends a test push that arrives.
   - Done when: both work on a real device in a debug build.
-- [ ] **0.7** `docs/FLOW_lineup.md` updated.
+- [ ] **0.7** Close the phase: `docs/FLOW_lineup.md` updated; push + server deploy (copy the Firebase key by hand);
+  `flutter run --release` against https://appmanager.com.tr (guest + consent + "Sunucu: ok").
 
 ## Phase 1: Card pool + engine + Timeline (first playable)
 - [ ] **1.1** `lineup_cards` models + admin (M)

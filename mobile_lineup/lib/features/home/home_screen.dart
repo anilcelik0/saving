@@ -1,5 +1,7 @@
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../config.dart';
 import '../../core/providers.dart';
@@ -44,6 +46,14 @@ class HomeScreen extends ConsumerWidget {
             )),
             onTap: () => ref.invalidate(_healthProvider),
           ),
+          if (!kReleaseMode)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.build_outlined),
+              title: const Text('Geliştirici araçları'),
+              subtitle: const Text('Test reklamı, push bildirimi'),
+              onTap: () => context.go('/home/dev'),
+            ),
         ],
       ),
     );

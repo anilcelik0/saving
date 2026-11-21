@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'features/dev/dev_tools_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/session/consent_screen.dart';
 import 'features/session/session_controller.dart';
@@ -30,7 +31,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (context, state) => const StartScreen()),
       GoRoute(path: '/consent', builder: (context, state) => const ConsentScreen()),
-      GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/home',
+        builder: (context, state) => const HomeScreen(),
+        routes: [
+          GoRoute(path: 'dev', builder: (context, state) => const DevToolsScreen()),
+        ],
+      ),
     ],
   );
 });
