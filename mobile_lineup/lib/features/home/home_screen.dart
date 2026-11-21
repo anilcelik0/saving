@@ -31,9 +31,14 @@ class HomeScreen extends ConsumerWidget {
           Text('Merhaba, ${user.username}', style: Theme.of(context).textTheme.titleLarge),
           if (user.isGuest) const Text('Misafir hesap · ilerlemen bu cihazda saklanıyor'),
           const SizedBox(height: 24),
-          const _ModeTile(icon: Icons.timeline, title: 'Zaman Çizgisi', phase: 1),
-          const _ModeTile(icon: Icons.swap_vert, title: 'Seri', phase: 2),
-          const _ModeTile(icon: Icons.today, title: 'Günlük Bulmaca', phase: 3),
+          _ModeTile(
+            icon: Icons.timeline,
+            title: 'Zaman Çizgisi',
+            subtitle: 'Kartları çizgide doğru yere yerleştir',
+            onTap: () => context.go('/home/timeline'),
+          ),
+          const _ModeTile(icon: Icons.swap_vert, title: 'Seri', subtitle: 'Yakında (Faz 2)'),
+          const _ModeTile(icon: Icons.today, title: 'Günlük Bulmaca', subtitle: 'Yakında (Faz 3)'),
           const SizedBox(height: 24),
           ListTile(
             dense: true,
@@ -61,20 +66,25 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _ModeTile extends StatelessWidget {
-  const _ModeTile({required this.icon, required this.title, required this.phase});
+  const _ModeTile({required this.icon, required this.title, required this.subtitle, this.onTap});
 
   final IconData icon;
   final String title;
-  final int phase;
+  final String subtitle;
+
+  /// null = not available yet
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        enabled: false,
+        enabled: onTap != null,
         leading: Icon(icon),
         title: Text(title),
-        subtitle: Text('Yakında (Faz $phase)'),
+        subtitle: Text(subtitle),
+        trailing: onTap != null ? const Icon(Icons.chevron_right) : null,
+        onTap: onTap,
       ),
     );
   }

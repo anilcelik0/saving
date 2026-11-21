@@ -7,6 +7,7 @@ import 'features/home/home_screen.dart';
 import 'features/session/consent_screen.dart';
 import 'features/session/session_controller.dart';
 import 'features/session/start_screen.dart';
+import 'features/timeline/timeline_screen.dart';
 
 /// Routes follow the session: loading/error → `/`, legal texts → `/consent`, signed in → `/home` (and below).
 final routerProvider = Provider<GoRouter>((ref) {
@@ -36,6 +37,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HomeScreen(),
         routes: [
           GoRoute(path: 'dev', builder: (context, state) => const DevToolsScreen()),
+          GoRoute(path: 'timeline', builder: (context, state) => const TimelineScreen()),
         ],
       ),
     ],

@@ -8,7 +8,15 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 
 ## ⏳ Waiting on user (pending commands)
 
-_(none)_
+```powershell
+# Phase 1 device check (dev PC): docker up; demo pool already seeded (re-run any time):
+docker compose exec web python manage.py seed_lineup_demo
+# VS Code F5 "Line Up (dev backend)" -> Ana ekran -> Zaman Çizgisi -> Normal
+#  - drag the bottom card onto a gap (line auto-scrolls near its edges), or tap a gap
+#  - countdown runs out -> "Süre doldu", a life lost; wrong gap -> red banner with the real value
+#  - long press a line card or "Hata bildir" on the banner -> report (admin: Support > Issue reports)
+#  - win (10 cards) / lose (3 mistakes) -> end panel -> Yeni tur
+```
 
 ---
 
@@ -67,21 +75,28 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
     no source, demo),
     `set_status`. Admin: type's extra fields as inputs, value choices limited to the type, card type read-only after
     creation, approve/reject/staging actions, approval re-checked after inline save, review column ⛔/⚠.
-- [ ] **1.2** Demo seed `seed_lineup_demo` (S) · after 1.1: ~60 fake cards over 3 types (il: nüfus/yüzölçümü; olay: tarih; film: tarih), `--purge`.
-- [ ] **1.3** Admin import (M/L, split: template+preview / confirm+upsert) · after 1.1
+- [x] **1.2** Demo seed `seed_lineup_demo` (S): 60 approved demo cards (İl: nüfus/yüzölçümü + Bölge; Olay: tarih;
+  Film: tarih + Yönetmen) with FICTIONAL names and random values (seeded, idempotent), ties for 1999, `--purge`.
+- [x] **1.3** Admin import (M/L) — check 19/19 (rolled back). Large files are synchronous for now (max 5000 rows);
+  move to Celery when a real source needs it (Phase 7).
   - Per-type xlsx template generated from the schema → upload → dry-run preview with per-row errors → confirm →
     upsert by `(card_type, external_key)` into staging. `CardImport` record keeps the report; large files run in Celery.
-- [ ] **1.4** Engine core + tests (M) · after 1.1
+- [x] **1.4** Engine core + tests (M) — `lineup_games/engine/` (values.py, decks.py, timeline.py), 33 tests OK
+  (`python manage.py test lineup_games`). Wrong/late card = life lost + card discarded; deck = target + lives (13).
   - DTOs, comparison with precision + ties, seeded RNG, base generator (popularity threshold, min gap, category mix),
     `TimelineGenerator`, slot validation, lives (3), win (line reaches 10 cards), 10 s + 2 s timer check.
   - Done when: tests pass; same seed + pool → same deck.
-- [ ] **1.5** `lineup_games` runs + API (M) · after 1.4
+- [x] **1.5** `lineup_games` runs + API (M) — `/api/v1/lineup/games/runs/` (GET playing + recent, POST start),
+  `runs/<id>/`, `runs/<id>/moves/` {slot|null}; end-to-end check 19/19 (rolled back). Timer from settings
+  `LINEUP_MOVE_SECONDS` / `LINEUP_MOVE_GRACE_SECONDS`.
   - `Run` (mode, seed, params, frozen deck ids, lives, score, `dealt_at`, status), `Move` log; start / state / move / timeout.
     Row lock against double submit. Done when: API E2E; no unrevealed value ever appears in a response.
-- [ ] **1.6a** Mobile Timeline: tap-a-gap placement, countdown, correct/wrong feedback (color + haptics), end screen (M) · after 1.5
-- [ ] **1.6b** Mobile Timeline: drag & drop with auto-scroll, tested on a real device (M) · after 1.6a
-- [ ] **1.7** "Hata bildir" on a card (support registry `lineup.card`) + mobile button (S)
-- [ ] **1.8** `docs/FLOW_lineup.md` updated.
+- [~] **1.6a** Mobile Timeline: tap-a-gap placement, countdown, correct/wrong feedback (color + haptics), end screen
+  (M) — code done (`features/timeline/`), `flutter analyze` clean, waiting on the device check
+- [~] **1.6b** Mobile Timeline: drag & drop with auto-scroll (M) — code done, waiting on the real-device check
+- [~] **1.7** "Hata bildir" on a card (S) — backend checked (snapshot stored); mobile: result banner button +
+  long press on a line card, waiting on the device check
+- [x] **1.8** `docs/FLOW_lineup.md` updated (card pool/import + timeline run diagrams).
 
 ## Phase 2: Streak mode + energy
 - [ ] **2.1** Engine `StreakGenerator` + tests: higher/lower, ties correct, 1 life, one continue per run (S/M)

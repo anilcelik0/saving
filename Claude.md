@@ -44,8 +44,10 @@ app_manager/                          # repo root
 │   ├── saving_budget/           # accounts + computed balances, categories, transactions, payment plans (recurring/installment, auto-pay), monthly summary, statement parsing
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
 │   ├── saving_reports/          # aggregated reporting endpoints
-│   ├── lineup_cards/            # card pool: flexible card schema, admin import (template -> preview -> staging), demo seed
-│   └── lineup_games/            # runs, moves, energy, daily puzzle; engine/ = pure-Python game engine (tested)
+│   ├── lineup_cards/            # card pool: flexible schema, importer.py (template -> preview -> staging),
+│   │                            #   `seed_lineup_demo [--purge]` (fictional demo cards)
+│   └── lineup_games/            # runs + moves API (/api/v1/lineup/games/); engine/ = pure-Python game engine,
+│                                #   tests: `python manage.py test lineup_games`
 ├── mobile/                      # Saving: Flet 1.x Android client (pyproject.toml, own .venv)
 │   ├── main.py                  # entry: builds AppState, ft.run(main)
 │   ├── config.py                # API base URL per platform (SAVING_API_URL overrides)
