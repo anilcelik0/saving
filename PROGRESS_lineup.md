@@ -9,14 +9,18 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# 0.6 (dev PC): new requirement firebase-admin + new shared app `notifications` (no models, no migration)
-docker compose up -d --build        # rebuild the backend image (web, celery_worker, celery_beat)
-# phone: adb reverse tcp:8000 tcp:80 ; cd mobile_lineup ; flutter run --dart-define=API_URL=http://localhost:8000/api/v1
-# app: Ana ekran -> Geliştirici araçları -> allow notifications -> "Reklam izle" (test ad -> "Ödül kazanıldı")
-docker compose exec web python manage.py send_test_push lineup                   # app open: shown on the dev screen
-docker compose exec web python manage.py send_test_push lineup --title "Arka plan" # app in background: system tray
-
-# Server, later: copy backend/secrets/firebase-lineup.json by hand (never via git), then pull + up -d --build + migrate + bootstrap
+# 0.7 Production server (home server), after the push:
+#  1) copy the Firebase key by hand (never via git), e.g. USB stick / scp:
+#     dev PC  backend\secretsirebase-lineup.json  ->  server  <repo>ackend\secretsirebase-lineup.json
+#  2) on the server, in the repo folder:
+git pull
+docker compose up -d --build
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py bootstrap          # registers lineup + publishes its legal texts
+docker compose exec web python manage.py send_test_push lineup --title "Sunucudan"   # FCM key check (any device)
+#  3) dev PC: VS Code F5 "Line Up (production, release)" (or: cd mobile_lineup; flutter run --release)
+#     Expect: consent -> guest -> home, server line https://appmanager.com.tr/api/v1 "Sunucu: ok".
+#     (Release builds hide the dev tools; the guest is a NEW account on the production DB.)
 ```
 
 ---
@@ -34,8 +38,10 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
     `is_guest` in `/auth/me/`, admin filters. Saving: email still required, guests refused (`guests_not_allowed`).
 - [x] **0.4** Flutter toolchain (S, user): Flutter SDK, Android SDK, VS Code Dart/Flutter extensions, `flutter doctor` clean, phone in USB debugging.
   - Done: Flutter 3.50.1 at `C:\dev\flutter`, shares Flet's Android SDK (`C:\Users\anilc\Android\sdk`, API 34-37), licenses OK.
-  - Honor VKJ-NX9: installs over wireless adb, but logcat is blocked → `flutter run` hangs after install (no hot reload).
-    Dev loop = emulator; real-device checks with `flutter run --release` or another phone later.
+  - Honor VKJ-NX9 (wireless adb): logcat was blocked → `flutter run` hung after install. Fixed by enabling logs on the
+    phone; hot reload + logs work. Keep "Select debug app" = none ("Waiting for debugger" otherwise).
+  - Device → dev backend: `tool/adb_reverse.ps1` (device localhost:8000 → PC port 80), lost on every reconnect;
+    VS Code F5 "Line Up (dev backend)" runs it first (local `.vscode/`, git-ignored).
   - [x] Emulator: `hello_test` runs and hot reload works (first install may time out on a slow first boot; re-run).
 - [x] **0.5** `mobile_lineup/` skeleton (M) · after 0.3, 0.4 — checked on the Honor phone over USB (`adb reverse`):
   consent → guest → home, "Sunucu: ok"
@@ -47,7 +53,8 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   - `SessionController` (AsyncNotifier): stored session → `/auth/me/` (pending texts → consent) else legal texts → guest.
     Router redirects follow it: `/` (loading/error + retry), `/consent`, `/home` (mode placeholders + server health).
   - Production check with `flutter run --release` after the server deploy (moved to 0.7).
-- [~] **0.6** Plugin proof (M) · after 0.5 (no Play account needed) — code done, waiting on the device check above
+- [x] **0.6** Plugin proof (M) · after 0.5 — checked on the Honor phone: rewarded test ad (reward callback) and
+  `send_test_push lineup` (foreground on the dev screen + background in the system tray)
   - Firebase project `lineup-53c97` (Analytics off); `google-services.json` + `backend/secrets/firebase-lineup.json` git-ignored
     (secrets also docker-ignored; the container reads them through the `./backend:/app` mount).
   - Backend: shared `notifications` app (`fcm.send(app, ...)`, a firebase_admin app per client slug), `send_test_push`.
