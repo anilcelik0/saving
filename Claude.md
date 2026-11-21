@@ -112,7 +112,10 @@ shared `billing` (AdMob SSV + subscription webhooks; client apps register reward
 ## AI Operational Constraints (IMPORTANT)
 - **NO Automatic Tests:** Do NOT generate tests unless explicitly requested. Exception: the Line Up game engine
   (`lineup_games/engine/`: deck generation, move validation, ties, timer, energy) is always covered by unit tests.
-- **NO Automatic DB Actions:** Never run `makemigrations`, `migrate` or DB shell/checks automatically. Provide the commands instead.
+- **DB Actions (dev PC only):** Claude may run `makemigrations` and `migrate` on the development stack
+  (`docker compose exec web python manage.py ...`), and small one-off data checks through `manage.py shell` that run
+  inside one transaction and roll back (no leftovers). Never on the production server, and nothing destructive
+  (flush, dropping/deleting data, `delete_account`, data-changing management commands) without asking first.
 - **Shell Commands:** Run only what the user explicitly asked for (e.g. git init, docker build). Otherwise provide the commands.
 - **Token Efficiency:** Keep responses concise. Edit only what is needed; don't rewrite whole files for small changes.
 - **Small Steps:** Work in small task chunks and confirm before moving to the next phase.

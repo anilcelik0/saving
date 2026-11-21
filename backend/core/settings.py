@@ -53,7 +53,10 @@ SAVING_APPS = [
     "saving_invest",
     "saving_reports",
 ]
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + SHARED_APPS + SAVING_APPS
+LINEUP_APPS = [
+    "lineup_cards",
+]
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + SHARED_APPS + SAVING_APPS + LINEUP_APPS
 
 # Client applications served by this backend (slug -> config); `manage.py bootstrap` registers them (name,
 # allow_guests) and publishes their legal texts (legal_texts/<slug>/).

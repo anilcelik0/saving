@@ -8,20 +8,7 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 
 ## ⏳ Waiting on user (pending commands)
 
-```powershell
-# 0.7 Production server (home server), after the push:
-#  1) copy the Firebase key by hand (never via git), e.g. USB stick / scp:
-#     dev PC  backend/secrets/firebase-lineup.json  ->  server  <repo>/backend/secrets/firebase-lineup.json
-#  2) on the server, in the repo folder:
-git pull
-docker compose up -d --build
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py bootstrap          # registers lineup + publishes its legal texts
-docker compose exec web python manage.py send_test_push lineup --title "Sunucudan"   # FCM key check (any device)
-#  3) dev PC: VS Code F5 "Line Up (production, release)" (or: cd mobile_lineup; flutter run --release)
-#     Expect: consent -> guest -> home, server line https://appmanager.com.tr/api/v1 "Sunucu: ok".
-#     (Release builds hide the dev tools; the guest is a NEW account on the production DB.)
-```
+_(none)_
 
 ---
 
@@ -52,7 +39,7 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   - `ApiClient`: Bearer token, on 401 renew once (refresh → guest re-login) and repeat; Turkish `detail` → `ApiException`.
   - `SessionController` (AsyncNotifier): stored session → `/auth/me/` (pending texts → consent) else legal texts → guest.
     Router redirects follow it: `/` (loading/error + retry), `/consent`, `/home` (mode placeholders + server health).
-  - Production check with `flutter run --release` after the server deploy (moved to 0.7).
+  - Production check with `flutter run --release` after the server deploy (Phase 9).
 - [x] **0.6** Plugin proof (M) · after 0.5 — checked on the Honor phone: rewarded test ad (reward callback) and
   `send_test_push lineup` (foreground on the dev screen + background in the system tray)
   - Firebase project `lineup-53c97` (Analytics off); `google-services.json` + `backend/secrets/firebase-lineup.json` git-ignored
@@ -64,14 +51,22 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   - AdMob **test** rewarded ad shows and the reward callback fires.
   - Firebase project + `firebase_messaging` token; a management command (firebase-admin) sends a test push that arrives.
   - Done when: both work on a real device in a debug build.
-- [ ] **0.7** Close the phase: `docs/FLOW_lineup.md` updated; push + server deploy (copy the Firebase key by hand);
-  `flutter run --release` against https://appmanager.com.tr (guest + consent + "Sunucu: ok").
+- [x] **0.7** Close the phase: `docs/FLOW_lineup.md` updated, pushed. Server deploy moved to the end (Phase 9, by request).
+- Phase 0 done 2026-11-21. FCM note: `register()`/`onRegistered` needs manifest meta-data
+  `firebase_messaging_installation_id_enabled=true`; the dev backend image must be rebuilt after requirement changes.
 
 ## Phase 1: Card pool + engine + Timeline (first playable)
-- [ ] **1.1** `lineup_cards` models + admin (M)
+- [x] **1.1** `lineup_cards` models + admin (M) — migration 0001 applied on dev; one-off checks 26/26 (model rules,
+  approval, values, admin pages) + 4/4 (admin save path), all rolled back
   - `Attribute`, `CardType` (+ attribute schema), `Card` (`is_demo`, `external_key`, `extra`), `CardValue` (number | date + precision), `Tag`.
   - Admin: value inlines, filters (type/status/tag/popularity), bulk approve/reject; schema validation before approve.
   - Done when: a new type (e.g. "Futbolcu" with "transfer ücreti") is defined in admin only, no code change.
+  - Built: `values.py` (pure: partial dates as year/month/day ints, negative year = MÖ, precision, Turkish number/date
+    display), `CardTypeAttribute` (required/order) + `CardTypeField` (display fields → `Card.extra`), `Tag` tree.
+    `services.py`: `approval_problems` (blocking, incl. Turkish title required) / `review_warnings` (popularity < 20,
+    no source, demo),
+    `set_status`. Admin: type's extra fields as inputs, value choices limited to the type, card type read-only after
+    creation, approve/reject/staging actions, approval re-checked after inline save, review column ⛔/⚠.
 - [ ] **1.2** Demo seed `seed_lineup_demo` (S) · after 1.1: ~60 fake cards over 3 types (il: nüfus/yüzölçümü; olay: tarih; film: tarih), `--purge`.
 - [ ] **1.3** Admin import (M/L, split: template+preview / confirm+upsert) · after 1.1
   - Per-type xlsx template generated from the schema → upload → dry-run preview with per-row errors → confirm →
@@ -133,6 +128,23 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
 
 ## Phase 8: Visual design (dedicated phase)
 ## Phase 9: Release
+- [ ] **9.0** Server deploy (deferred from 0.7 by request; run when the user decides):
+
+```powershell
+# Production server (home server), after the push:
+#  1) copy the Firebase key by hand (never via git), e.g. USB stick / scp:
+#     dev PC  backend/secrets/firebase-lineup.json  ->  server  <repo>/backend/secrets/firebase-lineup.json
+#  2) on the server, in the repo folder:
+git pull
+docker compose up -d --build
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py bootstrap          # registers lineup + publishes its legal texts
+docker compose exec web python manage.py send_test_push lineup --title "Sunucudan"   # FCM key check (any device)
+#  3) dev PC: VS Code F5 "Line Up (production, release)" (or: cd mobile_lineup; flutter run --release)
+#     Expect: consent -> guest -> home, server line https://appmanager.com.tr/api/v1 "Sunucu: ok".
+#     (Release builds hide the dev tools; the guest is a NEW account on the production DB.)
+```
+
 - Icon/splash, signed AAB, Play forms (audience 13+, data safety, ads), internal → closed test, metrics (D1/D7/D30, puzzle share rate, challenge accept rate).
 
 ## Later
