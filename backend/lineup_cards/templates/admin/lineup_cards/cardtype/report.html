@@ -1,0 +1,25 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Onaylı kartlar oyunda kullanılır. Hedef: kart türünde "hedef kart sayısı". Tanınırlık: onaylı kartların dağılımı.</p>
+{% for t in types %}
+<div class="module" style="margin-bottom: 20px;">
+  <h2>{{ t.type }} <span style="font-weight: normal;">({{ t.type.key }})</span></h2>
+  <table style="width: 100%;">
+    <tr><th>Onaylı</th><th>Hedef</th><th>Onay bekleyen</th><th>Reddedilen</th><th>Demo</th><th>Türkçe başlıksız</th>
+        {% for b in buckets %}<th>Tanınırlık {{ b }}</th>{% endfor %}</tr>
+    <tr><td><b>{{ t.approved }}</b></td>
+        <td>{% if t.target %}{{ t.target }} (%{{ t.percent }}){% else %}-{% endif %}</td>
+        <td>{{ t.staging }}</td><td>{{ t.rejected }}</td>
+        <td>{% if t.demo %}<b style="color:#b45309">{{ t.demo }}</b>{% else %}0{% endif %}</td><td>{{ t.no_tr }}</td>
+        {% for n in t.popularity %}<td>{{ n }}</td>{% endfor %}</tr>
+  </table>
+  <table style="width: 100%; margin-top: 8px;">
+    <tr><th>Nitelik</th><th>Onaylı değer</th><th>En küçük</th><th>En büyük</th></tr>
+    {% for r in t.ranges %}<tr><td>{{ r.name }}</td><td>{{ r.count }}</td><td>{{ r.low }}</td><td>{{ r.high }}</td></tr>{% endfor %}
+  </table>
+  <p style="margin: 8px;">Kaynaklar:
+    {% for s in t.sources %}{{ s.name }}{% if s.last_run_at %} (son çekim {{ s.last_run_at|date:"d.m.Y" }}){% endif %}{% if not forloop.last %} · {% endif %}{% empty %}yok{% endfor %}
+  </p>
+</div>
+{% endfor %}
+{% endblock %}

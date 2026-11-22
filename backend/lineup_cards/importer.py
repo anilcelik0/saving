@@ -1,7 +1,9 @@
 """
-Card import pipeline, the single way cards enter the pool in bulk. Rows come from an uploaded Excel/CSV today and
-from source adapters (Wikidata, Phase 7) later; both are normalized and validated against a card type's schema here,
+Card import pipeline, the single way cards enter the pool in bulk. Rows come from an uploaded Excel/CSV or from a
+source adapter (lineup_cards.sources: Wikidata); both are normalized and validated against a card type's schema here,
 previewed in the admin (CardImport), then applied as an upsert by external key (or title when the key is empty).
+Automatic checks (warnings, never blocking): missing values, outliers, duplicate titles, no Turkish title, low
+popularity, future dates; adapters add their own notes in a "_warnings" column.
 
 Columns are machine keys: base columns + the type's attribute keys + its extra field keys.
 Dates: 1453 · 1453-05 · 1453-05-29 · 29.05.1453 · 05.1453 · -1200 / MÖ 1200. Numbers: 4479525 · 4.479.525 · 11891,5.
@@ -10,6 +12,7 @@ Dates: 1453 · 1453-05 · 1453-05-29 · 29.05.1453 · 05.1453 · -1200 / MÖ 120
 import csv
 import io
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -162,13 +165,14 @@ def validate(card_type: CardType, raw_rows: list[dict]) -> tuple[list[RowResult]
     known = set(BASE_KEYS) | set(schema) | set(field_keys)
     file_warnings = []
     if raw_rows:
-        unknown = sorted(set(raw_rows[0]) - known)
+        unknown = sorted(set(raw_rows[0]) - known - {"_warnings"})
         if unknown:
             file_warnings.append(f"Bilinmeyen sütunlar yok sayıldı: {', '.join(unknown)}")
         if "title" not in raw_rows[0]:
             file_warnings.append("'title' sütunu yok: şablonu kart türü sayfasından indirin.")
 
     existing = list(card_type.cards.prefetch_related("values__attribute"))
+    batch_titles = Counter(_text(r.get("title")).casefold() for r in raw_rows if _text(r.get("title")))
     by_key = {c.external_key: c for c in existing if c.external_key}
     by_title: dict[str, list[Card]] = {}
     for c in existing:
@@ -230,6 +234,15 @@ def validate(card_type: CardType, raw_rows: list[dict]) -> tuple[list[RowResult]
         missing = [e.attribute.name for k, e in schema.items() if e.is_required and k not in row.values]
         if data["title_lang"] != "tr":
             row.warnings.append("Türkçe başlık değil: onaylanamaz.")
+        row.warnings.extend(str(w) for w in (raw.get("_warnings") or []))
+        if "popularity" in data and data["popularity"] < services.LOW_POPULARITY:
+            row.warnings.append(f"Tanınırlık düşük ({data['popularity']}).")
+        same_title = [c for c in by_title.get(title.casefold(), []) if key and c.external_key and c.external_key != key]
+        if title and (batch_titles[title.casefold()] > 1 or same_title):
+            row.warnings.append("Aynı başlıkta başka kart var: aynı şey mi, kontrol edin.")
+        future = [k for k, v in row.values.items() if "year" in v and v["year"] > timezone.localdate().year]
+        if future:
+            row.warnings.append("Gelecekte bir tarih.")
 
         card = by_key.get(key) if key else None
         if card is None and not key:
@@ -252,7 +265,35 @@ def validate(card_type: CardType, raw_rows: list[dict]) -> tuple[list[RowResult]
         else:
             row.action = "update" if _changes(card, data, row.values) else "unchanged"
         results.append(row)
+    _flag_outliers(schema, results)
     return results, file_warnings
+
+
+OUTLIER_Z = 5  # robust z-score (median / MAD): far from the batch's other values
+
+
+def _flag_outliers(schema: dict, results: list[RowResult]) -> None:
+    """
+    Numbers far from the rest of the batch (a unit slip, a wrong item); needs 8+ values to say anything. Positive
+    values are compared on a log scale (populations, areas, fees spread over orders of magnitude naturally).
+    """
+    for key, entry in schema.items():
+        if entry.attribute.value_type != Attribute.ValueType.NUMBER:
+            continue
+        rows = [(r, Decimal(r.values[key]["number"])) for r in results if key in r.values and not r.errors]
+        if len(rows) < 8:
+            continue
+        if all(n > 0 for _, n in rows):
+            rows = [(r, n.log10()) for r, n in rows]
+        numbers = sorted(n for _, n in rows)
+        median = numbers[len(numbers) // 2]
+        deviations = sorted(abs(n - median) for n in numbers)
+        mad = deviations[len(deviations) // 2]
+        if not mad:
+            continue
+        for row, n in rows:
+            if abs(Decimal("0.6745") * (n - median) / mad) > OUTLIER_Z:
+                row.warnings.append(f"{entry.attribute.name}: aykırı değer, kaynağı kontrol edin.")
 
 
 def _changes(card: Card, data: dict, new_values: dict) -> bool:

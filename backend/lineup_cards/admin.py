@@ -11,7 +11,11 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from . import importer, services
-from .models import Attribute, Card, CardImport, CardType, CardTypeAttribute, CardTypeField, CardValue, Tag
+from .models import (
+    Attribute, Card, CardImport, CardSource, CardType, CardTypeAttribute, CardTypeField, CardValue, Tag,
+)
+from .sources.presets import PRESETS
+from .tasks import fetch_source
 
 EXTRA_PREFIX = "extra__"
 
@@ -37,15 +41,55 @@ class CardTypeFieldInline(admin.TabularInline):
 
 @admin.register(CardType)
 class CardTypeAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "key", "attribute_names", "approved_count", "staging_count", "template_link"]
+    list_display = ["__str__", "key", "attribute_names", "approved_count", "target_progress", "staging_count",
+                    "template_link"]
+    change_list_template = "admin/lineup_cards/cardtype/change_list.html"
     search_fields = ["name", "key"]
     readonly_fields = ["template_link"]
     inlines = [CardTypeAttributeInline, CardTypeFieldInline]
 
     def get_urls(self):
         custom = [path("<uuid:pk>/template/", self.admin_site.admin_view(self.template_view),
-                       name="lineup_cards_cardtype_template")]
+                       name="lineup_cards_cardtype_template"),
+                  path("report/", self.admin_site.admin_view(self.report_view), name="lineup_cards_cardtype_report")]
         return custom + super().get_urls()
+
+    def report_view(self, request):
+        """Distribution report: approved vs target, statuses, demo cards, popularity spread, value ranges."""
+        buckets = [(0, 19), (20, 39), (40, 59), (60, 79), (80, 100)]
+        types = []
+        for t in CardType.objects.prefetch_related("schema_attributes__attribute", "sources").order_by("name"):
+            cards = t.cards.all()
+            approved = cards.filter(status=Card.Status.APPROVED)
+            counts = cards.aggregate(
+                approved=Count("id", filter=Q(status=Card.Status.APPROVED)),
+                staging=Count("id", filter=Q(status=Card.Status.STAGING)),
+                rejected=Count("id", filter=Q(status=Card.Status.REJECTED)),
+                demo=Count("id", filter=Q(is_demo=True)),
+                no_tr=Count("id", filter=~Q(title_lang="tr")),
+            )
+            popularity = [approved.filter(popularity__gte=lo, popularity__lte=hi).count() for lo, hi in buckets]
+            ranges = []
+            for entry in t.schema_attributes.all():
+                a = entry.attribute
+                values = CardValue.objects.filter(attribute=a, card__in=approved)
+                order = ("number",) if a.value_type == Attribute.ValueType.NUMBER else ("year", "month", "day")
+                low, high = values.order_by(*order).first(), values.order_by(*[f"-{o}" for o in order]).first()
+                ranges.append({"name": a.name, "count": values.count(),
+                               "low": low.display() if low else "-", "high": high.display() if high else "-"})
+            target = t.target_count
+            types.append({"type": t, **counts, "target": target,
+                          "percent": round(100 * counts["approved"] / target) if target else None,
+                          "popularity": popularity, "ranges": ranges, "sources": list(t.sources.all())})
+        context = {**self.admin_site.each_context(request), "opts": self.opts, "title": "Kart dağılım raporu",
+                   "types": types, "buckets": [f"{lo}-{hi}" for lo, hi in buckets]}
+        return TemplateResponse(request, "admin/lineup_cards/cardtype/report.html", context)
+
+    @admin.display(description="hedef")
+    def target_progress(self, obj):
+        if not obj.target_count:
+            return "-"
+        return f"%{round(100 * obj.approved / obj.target_count)} ({obj.target_count})"
 
     def template_view(self, request, pk):
         card_type = get_object_or_404(CardType, pk=pk)
@@ -252,6 +296,57 @@ class CardAdmin(admin.ModelAdmin):
         self.message_user(request, f"{changed} kart onay bekliyor durumuna alındı.", messages.SUCCESS)
 
 
+# ---------------------------------------------------------------- sources
+@admin.register(CardSource)
+class CardSourceAdmin(admin.ModelAdmin):
+    """Wikidata (SPARQL) sources: "Çek" builds a preview import in the background; monthly refresh via beat."""
+
+    list_display = ["name", "card_type", "kind", "limit", "auto_refresh", "last_run_at", "last_status", "imports_link"]
+    list_filter = ["card_type", "kind", "auto_refresh"]
+    search_fields = ["name"]
+    readonly_fields = ["last_run_at", "last_error"]
+    actions = ["fetch_preview"]
+
+    def get_fieldsets(self, request, obj=None):
+        presets = format_html_join(
+            " · ", '<a href="{}?preset={}">{}</a>',
+            ((reverse("admin:lineup_cards_cardsource_add"), key, p["name"]) for key, p in PRESETS.items()
+             if CardType.objects.filter(key=key).exists()))
+        description = format_html(
+            "Değerler yalnızca kaynaktan gelir. Değişken sözleşmesi: lineup_cards/sources/wikidata.py. "
+            "Hazır sorgular (kart türü anahtarına göre): {}", presets or "-")
+        return [(None, {"fields": ["card_type", "kind", "name", "query", "tags", "limit", "use_pageviews",
+                                   "auto_refresh", "last_run_at", "last_error"], "description": description})]
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        preset = PRESETS.get(request.GET.get("preset", ""))
+        if preset:
+            card_type = CardType.objects.filter(key=request.GET["preset"]).first()
+            initial.update(name=preset["name"], tags=preset["tags"], query=preset["query"],
+                           card_type=card_type.pk if card_type else None)
+        return initial
+
+    @admin.action(description="Önizleme için çek (arka planda)")
+    def fetch_preview(self, request, queryset):
+        for source in queryset:
+            fetch_source.delay(str(source.pk), str(request.user.pk))
+        self.message_user(request, f"{queryset.count()} kaynak sıraya alındı. Birkaç dakika sonra İçe aktarmalar "
+                          "listesinde önizleme olarak görünür (hata olursa kaynağın 'son hata' alanında).",
+                          messages.INFO)
+
+    @admin.display(description="durum")
+    def last_status(self, obj):
+        if obj.last_error:
+            return format_html('<span style="color:#b91c1c">⛔ {}</span>', obj.last_error[:80])
+        return "✓" if obj.last_run_at else "-"
+
+    @admin.display(description="içe aktarmalar")
+    def imports_link(self, obj):
+        return format_html('<a href="{}?source__id__exact={}">{}</a>',
+                           reverse("admin:lineup_cards_cardimport_changelist"), obj.pk, obj.imports.count())
+
+
 # ---------------------------------------------------------------- import
 ACTION_LABELS = {"create": "Yeni", "update": "Güncelle", "unchanged": "Değişmedi", "error": "Hata"}
 PREVIEW_ROWS = 300
@@ -267,7 +362,7 @@ class CardImportAdmin(admin.ModelAdmin):
     """Upload (add view) -> preview (change view) -> apply. Rows are validated by lineup_cards.importer."""
 
     list_display = ["created_at", "card_type", "file_name", "status", "summary_text", "uploaded_by"]
-    list_filter = ["status", "card_type"]
+    list_filter = ["status", "card_type", "source"]
     list_select_related = ["card_type", "uploaded_by"]
 
     @admin.display(description="özet")

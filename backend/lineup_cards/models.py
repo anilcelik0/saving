@@ -57,6 +57,8 @@ class CardType(BaseModel):
     emoji = models.CharField(max_length=8, blank=True, help_text="Kartta görsel yerine gösterilir")
     description = models.TextField("açıklama", blank=True)
     attributes = models.ManyToManyField(Attribute, through="CardTypeAttribute", related_name="card_types")
+    target_count = models.PositiveIntegerField("hedef kart sayısı", default=0,
+                                               help_text="Onaylı kart hedefi (dağılım raporu); 0 = hedef yok")
 
     class Meta:
         ordering = ["name"]
@@ -259,6 +261,8 @@ class CardImport(BaseModel):
     summary = models.JSONField(default=dict, blank=True)
     result = models.JSONField(default=dict, blank=True)
     applied_at = models.DateTimeField("içe aktarıldı", null=True, blank=True)
+    source = models.ForeignKey("CardSource", on_delete=models.SET_NULL, null=True, blank=True, related_name="imports",
+                               verbose_name="kaynak", help_text="Boşsa dosya yüklemesi")
 
     class Meta:
         ordering = ["-created_at"]
@@ -267,3 +271,38 @@ class CardImport(BaseModel):
 
     def __str__(self):
         return f"{self.card_type} · {self.file_name}"
+
+
+class CardSource(BaseModel):
+    """
+    An external source feeding a card type through the import pipeline (lineup_cards.sources). Wikidata today: a
+    SPARQL query whose variables follow sources/wikidata.py. "Çek" makes a preview; the monthly refresh applies new and
+    changed cards to staging (approved cards whose values changed are reviewed again).
+    """
+
+    class Kind(models.TextChoices):
+        WIKIDATA = "wikidata", "Wikidata (SPARQL)"
+
+    card_type = models.ForeignKey(CardType, on_delete=models.PROTECT, related_name="sources", verbose_name="tür")
+    kind = models.CharField("kaynak", max_length=20, choices=Kind.choices, default=Kind.WIKIDATA)
+    name = models.CharField("ad", max_length=100)
+    query = models.TextField("sorgu", help_text="SPARQL; değişkenler: ?item ?title_tr ?title_en ?sitelinks ?trwiki, "
+                                                "nitelik anahtarları (?population, ?date …), ?<anahtar>_precision / "
+                                                "_date / _rank, ek alan anahtarları (?region …)")
+    tags = models.CharField("etiketler", max_length=200, blank=True, help_text="Her karta eklenir, virgülle")
+    limit = models.PositiveIntegerField("en fazla kart", default=500,
+                                        help_text="En çok Vikipedi'si olanlardan bu kadarı (içe aktarma sınırı 5000)")
+    use_pageviews = models.BooleanField("Türkçe Vikipedi görüntülenmesi", default=True,
+                                        help_text="Tanınırlığa katılır (madde başına bir istek; büyük kaynakta yavaş)")
+    auto_refresh = models.BooleanField("aylık yenile", default=True)
+    last_run_at = models.DateTimeField("son çekim", null=True, blank=True)
+    last_error = models.TextField("son hata", blank=True)
+
+    class Meta:
+        ordering = ["card_type__name", "name"]
+        verbose_name = "kart kaynağı"
+        verbose_name_plural = "kart kaynakları"
+
+    def __str__(self):
+        return self.name
+

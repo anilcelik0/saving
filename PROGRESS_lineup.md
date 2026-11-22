@@ -9,20 +9,22 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# Phase 6 device check: new Celery task + new apps -> restart web AND the worker (migrations already applied)
-docker compose restart web celery_worker
-#  - New packages (local notifications, prefs) -> F5 does a full rebuild. Two devices make it easy:
-#    emulator = player A, Honor = player B (each its own guest; give B a username via Profil > Hesabını kaydet).
-#  - A: finish a Seri / Zaman Çizgisi run -> "Arkadaşına meydan oku" -> "Linki paylaş" + "Kullanıcı adına gönder" (B)
-#  - B: push "Meydan okuma!" -> tap -> challenge -> "Kabul et ve oyna (ücretsiz)" (no energy) -> finish -> "Sonucu gör"
-#  - A: push "Meydan okuma sonucu" -> challenge screen lists B with the score
-#  - Home: "Meydan okumalar · 1 yeni"; Meydan okumalar > "Kodla katıl" with the 6-letter code
-#  - Invite link on the phone (App Links are verified only on the real server; explicit package works now):
+# Left from Phase 6 (user tests on 2026-11-23):
+#  - Reminders: Profil > Bildirimler on. With LINEUP_ENERGY_GRACE_DAYS=0 + LINEUP_ENERGY_REFILL_MINUTES=2 in .env
+#    (`docker compose up -d web`) spend energy, close the app -> "Enerjin doldu" ~10 min later (inexact);
+#    "Günlük bulmaca hazır" at 07:30. Remove the .env lines afterwards.
+#  - Invite link on the phone + its web page (http://localhost/lineup/c/KOD):
 adb shell am start -a android.intent.action.VIEW -d "https://appmanager.com.tr/lineup/c/KOD" tr.com.appmanager.lineup
-#  - Web page of a link: http://localhost/lineup/c/KOD in the PC browser
-#  - Reminders: Profil > Bildirimler (both on). Energy: with LINEUP_ENERGY_GRACE_DAYS=0 + LINEUP_ENERGY_REFILL_MINUTES=2
-#    in .env (`docker compose up -d web`), spend energy, close the app -> "Enerjin doldu" ~10 min later (inexact);
-#    daily: tomorrow 07:30. Remove the .env lines afterwards.
+
+# Phase 7 check (admin, dev PC): new Celery task + beat entry -> restart web, worker and beat
+docker compose restart web celery_worker celery_beat
+#  - optional but asked by Wikimedia: in .env  WIKIMEDIA_USER_AGENT=LineUpCardImporter/1.0 (<your contact e-mail or URL>)
+#  - Admin > Kart kaynakları > Ekle: the preset links (İl / Film / Olay) fill the query; save
+#  - select the source > "Önizleme için çek (arka planda)" -> İçe aktarmalar: the preview (~30 s for 81 provinces
+#    with page views) -> check notes (several values, BC dates, outliers) -> "Geçerli satırları içe aktar"
+#  - Kartlar: staging Wikidata cards -> review / approve; Kart türleri > "Dağılım raporu" (+ set "hedef kart sayısı")
+#  - 7.5, when enough real cards are approved (deletes data, so yours to run):
+docker compose exec web python manage.py seed_lineup_demo --purge
 ```
 
 ---
@@ -210,21 +212,42 @@ link / code and optionally sent to a username (push). Both modes; same rules for
 - [x] **6.3** Shared `notifications` (M, [shared]): `DeviceToken` (token follows the last user who registered it),
   `POST/DELETE notifications/devices/`, `notify(user, title, body, data)` → Celery `send_push` after commit (only
   active accounts; dead tokens deleted). Check 28/28 (rolled back; pushes captured).
-- [~] **6.4** Mobile (L): game screens open a given run (`?run=&challenge=`, providers per run id), end panel
+- [x] **6.4** Mobile (L): game screens open a given run (`?run=&challenge=`, providers per run id), end panel
   "Arkadaşına meydan oku" / "Sonucu gör", challenges list (incoming / played / sent, join by code), challenge screen
   (share, send to username, accept, results), home tile with new count; App Link intent filter + router keeps a link
   until sign-in; push: token registered for the signed-in user (moved on account change, removed on logout / freeze /
   delete), tap opens the challenge, SnackBar while open; local reminders (`flutter_local_notifications`, inexact):
   energy full, daily puzzle 07:30, switches in the profile. compileSdk 37 (plugin requirement), desugaring on.
-  `flutter analyze` clean, debug APK builds; waiting on the device check.
+  Challenges + pushes checked on two devices; local reminders and the invite link are tested 2026-11-23 (see top).
 - [x] **6.5** FLOW updated (challenge + push diagram).
+- Phase 6 done 2026-11-22 (reminder / link device check pending, by the user).
 
 ## Phase 7: Real data pipeline (deliberately last)
-- [ ] **7.1** Source adapter interface feeding the 1.3 import pipeline; Wikidata SPARQL adapter per card type (M/L)
-- [ ] **7.2** Auto checks: missing / outlier / duplicate / no Turkish label / low popularity; popularity = sitelinks + trwiki page views (M)
-- [ ] **7.3** Monthly refresh (beat); changed values go back to staging (S)
-- [ ] **7.4** Target card counts per category + distribution report in admin (S)
-- [ ] **7.5** Purge demo cards (S)
+- [x] **7.1** Sources (M/L): `CardSource` (card type, SPARQL query, tags, limit, page views on/off, monthly on/off,
+  last run / error) → `sources.run_source` → the same pipeline (`importer.validate` → `CardImport` preview, linked to
+  its source → apply to staging). `sources/wikidata.py`: variable contract (`?item ?title_tr ?title_mul ?title_en
+  ?sitelinks ?trwiki ?<attr> ?<attr>_precision/_date/_rank ?<field>`), rows merged per item, one value per attribute
+  (preferred rank → latest point in time → dates: earliest, numbers: most frequent then smallest = same pick every
+  run), Wikidata BC years converted (astronomical -489 = MÖ 490), precision coarser than a year refused, retries on
+  429. Presets checked live (`sources/presets.py`): 81 provinces (population, km², region where Wikidata has it:
+  13), ~72 films (80+ Wikipedias: date = first release, director), ~146 battles (40+ Wikipedias, point in time or
+  start). Wikidata's language-independent `mul` label counts as Turkish (flagged for a spelling check).
+  Admin: sources with preset links, "Önizleme için çek" (Celery `fetch_source`).
+- [x] **7.2** Checks (M) in `importer.validate` (Excel too, warnings only): source notes (different values > 1 % /
+  different years, BC date, no trwiki article, `mul` label), outliers (robust z > 5 on log scale for positive
+  numbers), duplicate titles (batch or other external key), low popularity, future dates, no Turkish title, missing
+  values. Popularity (`sources/popularity.py`) = mean of sitelinks score (log, 250 = 100) and trwiki monthly views
+  score (log, 100k = 100; last 3 full months), sitelinks alone without a trwiki article.
+- [x] **7.3** Monthly refresh (S): beat `lineup_cards.tasks.refresh_sources` on the 1st at 04:30 → `run_source(...,
+  auto_apply=True)`: new and changed cards go to staging (an approved card whose value changed is reviewed again;
+  unchanged cards stay approved).
+- [x] **7.4** Report (S): `CardType.target_count`, "hedef" column, admin "Dağılım raporu" (approved vs target,
+  staging / rejected / demo / non-Turkish counts, popularity buckets, value range per attribute, sources).
+  Check 22/22 against live Wikidata (rolled back, nothing left).
+- [~] **7.5** Purge demo cards (S): `seed_lineup_demo --purge` when enough real cards are approved (user, deletes
+  data). Runs / puzzles on demo decks then answer `card_missing`. The production DB was never seeded (report: demo 0).
+- Phase 7 notes: set `WIKIMEDIA_USER_AGENT` with a contact (Wikimedia policy) before heavy use; the provinces'
+  region exists on Wikidata for 13 of 81 (optional field, can be filled by Excel import with a source).
 
 ## Phase 8: Visual design (dedicated phase)
 ## Phase 9: Release
