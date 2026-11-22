@@ -4,8 +4,8 @@ DeckCard / Value objects, stores the frozen deck and the state, and calls these 
 lineup_games/tests/test_engine.py.
 """
 
-from . import decks, energy, streak, timeline
+from . import daily, decks, energy, streak, timeline
 from .decks import DeckCard, DeckParams
 from .values import Value, compare
 
-__all__ = ["DeckCard", "DeckParams", "Value", "compare", "decks", "energy", "streak", "timeline"]
+__all__ = ["DeckCard", "DeckParams", "Value", "compare", "daily", "decks", "energy", "streak", "timeline"]

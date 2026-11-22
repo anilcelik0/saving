@@ -1,6 +1,7 @@
 from django.contrib import admin
+from django.db.models import Count
 
-from .models import Energy, Move, Run
+from .models import DailyPlay, DailyPuzzle, Energy, Move, Run
 
 
 class MoveInline(admin.TabularInline):
@@ -33,6 +34,34 @@ class EnergyAdmin(admin.ModelAdmin):
     search_fields = ["user__username"]
     list_select_related = ["user"]
     readonly_fields = ["user", "created_at", "updated_at"]
+
+    def has_add_permission(self, request):
+        return False
+
+
+class DailyPlayInline(admin.TabularInline):
+    model = DailyPlay
+    extra = 0
+    can_delete = False
+    fields = ["user", "status", "attempts", "finished_at"]
+    readonly_fields = fields
+
+
+@admin.register(DailyPuzzle)
+class DailyPuzzleAdmin(admin.ModelAdmin):
+    """Created by the first request of the day; frozen afterwards."""
+
+    list_display = ["number", "date", "attribute", "plays"]
+    list_select_related = ["attribute"]
+    readonly_fields = ["date", "number", "attribute", "seed", "deck", "created_at"]
+    inlines = [DailyPlayInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(play_count=Count("plays"))
+
+    @admin.display(description="oyun", ordering="play_count")
+    def plays(self, obj):
+        return obj.play_count
 
     def has_add_permission(self, request):
         return False

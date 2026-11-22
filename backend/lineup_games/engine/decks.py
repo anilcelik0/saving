@@ -3,7 +3,7 @@
 import random
 from dataclasses import dataclass, field
 
-from .values import Value, gap
+from .values import Value, compare, gap
 
 
 @dataclass(frozen=True)
@@ -105,3 +105,17 @@ def streak_deck(seed: str, candidates: list[DeckCard], size: int, is_date: bool)
             index = max(range(len(pool)), key=lambda i: gap(pool[i].value, previous))
         deck.append(pool.pop(index))
     return [c.id for c in deck]
+
+
+def daily_deck(seed: str, candidates: list[DeckCard], size: int, is_date: bool) -> list[str]:
+    """
+    The daily puzzle's cards in the order they are shown. Known cards with a normal gap (no near-ties), else the
+    whole pool. The shown order is never already sorted, so there is always something to do.
+    """
+    deck = generate(seed, candidates, params_for("normal", size, is_date))
+    if len(deck) < size:
+        deck = generate(seed, candidates, params_for("hard", size, is_date))
+    values = {c.id: c.value for c in candidates}
+    if len(deck) > 1 and all(compare(values[a], values[b]) <= 0 for a, b in zip(deck, deck[1:])):
+        deck = deck[1:] + deck[:1]  # rotating a sorted run of distinct values unsorts it
+    return deck

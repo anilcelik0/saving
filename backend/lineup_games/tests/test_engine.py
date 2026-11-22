@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest import TestCase
 
-from lineup_games.engine import decks, energy, streak, timeline
+from lineup_games.engine import daily, decks, energy, streak, timeline
 from lineup_games.engine.decks import DeckCard, DeckParams
 from lineup_games.engine.values import Value, compare, gap
 
@@ -361,3 +361,79 @@ class EnergyTests(TestCase):
         self.assertTrue(energy.in_grace(self.t0, self.t0 + timedelta(days=2, hours=23), grace))
         self.assertFalse(energy.in_grace(self.t0, self.t0 + timedelta(days=3), grace))
         self.assertFalse(energy.in_grace(self.t0, self.t0, timedelta(0)))
+
+
+class DailyDeckTests(TestCase):
+    def setUp(self):
+        self.pool = [DeckCard(id=f"y{1900 + i * 7}", value=year(1900 + i * 7), popularity=(90, 50, 10)[i % 3])
+                     for i in range(30)]
+        self.values = {c.id: c.value for c in self.pool}
+
+    def test_same_seed_same_deck_any_input_order(self):
+        a = decks.daily_deck("2026-11-22", self.pool, daily.SIZE, True)
+        self.assertEqual(a, decks.daily_deck("2026-11-22", list(reversed(self.pool)), daily.SIZE, True))
+        self.assertEqual(len(set(a)), daily.SIZE)
+        self.assertNotEqual(a, decks.daily_deck("2026-11-23", self.pool, daily.SIZE, True))
+
+    def test_known_cards_with_a_gap(self):
+        deck = decks.daily_deck("s", self.pool, daily.SIZE, True)
+        by_id = {c.id: c for c in self.pool}
+        self.assertTrue(all(by_id[c].popularity >= 40 for c in deck))
+        for i, a in enumerate(deck):
+            for b in deck[i + 1:]:
+                self.assertGreaterEqual(gap(self.values[a], self.values[b]), 4)
+
+    def test_small_known_pool_falls_back_to_whole_pool(self):
+        pool = [DeckCard(id=f"c{i}", value=year(2000 + i * 10), popularity=10) for i in range(8)]
+        self.assertEqual(len(decks.daily_deck("s", pool, daily.SIZE, True)), daily.SIZE)
+
+    def test_never_shown_sorted(self):
+        pool = [DeckCard(id=f"c{i}", value=year(2000 + i * 10), popularity=90) for i in range(6)]
+        values = {c.id: c.value for c in pool}
+        for seed in map(str, range(300)):
+            deck = decks.daily_deck(seed, pool, 6, True)
+            self.assertNotEqual(deck, daily.solution(deck, values), seed)
+
+
+class DailyTests(TestCase):
+    def setUp(self):
+        # sorted order: a b c d e f
+        self.values = {k: year(y) for k, y in zip("abcdef", [1900, 1920, 1940, 1960, 1980, 2000])}
+        self.state = daily.start(list("fedcba"))
+
+    def test_marks_right_near_wrong(self):
+        self.assertEqual(daily.marks(list("abcdef"), self.values), (daily.RIGHT,) * 6)
+        self.assertEqual(daily.marks(list("bacdfe"), self.values),
+                         (daily.NEAR, daily.NEAR, daily.RIGHT, daily.RIGHT, daily.NEAR, daily.NEAR))
+        self.assertEqual(daily.marks(list("fbcdea"), self.values)[0], daily.WRONG)
+
+    def test_ties_accept_either_position(self):
+        values = {"a": year(1999), "b": year(1999, 5), "c": year(2010)}
+        self.assertEqual(daily.rank_range("a", values), (0, 1))
+        self.assertEqual(daily.marks(["b", "a", "c"], values), (daily.RIGHT,) * 3)
+        self.assertEqual(daily.marks(["a", "b", "c"], values), (daily.RIGHT,) * 3)
+
+    def test_solve_on_second_attempt(self):
+        first = daily.submit(self.state, list("bacdef"), self.values)
+        self.assertFalse(first.solved)
+        self.assertEqual(first.state.status, daily.PLAYING)
+        self.assertEqual(first.state.attempts_left, 2)
+        second = daily.submit(first.state, list("abcdef"), self.values)
+        self.assertTrue(second.solved)
+        self.assertEqual(second.state.status, daily.WON)
+        self.assertEqual(second.state.solved_in, 2)
+        with self.assertRaises(ValueError):
+            daily.submit(second.state, list("abcdef"), self.values)
+
+    def test_lost_after_three_wrong_attempts(self):
+        state = self.state
+        for _ in range(daily.ATTEMPTS):
+            state = daily.submit(state, list("bacdef"), self.values).state
+        self.assertEqual(state.status, daily.LOST)
+        self.assertIsNone(state.solved_in)
+        self.assertEqual(daily.solution(state.deck, self.values), list("abcdef"))
+
+    def test_order_must_hold_the_puzzle_cards(self):
+        for order in (list("abcde"), list("abcdeX"), list("abcdea")):
+            with self.assertRaises(ValueError):
+                daily.submit(self.state, order, self.values)

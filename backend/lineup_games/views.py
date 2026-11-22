@@ -22,6 +22,12 @@ class MoveSerializer(serializers.Serializer):
     guess = serializers.ChoiceField(choices=["higher", "lower"], required=False, help_text="Streak: next card vs open card")
 
 
+class DailyAttemptSerializer(serializers.Serializer):
+    number = serializers.IntegerField(min_value=1, help_text="Puzzle number the order belongs to")
+    order = serializers.ListField(child=serializers.CharField(max_length=64), max_length=20,
+                                  help_text="Every puzzle card id, lowest value first")
+
+
 class HomeView(APIView):
     """GET: energy, the runs being played per mode (resume), best streak, timeline wins."""
 
@@ -81,3 +87,27 @@ class RunMoveView(APIView):
         slot, guess = data.validated_data.get("slot"), data.validated_data.get("guess")
         run, result = services.play_move(request.user, pk, slot=slot, guess=guess)
         return Response(services.move_payload(run, result, slot=slot, guess=guess))
+
+
+class DailyView(APIView):
+    """GET: today's puzzle (Europe/Istanbul) with the user's attempts; values, solution and share text once finished."""
+
+    permission_classes = [IsLineupUser]
+
+    def get(self, request):
+        return Response(services.daily_payload(request.user))
+
+
+class DailyAttemptView(APIView):
+    """POST {number, order}: one attempt (free, max 3). 409 daily_expired / daily_over / invalid_order."""
+
+    permission_classes = [IsLineupUser]
+
+    def post(self, request):
+        data = DailyAttemptSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        play, result = services.submit_daily(request.user, data.validated_data["number"], data.validated_data["order"])
+        return Response({
+            "result": {"marks": list(result.marks), "solved": result.solved, "attempt": len(play.attempts)},
+            "daily": services.daily_payload(request.user, play.puzzle, play),
+        })

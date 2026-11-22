@@ -1,23 +1,25 @@
 """
 Django side of a game: loads cards into engine objects, creates runs with a frozen deck (paid with energy), applies
-moves under a row lock and builds the payloads (a card's value is only ever sent after it was played).
+moves under a row lock and builds the payloads (a card's value is only ever sent after it was played). The daily
+puzzle is free and created by the first request of the day.
 """
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q
 from django.utils import timezone
 from rest_framework.exceptions import APIException, NotFound
 
 from lineup_cards.models import Attribute, Card, CardValue
 
-from .engine import decks, energy, streak, timeline
+from .engine import daily, decks, energy, streak, timeline
 from .engine.decks import DeckCard
 from .engine.values import Value
-from .models import Energy, Move, Run
+from .models import DailyPlay, DailyPuzzle, Energy, Move, Run
 
 DIFFICULTIES = {"easy": "Kolay", "normal": "Normal", "hard": "Zor"}
 ENERGY_COST = 1  # per Timeline / Streak start; the daily puzzle and accepted challenges are free
@@ -269,6 +271,112 @@ def move_payload(run: Run, result, slot: int | None = None, guess: str | None = 
     return {"result": {**outcome, "card": card_payload(card, value)}, "run": run_payload(run)}
 
 
+# ---------------------------------------------------------------- daily puzzle
+DAILY_TZ = ZoneInfo("Europe/Istanbul")
+SHARE_MARKS = {daily.RIGHT: "🟩", daily.NEAR: "🟨", daily.WRONG: "🟥"}
+
+
+def daily_date(now: datetime | None = None) -> date:
+    return timezone.localtime(now or timezone.now(), DAILY_TZ).date()
+
+
+def next_daily_seconds(now: datetime | None = None) -> int:
+    now = now or timezone.now()
+    tomorrow = datetime.combine(daily_date(now) + timedelta(days=1), time.min, tzinfo=DAILY_TZ)
+    return _seconds(tomorrow, now)
+
+
+def daily_puzzle(day: date | None = None) -> DailyPuzzle:
+    """The day's puzzle; the first request of the day creates it (random playable attribute, frozen deck)."""
+    day = day or daily_date()
+    puzzle = DailyPuzzle.objects.select_related("attribute").filter(date=day).first()
+    if puzzle:
+        return puzzle
+    attribute = playable_attribute(None, daily.SIZE)
+    seed = secrets.token_hex(8)
+    deck = decks.daily_deck(seed, candidates(attribute), daily.SIZE,
+                            is_date=attribute.value_type == Attribute.ValueType.DATE)
+    if len(deck) < 2:
+        raise GameConflict("Bulmaca için yeterli kart yok.", code="not_enough_cards")
+    try:
+        with transaction.atomic():
+            number = (DailyPuzzle.objects.aggregate(n=Max("number"))["n"] or 0) + 1
+            return DailyPuzzle.objects.create(date=day, number=number, attribute=attribute, seed=seed, deck=deck)
+    except IntegrityError:  # a parallel request created it first
+        return DailyPuzzle.objects.select_related("attribute").get(date=day)
+
+
+@transaction.atomic
+def submit_daily(user, number: int, order: list[str]):
+    """One attempt at today's puzzle (free). Returns (play, engine result)."""
+    puzzle = daily_puzzle()
+    if number != puzzle.number:
+        raise GameConflict("Bu bulmacanın günü geçti; yeni bulmaca hazır.", code="daily_expired")
+    play, _ = DailyPlay.objects.select_for_update().get_or_create(user=user, puzzle=puzzle)
+    if play.status != DailyPlay.Status.PLAYING:
+        raise GameConflict("Bugünkü bulmacayı bitirdin.", code="daily_over")
+    try:
+        result = daily.submit(play.state(), order, _values(puzzle.attribute, puzzle.deck))
+    except ValueError:
+        raise GameConflict("Geçersiz sıralama.", code="invalid_order") from None
+    play.attempts.append({"order": list(order), "marks": list(result.marks)})
+    play.status = result.state.status
+    play.finished_at = None if play.status == DailyPlay.Status.PLAYING else timezone.now()
+    play.save()
+    return play, result
+
+
+def share_text(puzzle: DailyPuzzle, play: DailyPlay) -> str:
+    """Wordle-style result: one row of squares per attempt, no card names (no spoilers)."""
+    rows = ["".join(SHARE_MARKS[m] for m in a["marks"]) for a in play.attempts]
+    end = f"{play.solved_in}. deneme" if play.solved_in else "çözülemedi"
+    rows[-1] = f"{rows[-1]} – {end}"
+    return "\n".join([f"Line Up · Günlük #{puzzle.number} ({puzzle.attribute.name})", *rows])
+
+
+def daily_payload(user, puzzle: DailyPuzzle | None = None, play: DailyPlay | None = None) -> dict:
+    """Cards in the current order (last attempt, else as shown); values, solution and share text once finished."""
+    puzzle = puzzle or daily_puzzle()
+    play = play or DailyPlay.objects.filter(user=user, puzzle=puzzle).first()
+    attempts = play.attempts if play else []
+    state = play.status if play and attempts else "new"
+    finished = state in (DailyPlay.Status.WON, DailyPlay.Status.LOST)
+    a = puzzle.attribute
+    cards = _cards(puzzle.deck, a)
+    order = attempts[-1]["order"] if attempts else puzzle.deck
+    data = {
+        "number": puzzle.number, "date": puzzle.date.isoformat(), "status": state,
+        "max_attempts": daily.ATTEMPTS, "attempts_left": daily.ATTEMPTS - len(attempts),
+        "solved_in": play.solved_in if play else None,
+        "attribute": {"key": a.key, "name": a.name, "unit": a.unit,
+                      "lower_label": a.lower_label, "higher_label": a.higher_label},
+        "cards": [card_payload(*cards[c]) if finished else card_payload(cards[c][0]) for c in order if c in cards],
+        "attempts": attempts,
+        "next_in_seconds": next_daily_seconds(),
+    }
+    if finished:
+        values = {c: _value(cv) for c, (_, cv) in cards.items() if cv is not None}
+        data["solution"] = [card_payload(*cards[c]) for c in daily.solution(list(values), values)]
+        data["share"] = share_text(puzzle, play)
+    return data
+
+
+def daily_home(user) -> dict | None:
+    """Home tile: today's number and how far the user got; None when no puzzle can be made."""
+    try:
+        puzzle = daily_puzzle()
+    except GameConflict:
+        return None
+    play = DailyPlay.objects.filter(user=user, puzzle=puzzle).first()
+    return {
+        "number": puzzle.number,
+        "status": play.status if play and play.attempts else "new",
+        "attempts_used": len(play.attempts) if play else 0,
+        "solved_in": play.solved_in if play else None,
+        "next_in_seconds": next_daily_seconds(),
+    }
+
+
 def home_payload(user) -> dict:
     runs = Run.objects.filter(user=user)
     playing = {mode: None for mode in Run.Mode.values}
@@ -281,4 +389,5 @@ def home_payload(user) -> dict:
         "playing": playing,
         "best_streak": stats["best_streak"] or 0,
         "timeline_wins": stats["timeline_wins"],
+        "daily": daily_home(user),
     }
