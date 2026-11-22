@@ -133,6 +133,7 @@ def entitlement(user, key: str = "pro") -> Entitlement | None:
     return ent if ent and ent.is_active else None
 
 
+@transaction.atomic  # own transaction for callers outside one (dev toggle); joins the webhook's otherwise
 def set_entitlement(user, key: str, expires_at, source: str, product_id: str = "", store: str = "",
                     event_at=None) -> Entitlement:
     ent, _ = Entitlement.objects.select_for_update().get_or_create(user=user, key=key)
