@@ -36,7 +36,7 @@ class StreakRun {
   final int score;
   final int best;
 
-  /// A continue after the loss is possible (rewarded ad / Pro, Phase 5).
+  /// A continue after the loss is possible (rewarded ad / Pro).
   final bool canContinue;
   final RunAttribute attribute;
   final GameCard open;

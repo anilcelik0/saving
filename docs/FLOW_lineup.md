@@ -3,7 +3,7 @@
 Line Up istemcisinin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 4 (hesabı kaydetme, giriş, profil) — 2026-11-22
+**Son güncelleme:** Faz 5 (ödüllü reklam, Pro, bulmaca arşivi; mağaza bağlantısı yayından önce) — 2026-11-22
 
 ---
 
@@ -16,12 +16,15 @@ flowchart LR
         DEV[Geliştirici araçları<br/>test reklamı · push]
         MODES[Zaman Çizgisi · Seri · Günlük bulmaca<br/>sürükle-bırak · kaydır · dokun]
         SHARE[Paylaşım<br/>🟩🟨🟥 sonuç metni]
-        LATER[Google ile giriş · meydan okuma · Pro]
+        ADS[Ödüllü reklam · Pro ekranı<br/>UMP izni]
+        LATER[Google ile giriş · meydan okuma ·<br/>mağazadan Pro satın alma]
         API[ApiClient<br/>JWT + yenileme + misafir girişi]
         STORE[(Şifreli depo<br/>token + misafir şifresi)]
         UI --> API
         MODES --> API
         MODES --> SHARE
+        MODES --> ADS
+        ADS --> API
         API --- STORE
     end
 
@@ -32,6 +35,9 @@ flowchart LR
         GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran,<br/>günlük bulmaca, profil]
         ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar, enerji]
         SUP[support<br/>kart hata bildirimi]
+        BILL[billing<br/>ödül niyeti, SSV, Pro hakkı]
+        BILL --> DB
+        GAMES --> BILL
         DB[(PostgreSQL)]
         ACC --> DB
         CARDS --> DB
@@ -47,6 +53,9 @@ flowchart LR
     FCM -->|bildirim| DEV
     SHARE -->|Android paylaş menüsü| WA[WhatsApp vb.]
     DEV -->|test reklam birimi| ADMOB[AdMob]
+    ADS -->|reklam + SSV seçenekleri| ADMOB
+    ADMOB -.->|SSV geri çağrısı: yayından sonra| BILL
+    RC[RevenueCat] -.->|webhook: yayından sonra| BILL
     ADM[Django admin<br/>şablon → yükle → önizle → onay] --> CARDS
 
     classDef planned stroke-dasharray: 5 5,fill:#eee,color:#555
@@ -173,4 +182,29 @@ sequenceDiagram
     S-->>M: bitince: değerler + doğru sıra + paylaşım metni
     M->>M: "Sonucu paylaş" → Line Up · Günlük #12 (Nüfus) / 🟥🟨🟩… / 🟩🟩🟩… – 2. deneme
     Note over M,S: 07:30 geçtiyse 409 daily_expired → yeni bulmaca yüklenir · kart adları paylaşılmaz (spoiler yok)
+```
+
+## 7. Ödüllü reklam ve Pro
+
+```mermaid
+sequenceDiagram
+    participant M as Mobil
+    participant S as Sunucu (billing + lineup_games)
+    participant A as AdMob
+    M->>S: POST /billing/rewards/ {kind: lineup.energy | lineup.continue, ref}
+    S->>S: uygun mu? (enerji dolu değil / tur devam edebilir) · günlük sınır (10)
+    S-->>M: ödül niyeti (id, kullanıcı id)
+    M->>M: UMP izni (AB/UK, ilk reklamdan önce)
+    M->>A: ödüllü reklam (SSV: user_id + custom_data = niyet id)
+    A-->>M: reklam izlendi
+    alt Yayında
+        A->>S: GET /billing/admob/ssv/?...&signature&key_id (Google anahtarıyla ECDSA doğrulama)
+        S->>S: niyeti tekrar kontrol et → ödülü ver (işlem id ile bir kez)
+        M->>S: GET /billing/rewards/<id>/ (birkaç saniye bekler)
+    else Geliştirme (DEBUG)
+        M->>S: POST /billing/dev/rewards/<id>/grant/ (aynı ödül yolu, imzasız)
+    end
+    S-->>M: verildi → +1 enerji / tur 1 canla devam
+    Note over M,S: Pro: sınırsız enerji · POST runs/<id>/continue/ reklamsız · geçmiş bulmacalar (seriye sayılmaz)
+    Note over S: RevenueCat webhook → Pro hakkı (bitiş tarihi) · satın alma ekranı yayından önce (9.2)
 ```

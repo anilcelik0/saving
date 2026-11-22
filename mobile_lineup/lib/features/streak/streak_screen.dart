@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../billing/continue_offer.dart';
 import '../home/energy_widgets.dart';
 import '../home/home_data.dart';
 import '../support/card_report_dialog.dart';
@@ -353,7 +354,7 @@ class _EndPanel extends ConsumerWidget {
           Text(record ? 'Seri: ${run.score} · Yeni rekor!' : 'Seri: ${run.score} · Rekor: ${run.best}'),
           if (run.canContinue) ...[
             const SizedBox(height: 8),
-            const OutlinedButton(onPressed: null, child: Text('Reklam izle, devam et (yakında)')),
+            ContinueOffer(runId: run.id, onResumed: ref.read(streakProvider.notifier).reload),
           ],
           const SizedBox(height: 12),
           Row(

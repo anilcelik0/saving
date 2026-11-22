@@ -13,6 +13,9 @@ class StreakApi {
     return playing == null ? null : StreakRun.fromJson(playing as Map<String, dynamic>);
   }
 
+  Future<StreakRun> get(String runId) async =>
+      StreakRun.fromJson(await _api.get('lineup/games/runs/$runId/') as Map<String, dynamic>);
+
   Future<StreakRun> start() async {
     final data = await _api.post('lineup/games/runs/', data: {'mode': 'streak'});
     return StreakRun.fromJson(data as Map<String, dynamic>);

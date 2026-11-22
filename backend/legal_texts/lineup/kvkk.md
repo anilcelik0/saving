@@ -8,9 +8,12 @@ işlenen kişisel verileriniz hakkında sizi bilgilendirmek isteriz.
 
 ## 2. İşlenen kişisel veriler
 - **Kimlik:** kullanıcı adı (misafir hesapta otomatik oluşturulur)
-- **İletişim:** e-posta adresi (yalnızca hesabınızı bağlarsanız)
+- **İletişim:** e-posta adresi (yalnızca hesabınızı kaydederseniz)
 - **Müşteri işlem:** oyun kayıtları (turlar, hamleler, skorlar, seriler, günlük bulmaca sonuçları, enerji durumu);
-  hata bildirimleri (mesaj, uygulama sürümü, cihaz türü, ekran)
+  hata bildirimleri (mesaj, uygulama sürümü, cihaz türü, ekran); ödüllü reklam kayıtları (işlem kimliği, ödül türü,
+  zaman); abonelik bilgileri (Pro durumu, plan, başlangıç/bitiş tarihi, mağaza)
+- **Pazarlama / reklam:** reklam kimliği, IP adresi ve cihaz bilgileri (yalnızca seçerek izlediğiniz ödüllü
+  reklamlarda, reklamı sunan Google AdMob tarafından)
 - **İşlem güvenliği:** şifre (tek yönlü şifrelenmiş), IP adresi, oturum bilgileri, onay kayıtları (tarih, cihaz)
 
 ## 3. İşleme amaçları
@@ -18,6 +21,7 @@ işlenen kişisel verileriniz hakkında sizi bilgilendirmek isteriz.
 - Oyun hizmetinin sunulması, skor ve istatistiklerin tutulması
 - Bilgi ve hesap güvenliğinin sağlanması, hile ve kötüye kullanımın önlenmesi
 - Bildirilen hataların incelenmesi ve giderilmesi
+- Ödüllü reklam ödüllerinin doğrulanması ve verilmesi, Pro aboneliğinin yönetilmesi
 - Yasal yükümlülüklerin yerine getirilmesi, ilgili kişi başvurularının yanıtlanması
 
 ## 4. Hukuki sebepler ve toplama yöntemi
@@ -29,8 +33,14 @@ sebeplere dayanılarak işlenir:
 - **(f)** İlgili kişinin temel hak ve özgürlüklerine zarar vermemek kaydıyla, hesap ve sistem güvenliği ile oyunun
   adil işleyişi için veri sorumlusunun meşru menfaati
 
+Ödüllü reklam ve abonelik hizmet sağlayıcılarına yurt dışına yapılan aktarım KVKK'nın 9. maddesine uygun olarak
+yapılır.
+
 ## 5. Aktarım
-- Verileriniz Türkiye'de bulunan sunucuda saklanır; pazarlama amacıyla üçüncü kişilere aktarılmaz veya satılmaz.
+- Verileriniz Türkiye'de bulunan sunucuda saklanır ve satılmaz.
+- Ödüllü reklamlar için Google LLC (AdMob) ve abonelik için Google Play ile RevenueCat, Inc. hizmet sağlayıcılarına,
+  2. bölümde belirtilen veriler hizmetin gerektirdiği ölçüde aktarılır; bu şirketlerin sunucuları yurt dışındadır
+  (ağırlıklı olarak ABD).
 - Uygulama ile sunucu arasındaki trafik, bağlantı ve güvenlik hizmeti sağlayan Cloudflare, Inc. altyapısı
   üzerinden şifreli olarak iletilir; bu sırada IP adresi ve iletilen veriler Cloudflare sunucularında işlenebilir.
 - Kanunen yetkili kamu kurum ve kuruluşlarına, yalnızca hukuki yükümlülük kapsamında ve talep üzerine aktarım

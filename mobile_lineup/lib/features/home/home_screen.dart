@@ -88,6 +88,14 @@ class HomeScreen extends ConsumerWidget {
               subtitle: _dailySubtitle(info?.daily),
               onTap: info?.daily == null ? null : () => context.go('/home/daily'),
             ),
+            _ModeTile(
+              icon: Icons.workspace_premium,
+              title: (info?.pro.active ?? false) ? 'Pro üyeliğin aktif' : 'Line Up Pro',
+              subtitle: (info?.pro.active ?? false)
+                  ? 'Sınırsız enerji · reklamsız devam · bulmaca arşivi'
+                  : 'Sınırsız enerji, reklamsız devam, geçmiş bulmacalar',
+              onTap: () => context.go('/home/pro'),
+            ),
             const SizedBox(height: 24),
             ListTile(
               dense: true,

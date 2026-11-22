@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/api_client.dart';
+import '../billing/reward_ads.dart';
 import 'home_data.dart';
 
 /// "12:05", "1 sa 15 dk", "2 gün"
@@ -60,7 +63,12 @@ class _EnergyBadgeState extends ConsumerState<EnergyBadge> {
     final theme = Theme.of(context);
     final String title;
     final String subtitle;
-    if (e.unlimited) {
+    if (e.unlimited && e.pro) {
+      title = 'Enerji: sınırsız · Pro';
+      subtitle = e.unlimitedSeconds == null
+          ? 'Pro üyeliğin aktif'
+          : 'Pro: ${formatWait(e.left(e.unlimitedSeconds!, now))} kaldı';
+    } else if (e.unlimited) {
       title = 'Enerji: sınırsız';
       subtitle = 'Yeni oyunculara özel · ${formatWait(e.left(e.unlimitedSeconds ?? 0, now))} kaldı';
     } else {
@@ -89,7 +97,7 @@ class _EnergyBadgeState extends ConsumerState<EnergyBadge> {
   }
 }
 
-/// Shown when a start returns `no_energy`. Rewarded ad and Pro come in Phase 5.
+/// Shown when a start returns `no_energy`: +1 energy for a rewarded ad (granted by the server) or Pro.
 Future<void> showNoEnergyDialog(BuildContext context, WidgetRef ref) async {
   ref.invalidate(homeProvider);
   HomeInfo? home;
@@ -99,10 +107,53 @@ Future<void> showNoEnergyDialog(BuildContext context, WidgetRef ref) async {
     home = null;
   }
   if (!context.mounted) return;
-  final next = home?.energy.nextInSeconds;
-  await showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
+  final granted = await showDialog<bool>(context: context, builder: (context) => _NoEnergyDialog(home: home));
+  if (granted == true && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('+1 enerji kazandın!')));
+  }
+}
+
+class _NoEnergyDialog extends ConsumerStatefulWidget {
+  const _NoEnergyDialog({required this.home});
+
+  final HomeInfo? home;
+
+  @override
+  ConsumerState<_NoEnergyDialog> createState() => _NoEnergyDialogState();
+}
+
+class _NoEnergyDialogState extends ConsumerState<_NoEnergyDialog> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _watch() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final granted = await ref.read(rewardAdsProvider).watch(rewardEnergy);
+      ref.invalidate(homeProvider);
+      if (!mounted) return;
+      if (granted) {
+        Navigator.pop(context, true);
+      } else {
+        setState(() => _error = 'Reklam bitmeden kapatıldı; enerji verilmedi.');
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final next = widget.home?.energy.nextInSeconds;
+    final adsLeft = widget.home?.adsLeftToday;
+    final ads = ref.read(rewardAdsProvider);
+    final canWatch = !_busy && ads.available && adsLeft != 0;
+    return AlertDialog(
       icon: const Icon(Icons.bolt),
       title: const Text('Enerjin bitti'),
       content: Column(
@@ -111,12 +162,38 @@ Future<void> showNoEnergyDialog(BuildContext context, WidgetRef ref) async {
         children: [
           Text(next == null ? 'Yeni enerji birazdan gelir.' : 'Bir sonraki enerji ${formatWait(next)} sonra.'),
           const SizedBox(height: 16),
-          const OutlinedButton(onPressed: null, child: Text('Reklam izle, +1 enerji (yakında)')),
+          FilledButton.tonalIcon(
+            onPressed: canWatch ? _watch : null,
+            icon: _busy
+                ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.ondemand_video),
+            label: const Text('Reklam izle, +1 enerji'),
+          ),
+          if (adsLeft != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(adsLeft == 0 ? 'Bugünlük reklam hakkın bitti.' : 'Bugün $adsLeft reklam hakkın var.',
+                  textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
           const SizedBox(height: 8),
-          const OutlinedButton(onPressed: null, child: Text('Pro: sınırsız enerji (yakında)')),
+          OutlinedButton.icon(
+            onPressed: _busy
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    context.push('/home/pro');
+                  },
+            icon: const Icon(Icons.workspace_premium),
+            label: const Text('Pro: sınırsız enerji'),
+          ),
         ],
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tamam'))],
-    ),
-  );
+      actions: [TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Tamam'))],
+    );
+  }
 }

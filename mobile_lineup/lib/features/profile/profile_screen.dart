@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/api_client.dart';
 import '../../core/models.dart';
 import '../../core/providers.dart';
+import '../billing/reward_ads.dart';
 import '../session/legal_dialog.dart';
 import '../session/session_controller.dart';
 import 'profile_data.dart';
@@ -69,6 +70,14 @@ class ProfileScreen extends ConsumerWidget {
               _ => const Padding(padding: EdgeInsets.all(16), child: LinearProgressIndicator()),
             },
             const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.workspace_premium),
+              title: const Text('Line Up Pro'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/home/pro'),
+            ),
+            const SizedBox(height: 16),
             Text('Yasal metinler', style: theme.textTheme.titleMedium),
             for (final doc in docs.value ?? const <LegalDocument>[])
               ListTile(
@@ -78,6 +87,7 @@ class ProfileScreen extends ConsumerWidget {
                 subtitle: Text('sürüm ${doc.version}'),
                 onTap: () => showLegalDocument(context, ref, doc),
               ),
+            const _AdPrivacyTile(),
             const SizedBox(height: 16),
             Text('Hesap', style: theme.textTheme.titleMedium),
             if (!user.isGuest) ...[
@@ -133,6 +143,26 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 }
+
+/// "Reklam gizlilik ayarları": only where Google's consent message applies (EEA / UK), as UMP requires.
+class _AdPrivacyTile extends ConsumerWidget {
+  const _AdPrivacyTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final required = ref.watch(_adPrivacyRequiredProvider).value ?? false;
+    if (!required) return const SizedBox.shrink();
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.privacy_tip_outlined),
+      title: const Text('Reklam gizlilik ayarları'),
+      onTap: () => ref.read(rewardAdsProvider).showPrivacyOptions(),
+    );
+  }
+}
+
+final _adPrivacyRequiredProvider =
+    FutureProvider.autoDispose<bool>((ref) => ref.read(rewardAdsProvider).privacyOptionsRequired());
 
 class _ConfirmDialog extends ConsumerStatefulWidget {
   const _ConfirmDialog({required this.user, required this.delete});

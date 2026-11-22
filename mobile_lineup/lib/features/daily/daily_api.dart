@@ -7,8 +7,9 @@ class DailyApi {
 
   final ApiClient _api;
 
-  Future<DailyPuzzle> today() async {
-    final data = await _api.get('lineup/games/daily/');
+  /// Today's puzzle, or a past one by [number] (Pro archive).
+  Future<DailyPuzzle> today({int? number}) async {
+    final data = await _api.get('lineup/games/daily/', query: number == null ? null : {'number': '$number'});
     return DailyPuzzle.fromJson(data as Map<String, dynamic>);
   }
 

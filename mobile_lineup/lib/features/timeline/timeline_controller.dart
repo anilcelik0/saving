@@ -58,6 +58,13 @@ class TimelineController extends AsyncNotifier<TimelineView> {
     }
   }
 
+  /// After a continue (rewarded ad / Pro) the server resumed the run: show it again.
+  Future<void> reload() async {
+    final run = state.value?.run;
+    if (run == null) return;
+    state = AsyncData(TimelineView(run: await _api.get(run.id)));
+  }
+
   /// Back to the difficulty picker after a finished run.
   void newRun() => state = const AsyncData(TimelineView());
 

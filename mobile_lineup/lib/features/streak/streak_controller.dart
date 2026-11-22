@@ -48,6 +48,13 @@ class StreakController extends AsyncNotifier<StreakView> {
     }
   }
 
+  /// After a continue (rewarded ad / Pro) the server resumed the run: show it again.
+  Future<void> reload() async {
+    final run = state.value?.run;
+    if (run == null) return;
+    state = AsyncData(StreakView(run: await _api.get(run.id)));
+  }
+
   Future<void> guess(String guess) async {
     final current = state.value;
     final run = current?.run;

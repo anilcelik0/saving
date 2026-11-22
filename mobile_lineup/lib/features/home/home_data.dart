@@ -13,6 +13,7 @@ class EnergyInfo {
     required this.unlimitedSeconds,
     required this.nextInSeconds,
     required this.fullInSeconds,
+    required this.pro,
     required this.fetchedAt,
   });
 
@@ -24,6 +25,7 @@ class EnergyInfo {
         unlimitedSeconds: json['unlimited_seconds'] as int?,
         nextInSeconds: json['next_in_seconds'] as int?,
         fullInSeconds: json['full_in_seconds'] as int?,
+        pro: json['pro'] as bool? ?? false,
         fetchedAt: DateTime.now(),
       );
 
@@ -31,9 +33,12 @@ class EnergyInfo {
   final int max;
   final int cost;
 
-  /// New players' first days (later also Pro): starts cost nothing.
+  /// Pro or new players' first days: starts cost nothing.
   final bool unlimited;
+
+  /// null = no end (Pro without an end date).
   final int? unlimitedSeconds;
+  final bool pro;
 
   /// null when full.
   final int? nextInSeconds;
@@ -93,6 +98,8 @@ class HomeInfo {
     required this.bestStreak,
     required this.timelineWins,
     required this.daily,
+    required this.pro,
+    required this.adsLeftToday,
   });
 
   factory HomeInfo.fromJson(Map<String, dynamic> json) {
@@ -106,6 +113,8 @@ class HomeInfo {
       bestStreak: json['best_streak'] as int,
       timelineWins: json['timeline_wins'] as int,
       daily: json['daily'] == null ? null : DailyHome.fromJson(json['daily'] as Map<String, dynamic>),
+      pro: ProStatus.fromJson(json['pro'] as Map<String, dynamic>? ?? const {}),
+      adsLeftToday: json['ads_left_today'] as int?,
     );
   }
 
@@ -118,6 +127,25 @@ class HomeInfo {
 
   /// null when no puzzle can be made (not enough cards).
   final DailyHome? daily;
+  final ProStatus pro;
+
+  /// Rewarded ads left today (null = no cap).
+  final int? adsLeftToday;
+}
+
+/// Pro: unlimited energy, ad-free continue, daily archive.
+class ProStatus {
+  const ProStatus({required this.active, required this.expiresAt});
+
+  factory ProStatus.fromJson(Map<String, dynamic> json) => ProStatus(
+        active: json['active'] as bool? ?? false,
+        expiresAt: DateTime.tryParse(json['expires_at'] as String? ?? '')?.toLocal(),
+      );
+
+  final bool active;
+
+  /// null = no end date.
+  final DateTime? expiresAt;
 }
 
 /// Refreshed by the game controllers after a start (energy spent) and when a run ends.

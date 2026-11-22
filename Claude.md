@@ -40,6 +40,8 @@ app_manager/                          # repo root
 │   ├── support/                 # shared: issue reports ("Sorun bildir") + attachments; client apps register
 │   │                            #   related-object snapshots in support.registry (e.g. "saving.statement")
 │   ├── notifications/           # shared: FCM sends, one Firebase project per client (fcm.py, `send_test_push <app>`)
+│   ├── billing/                 # shared: rewarded-ad intents + AdMob SSV, entitlements (Pro) + RevenueCat webhook;
+│   │                            #   client apps register rewards in billing.registry (e.g. "lineup.energy")
 │   ├── secrets/                 # git/docker-ignored keys: firebase-<app>.json (copied to the server by hand)
 │   ├── saving_budget/           # accounts + computed balances, categories, transactions, payment plans (recurring/installment, auto-pay), monthly summary, statement parsing
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
@@ -59,10 +61,9 @@ app_manager/                          # repo root
         ├── main.dart / router.dart  # ProviderScope + MaterialApp.router; go_router redirects follow the session
         ├── config.dart          # API URL: debug -> http://10.0.2.2 (emulator), release -> production, --dart-define=API_URL
         ├── core/                # api_client (dio, JWT renewal: refresh -> guest re-login), token_store, models, providers
-        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, daily/, profile/)
+        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, daily/, profile/, billing/)
 ```
-Planned later (decided in their phase): `lineup_social` (challenges), device tokens + Celery sends in `notifications`,
-shared `billing` (AdMob SSV + subscription webhooks; client apps register reward handlers like `support.registry`).
+Planned later (decided in their phase): `lineup_social` (challenges), device tokens + Celery sends in `notifications`.
 
 ### Working Across Clients (IMPORTANT)
 - Before any change, identify the target client from the request (Saving: budget, statements, investments, reports, Flet;

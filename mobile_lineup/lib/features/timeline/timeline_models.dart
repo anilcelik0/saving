@@ -55,6 +55,7 @@ class RunState {
     required this.attribute,
     required this.line,
     required this.current,
+    required this.canContinue,
   });
 
   factory RunState.fromJson(Map<String, dynamic> json) => RunState(
@@ -66,6 +67,7 @@ class RunState {
         attribute: RunAttribute.fromJson(json['attribute'] as Map<String, dynamic>),
         line: [for (final c in json['line'] as List) GameCard.fromJson(c as Map<String, dynamic>)],
         current: json['current'] == null ? null : GameCard.fromJson(json['current'] as Map<String, dynamic>),
+        canContinue: json['can_continue'] as bool? ?? false,
       );
 
   final String id;
@@ -78,6 +80,9 @@ class RunState {
   final RunAttribute attribute;
   final List<GameCard> line;
   final GameCard? current;
+
+  /// Lost on lives, continue not used yet (rewarded ad / Pro).
+  final bool canContinue;
 
   bool get isPlaying => status == 'playing';
 

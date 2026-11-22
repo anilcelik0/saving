@@ -14,6 +14,9 @@ class TimelineApi {
     return playing == null ? null : RunState.fromJson(playing as Map<String, dynamic>);
   }
 
+  Future<RunState> get(String runId) async =>
+      RunState.fromJson(await _api.get('lineup/games/runs/$runId/') as Map<String, dynamic>);
+
   Future<RunState> start({required String difficulty}) async {
     final data = await _api.post('lineup/games/runs/', data: {'mode': 'timeline', 'difficulty': difficulty});
     return RunState.fromJson(data as Map<String, dynamic>);

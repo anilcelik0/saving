@@ -9,18 +9,17 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# Phase 4 device check: restart the backend (accounts + lineup code; gunicorn does not auto-reload)
+# Phase 5 device check: restart the backend (new shared app `billing` + lineup code; migrations already applied)
 docker compose restart web
-#  - Home: profile icon (top right); daily tile shows "🔥 N gün" once you solved a puzzle
-#  - Profil: stats (daily distribution, streaks, Timeline/Seri), legal texts open
-#  - "Hesabını kaydet": email + password (+ optional username) -> profile shows the email, progress unchanged
-#  - "Çıkış yap" -> login screen (email filled in) -> log in -> same progress
-#  - new-device test without a 2nd phone: login screen "Misafir olarak yeni başla" -> consent -> new guest;
-#    Profil > "Kayıtlı hesabınla giriş yap" -> your progress is back
-#  - "Hesabı dondur" (password) -> login -> "Hesabın dondurulmuş" -> "Yeniden aç"
-#  - "Hesabı sil": try it on a throwaway guest only (deleted for good after the grace period); logging in to a
-#    registered account during the grace period offers "Yeniden aç" (cancels the deletion)
-#  - Bulmaca: no 🚩 while playing, only on the result list
+#  - Rewarded ads use Google's TEST unit; on a debug build the server grants through the DEBUG-only dev endpoint
+#    (the real AdMob callback can't reach a dev PC). To see the energy limit, as in Phase 2 add to .env:
+#    LINEUP_ENERGY_GRACE_DAYS=0  (then `docker compose up -d web`; remove it afterwards)
+#  - Energy 0 -> "Enerjin bitti": "Reklam izle, +1 enerji" -> test ad -> watch to the end -> "+1 enerji kazandın"
+#    (closing the ad early gives nothing; "Bugün N reklam hakkın var" counts down, cap 10/day)
+#  - Seri / Zaman Çizgisi: lose -> "Reklam izle, devam et · +1 can" -> run continues with 1 life; only once per run
+#  - Pro: Home > "Line Up Pro" > "Pro'yu aç (30 gün)" (debug only) -> energy "sınırsız · Pro", end panel shows
+#    "Devam et (Pro)" without an ad, Bulmaca > history icon -> past puzzles playable (no streak for those)
+#  - "Pro'yu kapat" turns it off again
 ```
 
 ---
@@ -152,24 +151,46 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
 - [x] **4.2** Profile/stats (S) — `GET profile/`: Timeline played/wins/best, Streak played/best, daily played/solved/
   current + best solve streak/attempt distribution. `engine.daily.streaks` (consecutive puzzle numbers; today's open
   puzzle does not break it) + test (62 OK); home `daily.streak`. Check 22/22 with 4.1a (rolled back).
-- [~] **4.3** Mobile (M) — session states `SessionNeedsLogin` (registered account without a session: logged out,
+- [x] **4.3** Mobile (M) — session states `SessionNeedsLogin` (registered account without a session: logged out,
   frozen, expired → `/login`, never a silent new guest) and `SessionInactive` (`/inactive`: reopen or log out);
   `TokenStore.account` (login name; guest credentials dropped once registered). Screens: login (from the consent
   screen on a new device, from the profile for a guest with a warning, "Misafir olarak yeni başla"), profile
   (stats, legal texts, logout / freeze / delete with password; a guest confirms with its stored password), "Hesabını
-  kaydet". Home: profile icon, 🔥 daily streak. Home/profile data follow the signed-in user. `flutter analyze` clean;
-  waiting on the device check.
+  kaydet". Home: profile icon, 🔥 daily streak. Home/profile data follow the signed-in user. Checked on the Honor.
+- Phase 4 done 2026-11-22 (Google sign-in deferred).
 - [x] **4.4** FLOW updated (session: claim, login, inactive).
 
 ## Phase 5: Monetization
-- [ ] **5.0** (user + decision) Permanent package name, Play Console app, AdMob app + rewarded unit with SSV callback URL, RevenueCat project.
-- [ ] **5.1** Shared `billing`: AdMob SSV endpoint (Google key signature check, idempotent by transaction id) → reward registry →
-  lineup handler (+1 energy or one continue per run); daily ad cap (M)
-- [ ] **5.2** Mobile: rewarded flows (custom data = server reward intent; grant only after SSV) (M)
-- [ ] **5.3** RevenueCat webhook → `pro` entitlement per user → unlimited energy, ad-free continue, daily archive (M)
-- [ ] **5.4** Mobile: Pro screen (`purchases_flutter`), restore (M)
-- [ ] **5.5** UMP consent (EEA), legal texts updated for ads (S)
-- [ ] **5.6** FLOW updated.
+Built and checked with simulations (by request 2026-11-22); the store / ad accounts and the real end-to-end checks
+are at the end (Phase 9: 9.1-9.3), because SSV callbacks and RevenueCat webhooks need the public server.
+- [x] **5.0** Package name final: `tr.com.appmanager.lineup` (2026-11-22). Play Console app, AdMob app + rewarded unit
+  (SSV callback URL), RevenueCat project → moved to 9.1 (by request).
+- [x] **5.1** Shared `billing` (M, [shared]): `RewardIntent` (ask → ad custom_data → SSV grants once, unique
+  transaction id, 30 min TTL, re-checked at grant), `admob.verify` (ECDSA P-256 over the query before `&signature=`,
+  Google keys cached 24 h, refetched on an unknown key id), registry `register_reward(kind, check, grant)` +
+  `set_daily_cap(app, n)` (like `support.registry`; Saving registers nothing). Endpoints `billing/rewards/`,
+  `rewards/<id>/`, `admob/ssv/` (public, 200 on any valid signature, 403 otherwise), DEBUG-only `dev/rewards/<id>/
+  grant/`. Lineup (`lineup_games/rewards.py`): `lineup.energy` (+1, refused when full / unlimited),
+  `lineup.continue` (one continue per run, both modes), cap `LINEUP_DAILY_AD_CAP` 10/day.
+  Engine: Timeline continue (`can_continue` / `resume`, 1 life, deck 13 → 14 so the continue never runs dry) + tests
+  (65 OK). Account deletion also removes the user's store events.
+- [x] **5.2** Mobile rewarded flows (M): `features/billing/reward_ads.dart` (intent → UMP consent → test ad with
+  SSV options → dev grant in debug / poll the intent in release), "Enerjin bitti" ad button with ads left today,
+  `ContinueOffer` on the Timeline + Streak end panels.
+- [x] **5.3** Pro (M): `Entitlement` (key `pro`, expiry, source revenuecat/admin/dev; admin can give Pro to
+  testers), RevenueCat webhook `billing/revenuecat/<app>/` (Authorization = `BILLING_REVENUECAT_WEBHOOK_SECRETS`,
+  idempotent by event id, late events ignored, CANCELLATION keeps it until expiry, EXPIRATION ends it, TRANSFER
+  ends the old user's). Lineup: Pro = unlimited energy, `POST runs/<id>/continue/` without an ad, daily archive
+  (`daily/archive/`, `daily/?number=`, archive plays are `late` → no streak). DEBUG-only `dev/entitlements/`.
+  Backend check 41/41 (signed SSV with a test key, RevenueCat events; rolled back, cache restored).
+- [~] **5.4** Mobile Pro (M): Pro screen (status, benefits, debug-only Pro toggle), home Pro tile, archive screen,
+  energy "sınırsız · Pro", Pro continue. Store purchase (`purchases_flutter`, restore) → 9.2 (needs the RevenueCat
+  project + Play products). `flutter analyze` clean; waiting on the device check.
+- [x] **5.5** UMP consent before the first ad + "Reklam gizlilik ayarları" in the profile where required; privacy +
+  KVKK drafts updated for AdMob, Google Play, RevenueCat (abroad transfer). **Publishing them is a new version
+  everyone re-accepts: run at release (9.3), or on dev to try the re-consent flow.** Have the texts reviewed by a
+  lawyer before release (KVKK art. 9 abroad transfer).
+- [x] **5.6** FLOW updated (rewarded ad + Pro diagram).
 
 ## Phase 6: Invite challenges + push
 - [ ] **6.1** `lineup_social`: challenge (code, mode, frozen deck, creator result, expiry), accept (free) → compare (M)
@@ -204,7 +225,17 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
 #     (Release builds hide the dev tools; the guest is a NEW account on the production DB.)
 ```
 
-- Icon/splash, signed AAB, Play forms (audience 13+, data safety, ads), internal → closed test, metrics (D1/D7/D30, puzzle share rate, challenge accept rate).
+- [ ] **9.1** (user) Play Console app `tr.com.appmanager.lineup`, AdMob app (replace Google's TEST app id in
+  AndroidManifest) + rewarded unit with SSV callback `https://appmanager.com.tr/api/v1/billing/admob/ssv/`
+  (AdMob "Verify URL" → 200), RevenueCat project + Play service credentials, entitlement `pro`, monthly / yearly
+  products, webhook `https://appmanager.com.tr/api/v1/billing/revenuecat/lineup/` with an Authorization value =
+  server `.env` `BILLING_REVENUECAT_WEBHOOK_SECRETS=lineup=<value>`.
+- [ ] **9.2** Mobile purchases: `purchases_flutter` (appUserID = our user id), offerings on the Pro screen, restore;
+  release build with `--dart-define=ADMOB_REWARDED_UNIT=...` (+ the RevenueCat public key). Real SSV + webhook test
+  on an internal-test build.
+- [ ] **9.3** `publish_legal_documents lineup` on the server (ads / subscription texts, 5.5).
+- Icon/splash, signed AAB, Play forms (audience 13+, data safety: ads + advertising id + purchases), internal →
+  closed test, metrics (D1/D7/D30, puzzle share rate, challenge accept rate).
 
 ## Later
 - Live race (Django Channels): `web` moves to ASGI, which also affects Saving, so plan it separately.
@@ -226,3 +257,6 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
   the invite link joins it in Phase 6. Daily streak (consecutive days) comes with the profile stats (4.2).
 - Accounts (Phase 4): no "forgot password" yet (needs outgoing email; plan with Google sign-in or before release).
   Logging in from a guest leaves that guest on the server (unused; could be cleaned up later).
+- Monetization (Phase 5): rewards are granted only by the server (SSV, or the DEBUG-only dev grant on a dev PC);
+  `BILLING_DEV_TOOLS` is forced off when DEBUG is off. Daily ad cap 10 (tunable). Archive plays never count for the
+  daily streak.

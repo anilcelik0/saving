@@ -30,15 +30,21 @@ class DailyView {
   }
 }
 
-final dailyProvider = AsyncNotifierProvider.autoDispose<DailyController, DailyView>(DailyController.new);
+/// null = today's puzzle; a number = that past puzzle (Pro archive).
+final dailyProvider =
+    AsyncNotifierProvider.autoDispose.family<DailyController, DailyView, int?>(DailyController.new);
 
 /// The server checks every attempt (CLAUDE.md rule 8); this keeps the local order and the latest payload.
 class DailyController extends AsyncNotifier<DailyView> {
+  DailyController(this.number);
+
+  final int? number;
+
   DailyApi get _api => ref.read(dailyApiProvider);
 
   @override
   Future<DailyView> build() async {
-    final puzzle = await _api.today();
+    final puzzle = await _api.today(number: number);
     return DailyView(puzzle: puzzle, order: puzzle.cards);
   }
 
@@ -64,7 +70,7 @@ class DailyController extends AsyncNotifier<DailyView> {
       DailyPuzzle? fresh;
       if (reload) {
         try {
-          fresh = await _api.today();
+          fresh = await _api.today(number: number);
         } on ApiException {
           fresh = null;
         }

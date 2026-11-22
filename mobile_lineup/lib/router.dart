@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'features/billing/pro_screen.dart';
+import 'features/daily/archive_screen.dart';
 import 'features/daily/daily_screen.dart';
 import 'features/dev/dev_tools_screen.dart';
 import 'features/home/home_screen.dart';
@@ -52,6 +54,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: 'timeline', builder: (context, state) => const TimelineScreen()),
           GoRoute(path: 'streak', builder: (context, state) => const StreakScreen()),
           GoRoute(path: 'daily', builder: (context, state) => const DailyScreen()),
+          GoRoute(
+            path: 'archive',
+            builder: (context, state) => const ArchiveScreen(),
+            routes: [
+              GoRoute(
+                path: ':number',
+                builder: (context, state) => DailyScreen(number: int.parse(state.pathParameters['number']!)),
+              ),
+            ],
+          ),
+          GoRoute(path: 'pro', builder: (context, state) => const ProScreen()),
           GoRoute(path: 'login', builder: (context, state) => const LoginScreen(fromGuest: true)),
           GoRoute(
             path: 'profile',

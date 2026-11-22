@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -14,11 +15,15 @@ import 'daily_models.dart';
 /// Daily puzzle: the same cards for everyone today. Drag them into order (lowest value on top) and check; each
 /// position turns green (right), yellow (one place off) or red. Three attempts, free. The server checks every attempt.
 class DailyScreen extends ConsumerWidget {
-  const DailyScreen({super.key});
+  const DailyScreen({super.key, this.number});
+
+  /// null = today's puzzle; else a past one (Pro archive).
+  final int? number;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.listen(dailyProvider, (previous, next) {
+    final provider = dailyProvider(number);
+    ref.listen(provider, (previous, next) {
       final view = next.value;
       if (view == null) return;
       if (view.error != null) {
@@ -32,10 +37,25 @@ class DailyScreen extends ConsumerWidget {
       }
     });
 
-    final async = ref.watch(dailyProvider);
+    final async = ref.watch(provider);
     final view = async.value;
+    final title = view == null
+        ? 'Günlük Bulmaca'
+        : view.puzzle.archived
+            ? 'Arşiv · Bulmaca #${view.puzzle.number}'
+            : 'Günlük Bulmaca #${view.puzzle.number}';
     return Scaffold(
-      appBar: AppBar(title: Text(view == null ? 'Günlük Bulmaca' : 'Günlük Bulmaca #${view.puzzle.number}')),
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          if (number == null)
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Geçmiş bulmacalar',
+              onPressed: () => context.push('/home/archive'),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: switch (async) {
           AsyncValue(hasError: true) => Center(
@@ -43,13 +63,13 @@ class DailyScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(padding: const EdgeInsets.all(24), child: Text('${async.error}', textAlign: TextAlign.center)),
-                  FilledButton(onPressed: () => ref.invalidate(dailyProvider), child: const Text('Tekrar dene')),
+                  FilledButton(onPressed: () => ref.invalidate(provider), child: const Text('Tekrar dene')),
                 ],
               ),
             ),
           _ when view == null => const Center(child: CircularProgressIndicator()),
-          _ when view.puzzle.isPlaying => _Board(view: view),
-          _ => _Result(view: view),
+          _ when view.puzzle.isPlaying => _Board(view: view, number: number),
+          _ => _Result(view: view, number: number),
         },
       ),
     );
@@ -64,16 +84,17 @@ Color? _markColor(String? mark) => switch (mark) {
     };
 
 class _Board extends ConsumerWidget {
-  const _Board({required this.view});
+  const _Board({required this.view, required this.number});
 
   final DailyView view;
+  final int? number;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final puzzle = view.puzzle;
     final a = puzzle.attribute;
-    final controller = ref.read(dailyProvider.notifier);
+    final controller = ref.read(dailyProvider(number).notifier);
     final attemptNo = puzzle.attempts.length + 1;
     return Column(
       children: [
@@ -146,9 +167,10 @@ class _Board extends ConsumerWidget {
 }
 
 class _Result extends ConsumerWidget {
-  const _Result({required this.view});
+  const _Result({required this.view, required this.number});
 
   final DailyView view;
+  final int? number;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -172,7 +194,7 @@ class _Result extends ConsumerWidget {
             label: const Text('Sonucu paylaş'),
           ),
         const SizedBox(height: 4),
-        _NextPuzzle(puzzle: puzzle, onReady: () => ref.invalidate(dailyProvider)),
+        if (!puzzle.archived) _NextPuzzle(puzzle: puzzle, onReady: () => ref.invalidate(dailyProvider(number))),
         const Divider(height: 32),
         Text('Doğru sıra · ${a.name} (üstte ${a.lowerLabel})', style: theme.textTheme.titleSmall),
         for (final card in puzzle.solution) _SolutionTile(card: card),

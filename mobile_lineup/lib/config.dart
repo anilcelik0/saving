@@ -14,3 +14,14 @@ String get apiBaseUrl {
   if (_apiUrlOverride.isNotEmpty) return _apiUrlOverride;
   return kReleaseMode ? _productionUrl : _emulatorUrl;
 }
+
+/// Rewarded ad unit: Google's public test unit in debug/profile (always fills, never pays); release builds need
+/// the real unit: flutter build appbundle --dart-define=ADMOB_REWARDED_UNIT=ca-app-pub-.../... (Phase 9).
+const String _rewardedUnitOverride = String.fromEnvironment('ADMOB_REWARDED_UNIT');
+const String _rewardedTestUnit = 'ca-app-pub-3940256099942544/5224354917';
+
+/// Empty = no rewarded ads in this build.
+String get rewardedAdUnit {
+  if (_rewardedUnitOverride.isNotEmpty) return _rewardedUnitOverride;
+  return kReleaseMode ? '' : _rewardedTestUnit;
+}

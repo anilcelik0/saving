@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../home/energy_widgets.dart';
+import '../billing/continue_offer.dart';
 import '../support/card_report_dialog.dart';
 import 'timeline_controller.dart';
 import 'timeline_models.dart';
@@ -416,6 +417,10 @@ class _EndPanel extends ConsumerWidget {
         children: [
           Text(title, style: Theme.of(context).textTheme.titleLarge),
           Text('Skor: ${run.score}/${run.goal}'),
+          if (run.canContinue) ...[
+            const SizedBox(height: 8),
+            ContinueOffer(runId: run.id, onResumed: ref.read(timelineProvider.notifier).reload),
+          ],
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

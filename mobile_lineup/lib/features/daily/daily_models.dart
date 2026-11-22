@@ -35,6 +35,7 @@ class DailyPuzzle {
     required this.nextInSeconds,
     required this.solution,
     required this.share,
+    required this.archived,
     required this.fetchedAt,
   });
 
@@ -52,6 +53,7 @@ class DailyPuzzle {
           for (final c in (json['solution'] as List? ?? const [])) GameCard.fromJson(c as Map<String, dynamic>),
         ],
         share: json['share'] as String?,
+        archived: json['archived'] as bool? ?? false,
         fetchedAt: DateTime.now(),
       );
 
@@ -72,6 +74,9 @@ class DailyPuzzle {
   final int nextInSeconds;
   final List<GameCard> solution;
   final String? share;
+
+  /// A past day's puzzle (Pro archive): no countdown, no streak.
+  final bool archived;
   final DateTime fetchedAt;
 
   bool get isPlaying => status == 'new' || status == 'playing';
