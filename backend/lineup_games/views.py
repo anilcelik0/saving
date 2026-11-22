@@ -85,6 +85,15 @@ class RunDetailView(APIView):
         return Response(services.run_payload(run))
 
 
+class RunContinueView(APIView):
+    """POST: Pro continues a lost run without an ad (409 pro_required / cannot_continue)."""
+
+    permission_classes = [IsLineupUser]
+
+    def post(self, request, pk):
+        return Response(services.run_payload(services.continue_run(request.user, pk)))
+
+
 class RunMoveView(APIView):
     """POST {slot} (Timeline: place the current card into a gap) or {guess} (Streak: higher / lower)."""
 
@@ -99,12 +108,26 @@ class RunMoveView(APIView):
 
 
 class DailyView(APIView):
-    """GET: today's puzzle (new one at LINEUP_DAILY_RESET, Istanbul) with the user's attempts; values, solution and share text once finished."""
+    """
+    GET [?number=]: today's puzzle (new one at LINEUP_DAILY_RESET, Istanbul), or a past one for Pro, with the user's
+    attempts; values, solution and share text once finished.
+    """
 
     permission_classes = [IsLineupUser]
 
     def get(self, request):
-        return Response(services.daily_payload(request.user))
+        number = request.query_params.get("number")
+        puzzle = services.daily_by_number(request.user, int(number) if number and number.isdigit() else None)
+        return Response(services.daily_payload(request.user, puzzle))
+
+
+class DailyArchiveView(APIView):
+    """GET: past puzzles with the user's status (Pro; 409 pro_required)."""
+
+    permission_classes = [IsLineupUser]
+
+    def get(self, request):
+        return Response({"puzzles": services.daily_archive(request.user)})
 
 
 class DailyAttemptView(APIView):

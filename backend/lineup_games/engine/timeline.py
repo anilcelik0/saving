@@ -1,6 +1,7 @@
 """
 Timeline mode: one card starts the line, each next card is placed into a gap. A card is right when it fits between
 its neighbours (ties allowed). A wrong card costs a life and is discarded. The line wins at `target` cards.
+After losing every life the run can be continued once with one life (rewarded ad or Pro).
 """
 
 from dataclasses import dataclass, replace
@@ -9,11 +10,13 @@ from .values import Value, compare
 
 TARGET = 10
 LIVES = 3
+MAX_CONTINUES = 1
+CONTINUE_LIVES = 1
 
 
-def deck_size(target: int = TARGET, lives: int = LIVES) -> int:
-    """Start card + every card needed to reach the target + one card per life that can be lost."""
-    return target + lives
+def deck_size(target: int = TARGET, lives: int = LIVES, continues: int = MAX_CONTINUES) -> int:
+    """Start card + every card needed to reach the target + one card per life that can be lost (continues too)."""
+    return target + lives + continues * CONTINUE_LIVES
 
 
 @dataclass(frozen=True)
@@ -24,6 +27,7 @@ class TimelineState:
     lives: int
     target: int = TARGET
     status: str = PLAYING
+    continues_used: int = 0
 
     @property
     def score(self) -> int:
@@ -88,3 +92,15 @@ def place(state: TimelineState, slot: int, values: dict[str, Value]) -> PlaceRes
         status = PLAYING
     new_state = replace(state, line=line, lives=lives, next_index=next_index, status=status)
     return PlaceResult(state=new_state, card_id=card_id, correct=correct, valid_slots=slots)
+
+
+def can_continue(state: TimelineState, max_continues: int = MAX_CONTINUES) -> bool:
+    """Lost on lives (not won / deck ended), continue left, and cards left to play."""
+    return state.status == LOST and state.continues_used < max_continues and state.next_index < len(state.deck)
+
+
+def resume(state: TimelineState, max_continues: int = MAX_CONTINUES) -> TimelineState:
+    """One more life after a loss; the line stays."""
+    if not can_continue(state, max_continues):
+        raise ValueError("This run cannot be continued.")
+    return replace(state, lives=CONTINUE_LIVES, continues_used=state.continues_used + 1, status=PLAYING)

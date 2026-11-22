@@ -35,7 +35,7 @@ class Run(BaseModel):
     lives = models.PositiveSmallIntegerField(default=timeline.LIVES)
     target = models.PositiveSmallIntegerField(default=timeline.TARGET, help_text="Timeline: line length that wins")
     score = models.PositiveSmallIntegerField("skor", default=0, help_text="Timeline: cards placed; Streak: streak length")
-    continues_used = models.PositiveSmallIntegerField(default=0, help_text="Streak: continues after a loss")
+    continues_used = models.PositiveSmallIntegerField(default=0, help_text="Continues after a loss (rewarded ad / Pro)")
     status = models.CharField("durum", max_length=10, choices=Status.choices, default=Status.PLAYING)
     dealt_at = models.DateTimeField(null=True, blank=True, help_text="When the current card was shown (for elapsed_ms)")
     finished_at = models.DateTimeField(null=True, blank=True)
@@ -51,11 +51,12 @@ class Run(BaseModel):
 
     def timeline_state(self) -> timeline.TimelineState:
         return timeline.TimelineState(deck=tuple(self.deck), line=tuple(self.line), next_index=self.next_index,
-                                      lives=self.lives, target=self.target, status=self.status)
+                                      lives=self.lives, target=self.target, status=self.status,
+                                      continues_used=self.continues_used)
 
     def set_timeline_state(self, state: timeline.TimelineState) -> None:
         self.line, self.next_index, self.lives, self.status = list(state.line), state.next_index, state.lives, state.status
-        self.score = state.score
+        self.score, self.continues_used = state.score, state.continues_used
 
     def streak_state(self) -> streak.StreakState:
         return streak.StreakState(deck=tuple(self.deck), next_index=self.next_index, lives=self.lives,
@@ -134,6 +135,7 @@ class DailyPlay(BaseModel):
     puzzle = models.ForeignKey(DailyPuzzle, on_delete=models.CASCADE, related_name="plays")
     attempts = models.JSONField(default=list, help_text='[{"order": [card ids], "marks": [right|near|wrong]}]')
     status = models.CharField("durum", max_length=10, choices=Status.choices, default=Status.PLAYING)
+    late = models.BooleanField("arşivden", default=False, help_text="Played after its day (Pro archive): no streak")
     finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

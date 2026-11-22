@@ -152,6 +152,37 @@ class TimelineTests(TestCase):
         self.assertEqual(result.state.score, 1)
         self.assertEqual(result.state.current, "c2")
 
+    def lose(self, state):
+        while state.status == timeline.PLAYING:
+            state = timeline.place(state, self.wrong_slot(state), self.values).state
+        return state
+
+    def test_continue_once_after_losing(self):
+        lost = self.lose(self.state)
+        self.assertEqual((lost.status, lost.lives), (timeline.LOST, 0))
+        self.assertTrue(timeline.can_continue(lost))
+        resumed = timeline.resume(lost)
+        self.assertEqual((resumed.status, resumed.lives, resumed.continues_used), (timeline.PLAYING, 1, 1))
+        self.assertEqual(resumed.line, lost.line)
+        self.assertEqual(resumed.current, self.state.deck[lost.next_index])
+        lost_again = self.lose(resumed)
+        self.assertFalse(timeline.can_continue(lost_again))
+        with self.assertRaises(ValueError):
+            timeline.resume(lost_again)
+
+    def test_no_continue_unless_lost_on_lives(self):
+        self.assertFalse(timeline.can_continue(self.state))
+        short = timeline.start(["c0", "c1", "c2"])
+        for _ in range(2):
+            short = timeline.place(short, self.wrong_slot(short), self.values).state
+        self.assertEqual(short.status, timeline.FINISHED)  # deck ended with lives left
+        self.assertFalse(timeline.can_continue(short))
+
+    def test_deck_has_room_for_the_continue(self):
+        self.assertEqual(timeline.deck_size(), 14)
+        # worst case: lost with 0 placed after 3 misses -> 1 + 3 used, 10 left >= 9 needed + 0 spare
+        self.assertGreaterEqual(timeline.deck_size() - 4, timeline.TARGET - 1)
+
     def test_wrong_move_costs_a_life_and_discards(self):
         result = timeline.place(self.state, 1, self.values)  # 1900 after 1950: wrong
         self.assertFalse(result.correct)
@@ -207,7 +238,7 @@ class TimelineTests(TestCase):
             timeline.start(["only"])
 
     def test_deck_size(self):
-        self.assertEqual(timeline.deck_size(), timeline.TARGET + timeline.LIVES)
+        self.assertEqual(timeline.deck_size(), timeline.TARGET + timeline.LIVES + timeline.MAX_CONTINUES)
 
 
 class StreakTests(TestCase):

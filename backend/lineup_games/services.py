@@ -5,7 +5,7 @@ puzzle is free and created by the first request of the day.
 """
 
 import secrets
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -14,6 +14,7 @@ from django.db.models import Count, Max, Q
 from django.utils import timezone
 from rest_framework.exceptions import APIException, NotFound
 
+from billing import services as billing
 from lineup_cards.models import Attribute, Card, CardValue
 
 from .engine import daily, decks, energy, streak, timeline
@@ -77,10 +78,22 @@ def energy_rules() -> energy.EnergyRules:
                               refill=timedelta(minutes=settings.LINEUP_ENERGY_REFILL_MINUTES))
 
 
+PRO = "pro"
+PRO_FOREVER = datetime.max.replace(tzinfo=UTC)  # Pro without an end date
+
+
+def pro_until(user) -> datetime | None:
+    """End of the user's Pro (unlimited energy, ad-free continue, daily archive); None = not Pro."""
+    ent = billing.entitlement(user, PRO)
+    return None if ent is None else ent.expires_at or PRO_FOREVER
+
+
 def unlimited_until(user, now: datetime) -> datetime | None:
-    """End of the no-limit period (new players' first days; Pro joins here in Phase 5), None when limited."""
+    """End of the no-limit period: Pro, or new players' first days. None when limited."""
     grace = timedelta(days=settings.LINEUP_ENERGY_GRACE_DAYS)
-    return user.date_joined + grace if energy.in_grace(user.date_joined, now, grace) else None
+    ends = [d for d in (pro_until(user),
+                        user.date_joined + grace if energy.in_grace(user.date_joined, now, grace) else None) if d]
+    return max(ends) if ends else None
 
 
 def _seconds(until: datetime | None, now: datetime) -> int | None:
@@ -92,10 +105,12 @@ def energy_payload(user, now: datetime | None = None) -> dict:
     rules = energy_rules()
     row = Energy.objects.filter(user=user).first()
     state = energy.settle(row.state(), now, rules) if row else energy.full(now, rules)
+    unlimited = unlimited_until(user, now)
     return {
         "current": state.stored, "max": rules.max, "cost": ENERGY_COST,
-        "unlimited": unlimited_until(user, now) is not None,
-        "unlimited_seconds": _seconds(unlimited_until(user, now), now),
+        "unlimited": unlimited is not None,
+        "unlimited_seconds": None if unlimited in (None, PRO_FOREVER) else _seconds(unlimited, now),
+        "pro": pro_until(user) is not None,
         "next_in_seconds": _seconds(energy.next_at(state, rules), now),
         "full_in_seconds": _seconds(energy.full_at(state, rules), now),
     }
@@ -203,6 +218,32 @@ def play_move(user, run_id, slot: int | None = None, guess: str | None = None):
     return run, result
 
 
+def resume_run(run: Run) -> None:
+    """One more life for a lost run (caller checked it can continue and holds the row lock)."""
+    if run.mode == Run.Mode.STREAK:
+        run.set_streak_state(streak.resume(run.streak_state()))
+    else:
+        run.set_timeline_state(timeline.resume(run.timeline_state()))
+    run.dealt_at, run.finished_at = timezone.now(), None
+    run.save()
+
+
+@transaction.atomic
+def continue_run(user, run_id) -> Run:
+    """Pro: continue a lost run without an ad (everyone else goes through the rewarded ad)."""
+    run = Run.objects.select_for_update().select_related("attribute").filter(user=user, pk=run_id).first()
+    if run is None:
+        raise NotFound("Tur bulunamadı.", code="run_not_found")
+    if pro_until(user) is None:
+        raise GameConflict("Reklamsız devam Pro'ya özel.", code="pro_required")
+    state = run.streak_state() if run.mode == Run.Mode.STREAK else run.timeline_state()
+    engine = streak if run.mode == Run.Mode.STREAK else timeline
+    if not engine.can_continue(state):
+        raise GameConflict("Bu tur devam ettirilemez.", code="cannot_continue")
+    resume_run(run)
+    return run
+
+
 # ---------------------------------------------------------------- payloads
 def _cards(ids, attribute) -> dict[str, tuple[Card, CardValue | None]]:
     cards = Card.objects.filter(pk__in=ids).select_related("card_type").prefetch_related("card_type__fields")
@@ -233,7 +274,7 @@ def run_payload(run: Run) -> dict:
     a = run.attribute
     data = {
         "id": str(run.pk), "mode": run.mode, "difficulty": run.difficulty, "status": run.status,
-        "lives": run.lives, "score": run.score,
+        "lives": run.lives, "score": run.score, "continues_used": run.continues_used,
         "attribute": {"key": a.key, "name": a.name, "unit": a.unit,
                       "lower_label": a.lower_label, "higher_label": a.higher_label},
         "created_at": run.created_at.isoformat(),
@@ -255,6 +296,7 @@ def run_payload(run: Run) -> dict:
         current = state.current
         cards = _cards([*run.line, *([current] if current else [])], a)
         data.update({
+            "can_continue": timeline.can_continue(state),
             "target": run.target,
             "line": [card_payload(*cards[c]) for c in run.line if c in cards],
             "current": card_payload(cards[current][0]) if current and current in cards else None,
@@ -314,13 +356,53 @@ def daily_puzzle(day: date | None = None) -> DailyPuzzle:
         return DailyPuzzle.objects.select_related("attribute").get(date=day)
 
 
+ARCHIVE_SIZE = 60
+
+
+def daily_by_number(user, number: int | None) -> DailyPuzzle:
+    """Today's puzzle, or a past one for Pro (archive). A future / unknown number is not found."""
+    today = daily_puzzle()
+    if number is None or number == today.number:
+        return today
+    puzzle = DailyPuzzle.objects.select_related("attribute").filter(number=number, date__lt=today.date).first()
+    if puzzle is None:
+        raise NotFound("Bulmaca bulunamadı.", code="daily_not_found")
+    if pro_until(user) is None:
+        raise GameConflict("Geçmiş bulmacalar Pro'ya özel.", code="pro_required")
+    return puzzle
+
+
+def daily_archive(user) -> list[dict]:
+    """Pro: past puzzles (newest first) with how far the user got."""
+    if pro_until(user) is None:
+        raise GameConflict("Geçmiş bulmacalar Pro'ya özel.", code="pro_required")
+    today = daily_puzzle()
+    puzzles = list(DailyPuzzle.objects.filter(date__lt=today.date).select_related("attribute")[:ARCHIVE_SIZE])
+    plays = {p.puzzle_id: p for p in DailyPlay.objects.filter(user=user, puzzle__in=puzzles)}
+    rows = []
+    for puzzle in puzzles:
+        play = plays.get(puzzle.pk)
+        rows.append({"number": puzzle.number, "date": puzzle.date.isoformat(), "attribute": puzzle.attribute.name,
+                     "status": play.status if play and play.attempts else "new",
+                     "solved_in": play.solved_in if play else None})
+    return rows
+
+
 @transaction.atomic
 def submit_daily(user, number: int, order: list[str]):
-    """One attempt at today's puzzle (free). Returns (play, engine result)."""
-    puzzle = daily_puzzle()
-    if number != puzzle.number:
+    """
+    One attempt (free). Today's puzzle for everyone; a past one only for Pro (archive). An old number without Pro is
+    "expired" (the day changed while playing). Returns (play, engine result).
+    """
+    today = daily_puzzle()
+    if number == today.number:
+        puzzle = today
+    elif pro_until(user) is not None:
+        puzzle = daily_by_number(user, number)
+    else:
         raise GameConflict("Bu bulmacanın günü geçti; yeni bulmaca hazır.", code="daily_expired")
-    play, _ = DailyPlay.objects.select_for_update().get_or_create(user=user, puzzle=puzzle)
+    play, created = DailyPlay.objects.select_for_update().get_or_create(
+        user=user, puzzle=puzzle, defaults={"late": puzzle.pk != today.pk})
     if play.status != DailyPlay.Status.PLAYING:
         raise GameConflict("Bugünkü bulmacayı bitirdin.", code="daily_over")
     try:
@@ -354,6 +436,7 @@ def daily_payload(user, puzzle: DailyPuzzle | None = None, play: DailyPlay | Non
     order = attempts[-1]["order"] if attempts else puzzle.deck
     data = {
         "number": puzzle.number, "date": puzzle.date.isoformat(), "status": state,
+        "archived": puzzle.date < daily_date(),
         "max_attempts": daily.ATTEMPTS, "attempts_left": daily.ATTEMPTS - len(attempts),
         "solved_in": play.solved_in if play else None,
         "attribute": {"key": a.key, "name": a.name, "unit": a.unit,
@@ -388,7 +471,8 @@ def daily_home(user) -> dict | None:
 
 def daily_streaks(user, puzzle: DailyPuzzle, play: DailyPlay | None) -> tuple[int, int]:
     """(current, best) consecutive solved puzzles; today's open puzzle does not break the run yet."""
-    won = set(DailyPlay.objects.filter(user=user, status=DailyPlay.Status.WON).values_list("puzzle__number", flat=True))
+    won = set(DailyPlay.objects.filter(user=user, status=DailyPlay.Status.WON, late=False)
+              .values_list("puzzle__number", flat=True))
     lost = bool(play and play.status == DailyPlay.Status.LOST)
     return daily.streaks(won, puzzle.number, current_lost=lost)
 
@@ -435,4 +519,12 @@ def home_payload(user) -> dict:
         "best_streak": stats["best_streak"] or 0,
         "timeline_wins": stats["timeline_wins"],
         "daily": daily_home(user),
+        "pro": pro_payload(user),
+        "ads_left_today": billing.ads_left_today(user),
     }
+
+
+def pro_payload(user) -> dict:
+    until = pro_until(user)
+    return {"active": until is not None,
+            "expires_at": None if until in (None, PRO_FOREVER) else until.isoformat()}
