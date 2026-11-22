@@ -2,7 +2,7 @@
 Firebase Cloud Messaging, one Firebase project per client app.
 
 Credentials: service account key at FIREBASE_CREDENTIALS_DIR/firebase-<app slug>.json (never committed; copied to the
-server by hand). Device tokens and sends from Celery arrive in Phase 6; for now only direct sends (test command).
+server by hand). Device tokens: models.DeviceToken; sends to a user go through services.notify (Celery).
 """
 
 from pathlib import Path
