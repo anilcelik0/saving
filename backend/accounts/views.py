@@ -1,9 +1,11 @@
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.cache import cache
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from rest_framework import generics, serializers, status
+from rest_framework.exceptions import APIException
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -15,9 +17,15 @@ from . import legal, lifecycle
 from .authentication import issue_tokens
 from .models import ClientApp, LegalAcceptance
 from .serializers import (
-    ConsentSerializer, GuestRegisterSerializer, LegalDocumentDetailSerializer, LegalDocumentSerializer, LoginSerializer, LogoutSerializer,
+    ConsentSerializer, GuestClaimSerializer, GuestRegisterSerializer, LegalDocumentDetailSerializer, LegalDocumentSerializer, LoginSerializer, LogoutSerializer,
     PasswordConfirmSerializer, RegisterSerializer, UserSerializer,
 )
+
+
+class Conflict(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Bu işlem şu an yapılamaz."
+    default_code = "conflict"
 
 
 class PublicAuthView(APIView):
@@ -59,6 +67,26 @@ class GuestRegisterView(PublicAuthView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class GuestClaimView(APIView):
+    """
+    POST {email, password, username?} (signed-in guest): the account becomes a regular one with the same data.
+    The guest's other sessions are signed out; a fresh token pair is returned.
+    """
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    @transaction.atomic
+    def post(self, request):
+        if not request.user.is_guest:
+            raise Conflict("Bu hesap zaten kayıtlı.", code="not_guest")
+        serializer = GuestClaimSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        lifecycle.revoke_sessions(user)
+        return Response({"user": UserSerializer(user, context={"request": request}).data, **issue_tokens(user)})
 
 
 class LoginView(PublicAuthView):

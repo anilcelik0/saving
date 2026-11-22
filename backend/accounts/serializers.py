@@ -154,6 +154,51 @@ class GuestRegisterSerializer(serializers.Serializer):
         return user
 
 
+class GuestClaimSerializer(serializers.Serializer):
+    """
+    A guest keeps its account and data by setting an email + password (and optionally a username); afterwards it
+    logs in like any registered user, also on a new device. Used by clients with allow_guests (lineup).
+    """
+
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    username = serializers.CharField(max_length=30, required=False, allow_blank=True,
+                                     help_text="Empty = keep the generated one")
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        attrs["email"] = attrs["email"].strip().lower()
+        attrs["username"] = (attrs.get("username") or "").strip().lower() or user.username
+        errors = {}
+        others = User.objects.filter(app=user.app).exclude(pk=user.pk)
+        if others.filter(email=attrs["email"]).exists():
+            errors["email"] = ["Bu e-posta adresi zaten kayıtlı."]
+        if attrs["username"] != user.username:
+            try:
+                username_validator(attrs["username"])
+            except DjangoValidationError as e:
+                errors["username"] = e.messages
+            if attrs["username"].startswith("guest-"):
+                errors["username"] = ["Kullanıcı adı 'guest-' ile başlayamaz."]
+            elif others.filter(username=attrs["username"]).exists():
+                errors["username"] = ["Bu kullanıcı adı zaten alınmış."]
+        candidate = User(username=attrs["username"], email=attrs["email"], app=user.app)
+        try:
+            validate_password(attrs["password"], user=candidate)
+        except DjangoValidationError as e:
+            errors["password"] = e.messages
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+    def save(self):
+        user = self.context["request"].user
+        user.email, user.username, user.is_guest = self.validated_data["email"], self.validated_data["username"], False
+        user.set_password(self.validated_data["password"])
+        user.save(update_fields=["email", "username", "is_guest", "password"])
+        return user
+
+
 class ConsentSerializer(serializers.Serializer):
     """Accept current legal documents of the user's app (e.g. after a new version was published)."""
 
