@@ -1,0 +1,24 @@
+{% extends "accounts/public_base.html" %}
+{% block title %}Meydan okuma{% endblock %}
+{% block header %}
+  <h1>{% if challenge %}{{ challenge.creator.username }} sana meydan okuyor!{% else %}Meydan okuma bulunamadı{% endif %}</h1>
+  {% if challenge %}<div class="meta">{{ summary }}</div>{% endif %}
+{% endblock %}
+{% block content %}
+  {% if challenge %}
+    {% if challenge.expired %}
+      <p class="notice error">Bu meydan okumanın süresi doldu.</p>
+    {% else %}
+      <p>Aynı kartları sen de oyna, skoru geçmeye çalış. Kabul etmek ücretsizdir.</p>
+    {% endif %}
+    <h2>Nasıl katılırım?</h2>
+    <ol>
+      <li>Telefonunda {{ app.name }} yüklüyse bu bağlantı uygulamada açılır.</li>
+      <li>Açılmazsa uygulamada <b>Meydan okumalar &gt; Kodla katıl</b> bölümüne şu kodu yaz:
+        <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px; margin: 8px 0;">{{ code }}</p></li>
+      <li>{{ app.name }} yüklü değilse Google Play'den indirebilirsin (yakında).</li>
+    </ol>
+  {% else %}
+    <p>Bu kodla bir meydan okuma yok: <b>{{ code }}</b>. Bağlantıyı kontrol et.</p>
+  {% endif %}
+{% endblock %}

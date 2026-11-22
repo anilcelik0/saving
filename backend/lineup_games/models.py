@@ -35,6 +35,8 @@ class Run(BaseModel):
     lives = models.PositiveSmallIntegerField(default=timeline.LIVES)
     target = models.PositiveSmallIntegerField(default=timeline.TARGET, help_text="Timeline: line length that wins")
     score = models.PositiveSmallIntegerField("skor", default=0, help_text="Timeline: cards placed; Streak: streak length")
+    is_challenge = models.BooleanField("meydan okuma", default=False,
+                                       help_text="Free run on a challenge's deck: not resumed from home, no records")
     continues_used = models.PositiveSmallIntegerField(default=0, help_text="Continues after a loss (rewarded ad / Pro)")
     status = models.CharField("durum", max_length=10, choices=Status.choices, default=Status.PLAYING)
     dealt_at = models.DateTimeField(null=True, blank=True, help_text="When the current card was shown (for elapsed_ms)")

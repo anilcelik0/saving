@@ -57,6 +57,7 @@ SAVING_APPS = [
 LINEUP_APPS = [
     "lineup_cards",
     "lineup_games",
+    "lineup_social",
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + SHARED_APPS + SAVING_APPS + LINEUP_APPS
 
@@ -64,7 +65,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + SHARED_APPS + SAVING_APPS + LI
 # allow_guests) and publishes their legal texts (legal_texts/<slug>/).
 CLIENT_APPS = {
     "saving": {"name": "Saving"},
-    "lineup": {"name": "Line Up", "allow_guests": True},
+    "lineup": {"name": "Line Up", "allow_guests": True, "android_package": "tr.com.appmanager.lineup"},
 }
 
 # Line Up energy (Timeline / Streak starts cost 1): max points, minutes per point, no limit for new players' first days
@@ -73,6 +74,15 @@ LINEUP_ENERGY_REFILL_MINUTES = env.int("LINEUP_ENERGY_REFILL_MINUTES", default=2
 LINEUP_ENERGY_GRACE_DAYS = env.int("LINEUP_ENERGY_GRACE_DAYS", default=3)
 LINEUP_DAILY_RESET = env.str("LINEUP_DAILY_RESET", default="07:30")  # Istanbul time a new daily puzzle starts
 LINEUP_DAILY_AD_CAP = env.int("LINEUP_DAILY_AD_CAP", default=10)  # rewarded ads per user and day
+LINEUP_CHALLENGE_DAYS = env.int("LINEUP_CHALLENGE_DAYS", default=7)  # a challenge can be accepted this long
+LINEUP_PUBLIC_URL = env.str("LINEUP_PUBLIC_URL", default="https://appmanager.com.tr")  # invite links (App Links)
+
+# Android App Links (/.well-known/assetlinks.json): SHA-256 signing certificate fingerprints per client with an
+# android_package, e.g. ANDROID_SHA256_LINEUP=AA:BB:...  (Play Console > App signing; several = comma-separated)
+ANDROID_APP_LINKS = {
+    slug: {"package": cfg["android_package"], "sha256": env.list(f"ANDROID_SHA256_{slug.upper()}", default=[])}
+    for slug, cfg in CLIENT_APPS.items() if cfg.get("android_package")
+}
 
 # Shared billing: AdMob SSV keys, RevenueCat webhook secrets per client app ("lineup=secret,other=secret"),
 # store entitlement ids we act on, DEBUG-only dev endpoints (grant a test-ad reward / toggle Pro without a store).

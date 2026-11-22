@@ -55,7 +55,7 @@ class RunListView(APIView):
     permission_classes = [IsLineupUser]
 
     def get(self, request):
-        runs = Run.objects.filter(user=request.user).select_related("attribute")
+        runs = Run.objects.filter(user=request.user, is_challenge=False).select_related("attribute")
         mode = request.query_params.get("mode")
         if mode:
             runs = runs.filter(mode=mode)

@@ -21,6 +21,7 @@ from .engine import daily, decks, energy, streak, timeline
 from .engine.decks import DeckCard
 from .engine.values import Value
 from .models import DailyPlay, DailyPuzzle, Energy, Move, Run
+from .signals import run_finished
 
 DIFFICULTIES = {"easy": "Kolay", "normal": "Normal", "hard": "Zor"}
 ENERGY_COST = 1  # per Timeline / Streak start; the daily puzzle and accepted challenges are free
@@ -168,8 +169,8 @@ def start_run(user, mode: str, difficulty: str = "normal", attribute_key: str | 
         raise GameConflict("Geçersiz mod.", code="unknown_mode")
     now = timezone.now()
     _spend_energy(user, now)
-    Run.objects.filter(user=user, mode=mode, status=Run.Status.PLAYING).update(status=Run.Status.ABANDONED,
-                                                                               finished_at=now)
+    Run.objects.filter(user=user, mode=mode, status=Run.Status.PLAYING, is_challenge=False).update(
+        status=Run.Status.ABANDONED, finished_at=now)
     run.dealt_at = now
     run.save()
     return run
@@ -215,7 +216,22 @@ def play_move(user, run_id, slot: int | None = None, guess: str | None = None):
     run.dealt_at = now if playing else None
     run.finished_at = None if playing else now
     run.save()
+    if not playing:
+        run_finished.send(sender=Run, run=run)
     return run, result
+
+
+def new_challenge_run(user, source: Run) -> Run:
+    """A free run on another run's frozen deck (challenge accepted): same mode, attribute, deck and rules."""
+    run = Run(user=user, mode=source.mode, difficulty=source.difficulty, attribute=source.attribute,
+              seed=source.seed, deck=list(source.deck), target=source.target, is_challenge=True)
+    if source.mode == Run.Mode.STREAK:
+        run.set_streak_state(streak.start(run.deck))
+    else:
+        run.set_timeline_state(timeline.start(run.deck, target=source.target))
+    run.dealt_at = timezone.now()
+    run.save()
+    return run
 
 
 def resume_run(run: Run) -> None:
@@ -267,7 +283,9 @@ def card_payload(card: Card, value: CardValue | None = None) -> dict:
 
 
 def best_streak(user_id) -> int:
-    return Run.objects.filter(user_id=user_id, mode=Run.Mode.STREAK).aggregate(best=Max("score"))["best"] or 0
+    """Records count normal runs only (challenge runs are free)."""
+    runs = Run.objects.filter(user_id=user_id, mode=Run.Mode.STREAK, is_challenge=False)
+    return runs.aggregate(best=Max("score"))["best"] or 0
 
 
 def run_payload(run: Run) -> dict:
@@ -275,6 +293,7 @@ def run_payload(run: Run) -> dict:
     data = {
         "id": str(run.pk), "mode": run.mode, "difficulty": run.difficulty, "status": run.status,
         "lives": run.lives, "score": run.score, "continues_used": run.continues_used,
+        "is_challenge": run.is_challenge,
         "attribute": {"key": a.key, "name": a.name, "unit": a.unit,
                       "lower_label": a.lower_label, "higher_label": a.higher_label},
         "created_at": run.created_at.isoformat(),
@@ -481,7 +500,7 @@ def daily_streaks(user, puzzle: DailyPuzzle, play: DailyPlay | None) -> tuple[in
 def profile_payload(user) -> dict:
     """Stats per mode. Played = finished runs (abandoned ones and the run being played do not count)."""
     done = [Run.Status.WON, Run.Status.LOST, Run.Status.FINISHED]
-    runs = Run.objects.filter(user=user, status__in=done).aggregate(
+    runs = Run.objects.filter(user=user, status__in=done, is_challenge=False).aggregate(
         timeline_played=Count("id", filter=Q(mode=Run.Mode.TIMELINE)),
         timeline_wins=Count("id", filter=Q(mode=Run.Mode.TIMELINE, status=Run.Status.WON)),
         timeline_best=Max("score", filter=Q(mode=Run.Mode.TIMELINE)),
@@ -507,7 +526,7 @@ def profile_payload(user) -> dict:
 
 
 def home_payload(user) -> dict:
-    runs = Run.objects.filter(user=user)
+    runs = Run.objects.filter(user=user, is_challenge=False)
     playing = {mode: None for mode in Run.Mode.values}
     for run in runs.filter(status=Run.Status.PLAYING).order_by("created_at"):
         playing[run.mode] = {"id": str(run.pk), "score": run.score}
