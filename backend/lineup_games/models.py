@@ -104,7 +104,7 @@ class Energy(BaseModel):
 
 
 class DailyPuzzle(BaseModel):
-    """The same cards for everyone on one day (Europe/Istanbul). Created by the first request of the day."""
+    """The same cards for everyone on one puzzle day (Europe/Istanbul, from LINEUP_DAILY_RESET). Created by the first request of the day."""
 
     date = models.DateField("tarih", unique=True)
     number = models.PositiveIntegerField("no", unique=True)

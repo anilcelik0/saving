@@ -90,7 +90,7 @@ class RunMoveView(APIView):
 
 
 class DailyView(APIView):
-    """GET: today's puzzle (Europe/Istanbul) with the user's attempts; values, solution and share text once finished."""
+    """GET: today's puzzle (new one at LINEUP_DAILY_RESET, Istanbul) with the user's attempts; values, solution and share text once finished."""
 
     permission_classes = [IsLineupUser]
 

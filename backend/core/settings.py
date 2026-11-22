@@ -70,6 +70,7 @@ CLIENT_APPS = {
 LINEUP_ENERGY_MAX = env.int("LINEUP_ENERGY_MAX", default=5)
 LINEUP_ENERGY_REFILL_MINUTES = env.int("LINEUP_ENERGY_REFILL_MINUTES", default=25)
 LINEUP_ENERGY_GRACE_DAYS = env.int("LINEUP_ENERGY_GRACE_DAYS", default=3)
+LINEUP_DAILY_RESET = env.str("LINEUP_DAILY_RESET", default="07:30")  # Istanbul time a new daily puzzle starts
 
 # Firebase service account keys, one per client app: <dir>/firebase-<slug>.json (git-ignored, copied by hand)
 FIREBASE_CREDENTIALS_DIR = env("FIREBASE_CREDENTIALS_DIR", default=str(BASE_DIR / "secrets"))

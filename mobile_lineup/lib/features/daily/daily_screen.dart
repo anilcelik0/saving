@@ -114,10 +114,17 @@ class _Board extends ConsumerWidget {
                     title: Text(card.title),
                     subtitle: Text([if (card.subtitle.isNotEmpty) card.subtitle, card.type, ...card.details].join(' · '),
                         maxLines: 2, overflow: TextOverflow.ellipsis),
-                    trailing: ReorderableDragStartListener(
-                      index: i,
-                      enabled: !view.busy,
-                      child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.drag_handle)),
+                    // Long press drags here, so reporting has its own button.
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ReportButton(card: card),
+                        ReorderableDragStartListener(
+                          index: i,
+                          enabled: !view.busy,
+                          child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.drag_handle)),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -176,7 +183,7 @@ class _Result extends ConsumerWidget {
         Text('Doğru sıra · ${a.name} (üstte ${a.lowerLabel})', style: theme.textTheme.titleSmall),
         for (final card in puzzle.solution) _SolutionTile(card: card),
         const SizedBox(height: 8),
-        Text('Bir değer yanlışsa karta uzun bas.', style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
+        Text('Bir kartta hata varsa bayrağa dokun.', style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
       ],
     );
   }
@@ -194,10 +201,31 @@ class _SolutionTile extends ConsumerWidget {
       leading: Text(card.emoji, style: const TextStyle(fontSize: 20)),
       title: Text(card.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: card.subtitle.isEmpty ? null : Text(card.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: Text(card.value ?? '', style: Theme.of(context).textTheme.labelLarge),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(card.value ?? '', style: Theme.of(context).textTheme.labelLarge),
+          _ReportButton(card: card),
+        ],
+      ),
       onLongPress: () => showCardReportDialog(context, ref, card, screen: 'daily'),
     );
   }
+}
+
+/// "Hata bildir" for one card (shared support API, `lineup.card`).
+class _ReportButton extends ConsumerWidget {
+  const _ReportButton({required this.card});
+
+  final GameCard card;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => IconButton(
+        icon: const Icon(Icons.outlined_flag),
+        tooltip: 'Hata bildir',
+        visualDensity: VisualDensity.compact,
+        onPressed: () => showCardReportDialog(context, ref, card, screen: 'daily'),
+      );
 }
 
 /// "Yeni bulmaca 5 sa 12 dk sonra"; reloads the screen when the day changes.

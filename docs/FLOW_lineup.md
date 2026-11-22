@@ -141,18 +141,18 @@ sequenceDiagram
     participant S as Sunucu (lineup_games)
     participant E as Motor (saf Python)
     M->>S: GET /lineup/games/daily/
-    alt Günün ilk isteği (İstanbul saati)
+    alt Bulmaca gününün ilk isteği (her sabah 07:30, İstanbul)
         S->>E: rastgele nitelik + tohum → 6 kart (tanınmış, değerler arası boşluk, sıralı gösterilmez)
         S->>S: DailyPuzzle (tarih tekil, no +1, deste donar)
     end
     S-->>M: herkese aynı 6 kart (değersiz) · denemeler · yeni bulmacaya kalan süre
     loop en fazla 3 deneme (enerji harcamaz)
-        M->>M: kartları sürükleyerek sırala
+        M->>M: kartları sürükleyerek sırala (🚩 = kart hata bildirimi)
         M->>S: POST daily/attempts/ {number, order}
         S->>E: her yer: 🟩 doğru · 🟨 bir yer yanında · 🟥 daha uzakta (eşitlikte iki yer de doğru)
         S-->>M: işaretler + yeni durum
     end
     S-->>M: bitince: değerler + doğru sıra + paylaşım metni
     M->>M: "Sonucu paylaş" → Line Up · Günlük #12 (Nüfus) / 🟥🟨🟩… / 🟩🟩🟩… – 2. deneme
-    Note over M,S: gün değiştiyse 409 daily_expired → yeni bulmaca yüklenir · kart adları paylaşılmaz (spoiler yok)
+    Note over M,S: 07:30 geçtiyse 409 daily_expired → yeni bulmaca yüklenir · kart adları paylaşılmaz (spoiler yok)
 ```

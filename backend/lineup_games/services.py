@@ -276,14 +276,22 @@ DAILY_TZ = ZoneInfo("Europe/Istanbul")
 SHARE_MARKS = {daily.RIGHT: "🟩", daily.NEAR: "🟨", daily.WRONG: "🟥"}
 
 
+def daily_reset() -> time:
+    """Istanbul time a new puzzle starts (LINEUP_DAILY_RESET, "07:30")."""
+    return time.fromisoformat(settings.LINEUP_DAILY_RESET)
+
+
 def daily_date(now: datetime | None = None) -> date:
-    return timezone.localtime(now or timezone.now(), DAILY_TZ).date()
+    """The puzzle day: before the reset time it is still the previous day's puzzle."""
+    reset = daily_reset()
+    local = timezone.localtime(now or timezone.now(), DAILY_TZ)
+    return (local - timedelta(hours=reset.hour, minutes=reset.minute)).date()
 
 
 def next_daily_seconds(now: datetime | None = None) -> int:
     now = now or timezone.now()
-    tomorrow = datetime.combine(daily_date(now) + timedelta(days=1), time.min, tzinfo=DAILY_TZ)
-    return _seconds(tomorrow, now)
+    nxt = datetime.combine(daily_date(now) + timedelta(days=1), daily_reset(), tzinfo=DAILY_TZ)
+    return _seconds(nxt, now)
 
 
 def daily_puzzle(day: date | None = None) -> DailyPuzzle:

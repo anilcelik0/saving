@@ -9,13 +9,12 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# Phase 3 device check: VS Code F5 "Line Up (dev backend)" (backend already migrated: 0004_daily_puzzle)
-#  - new package share_plus -> F5 does a full rebuild (not a hot reload)
-#  - Home: "Günlük Bulmaca #1 · Bugünün kartlarını sırala · ücretsiz"
-#  - Bulmaca: drag the cards (handle on the right = instant, anywhere on the card = long press), "Kontrol et";
-#    🟩/🟨/🟥 colors stay on cards not moved since; 3 attempts; energy does not change
-#  - Result: correct order with values (long press = Hata bildir), "Sonucu paylaş" -> WhatsApp / Notes
-#  - Home tile shows "2. denemede çözdün" / "Çözülemedi"; countdown to the next puzzle (Istanbul midnight)
+# 3.5 device check: restart the backend (new setting + code; gunicorn does not auto-reload)
+docker compose restart web
+#  - Bulmaca: 🚩 on each card opens "Hata bildir" (also on the result list); dragging still works
+#  - Result screen / home: next puzzle countdown points to 07:30
+#  - optional quick test of the reset: add LINEUP_DAILY_RESET=HH:MM (a few minutes ahead) to .env,
+#    `docker compose up -d web`, wait -> new puzzle #N+1; then delete the line and `docker compose up -d web`
 ```
 
 ---
@@ -128,11 +127,13 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   `GET daily/` (cards in the current order, values + solution + share text only when finished, seconds to the next
   puzzle), `POST daily/attempts/ {number, order}` (409 `daily_expired` / `daily_over` / `invalid_order`; free).
   Home gets `daily`. Admin: puzzles with plays. Migration 0004; check 24/24 (rolled back).
-- [~] **3.3** Mobile (M) — `features/daily/`: reorderable list (handle = instant drag, card = long press), marks of
+- [x] **3.3** Mobile (M) — `features/daily/`: reorderable list (handle = instant drag, card = long press), marks of
   the last attempt stay on unmoved cards, attempt rows, result with values + "Sonucu paylaş" (`share_plus`),
-  countdown to the next puzzle (reloads at midnight), home tile status. `flutter analyze` clean; waiting on the
-  device check.
+  countdown to the next puzzle (reloads when it starts), home tile status. Checked on the Honor (play + share).
 - [x] **3.4** FLOW updated (daily puzzle + share diagram).
+- [~] **3.5** Feedback (S, 2026-11-22): new puzzle every morning at 07:30 Istanbul (`LINEUP_DAILY_RESET`, before it
+  the previous day's puzzle stays; boundary check 6/6, API check 24/24 rolled back). Card report on the puzzle via a
+  🚩 button (long press is the drag there). Waiting on the device check.
 
 ## Phase 4: Account linking + profile
 - [ ] **4.1** Shared `accounts`: Google sign-in (server verifies the ID token; Google id per app), link to guest, login on a new device (M)
@@ -201,5 +202,5 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
 - Defaults to tune later: Timeline win = line reaches 10 cards (start card + 9), 3 lives; Streak 1 life + one ad
   continue per run; energy max 5, +1 every 25 min, no limit for new players' first days.
 - Fake test data is fine until Phase 7, flagged `is_demo`.
-- Daily puzzle: only today's puzzle is playable (archive = Pro, 5.3). Share text has no card names (no spoilers);
+- Daily puzzle: a new one at 07:30 Istanbul (by request); only the current puzzle is playable (archive = Pro, 5.3). Share text has no card names (no spoilers);
   the invite link joins it in Phase 6. Daily streak (consecutive days) comes with the profile stats (4.2).

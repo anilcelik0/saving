@@ -68,7 +68,7 @@ class DailyPuzzle {
   final List<GameCard> cards;
   final List<DailyAttempt> attempts;
 
-  /// Until the next puzzle (Europe/Istanbul midnight), counted down locally from [fetchedAt].
+  /// Until the next puzzle (07:30 Istanbul by default), counted down locally from [fetchedAt].
   final int nextInSeconds;
   final List<GameCard> solution;
   final String? share;

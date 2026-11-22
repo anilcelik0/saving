@@ -109,7 +109,7 @@ String _dailySubtitle(DailyHome? daily) => switch (daily?.status) {
       'new' => 'Bugünün kartlarını sırala · ücretsiz',
       'playing' => 'Devam et · ${3 - daily!.attemptsUsed} deneme hakkın kaldı',
       'won' => '${daily!.solvedIn}. denemede çözdün · sonucu paylaş',
-      _ => 'Çözülemedi · yarın yeni bulmaca',
+      _ => "Çözülemedi · yeni bulmaca sabah 07:30'da",
     };
 
 class _ModeTile extends StatelessWidget {
