@@ -47,6 +47,7 @@ SHARED_APPS = [
     "accounts",
     "support",
     "notifications",
+    "billing",
 ]
 SAVING_APPS = [
     "saving_budget",
@@ -71,6 +72,15 @@ LINEUP_ENERGY_MAX = env.int("LINEUP_ENERGY_MAX", default=5)
 LINEUP_ENERGY_REFILL_MINUTES = env.int("LINEUP_ENERGY_REFILL_MINUTES", default=25)
 LINEUP_ENERGY_GRACE_DAYS = env.int("LINEUP_ENERGY_GRACE_DAYS", default=3)
 LINEUP_DAILY_RESET = env.str("LINEUP_DAILY_RESET", default="07:30")  # Istanbul time a new daily puzzle starts
+LINEUP_DAILY_AD_CAP = env.int("LINEUP_DAILY_AD_CAP", default=10)  # rewarded ads per user and day
+
+# Shared billing: AdMob SSV keys, RevenueCat webhook secrets per client app ("lineup=secret,other=secret"),
+# store entitlement ids we act on, DEBUG-only dev endpoints (grant a test-ad reward / toggle Pro without a store).
+BILLING_ADMOB_KEYS_URL = env.str("BILLING_ADMOB_KEYS_URL",
+                                 default="https://www.gstatic.com/admob/reward/verifier-keys.json")
+BILLING_REVENUECAT_WEBHOOK_SECRETS = env.dict("BILLING_REVENUECAT_WEBHOOK_SECRETS", default={})
+BILLING_REVENUECAT_ENTITLEMENTS = env.list("BILLING_REVENUECAT_ENTITLEMENTS", default=["pro"])
+BILLING_DEV_TOOLS = DEBUG and env.bool("BILLING_DEV_TOOLS", default=True)
 
 # Firebase service account keys, one per client app: <dir>/firebase-<slug>.json (git-ignored, copied by hand)
 FIREBASE_CREDENTIALS_DIR = env("FIREBASE_CREDENTIALS_DIR", default=str(BASE_DIR / "secrets"))

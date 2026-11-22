@@ -12,6 +12,7 @@ api_v1 = [
     path("legal/<slug:app>/", LegalDocumentListView.as_view(), name="legal-list"),
     path("legal/<slug:app>/<slug:kind>/", LegalDocumentDetailView.as_view(), name="legal-detail"),
     path("support/", include("support.urls")),
+    path("billing/", include("billing.urls")),
     path("saving/budget/", include("saving_budget.urls")),
     path("saving/invest/", include("saving_invest.urls")),
     path("saving/reports/", include("saving_reports.urls")),
