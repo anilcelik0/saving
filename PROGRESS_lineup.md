@@ -9,12 +9,18 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# 3.5 device check: restart the backend (new setting + code; gunicorn does not auto-reload)
+# Phase 4 device check: restart the backend (accounts + lineup code; gunicorn does not auto-reload)
 docker compose restart web
-#  - Bulmaca: 🚩 on each card opens "Hata bildir" (also on the result list); dragging still works
-#  - Result screen / home: next puzzle countdown points to 07:30
-#  - optional quick test of the reset: add LINEUP_DAILY_RESET=HH:MM (a few minutes ahead) to .env,
-#    `docker compose up -d web`, wait -> new puzzle #N+1; then delete the line and `docker compose up -d web`
+#  - Home: profile icon (top right); daily tile shows "🔥 N gün" once you solved a puzzle
+#  - Profil: stats (daily distribution, streaks, Timeline/Seri), legal texts open
+#  - "Hesabını kaydet": email + password (+ optional username) -> profile shows the email, progress unchanged
+#  - "Çıkış yap" -> login screen (email filled in) -> log in -> same progress
+#  - new-device test without a 2nd phone: login screen "Misafir olarak yeni başla" -> consent -> new guest;
+#    Profil > "Kayıtlı hesabınla giriş yap" -> your progress is back
+#  - "Hesabı dondur" (password) -> login -> "Hesabın dondurulmuş" -> "Yeniden aç"
+#  - "Hesabı sil": try it on a throwaway guest only (deleted for good after the grace period); logging in to a
+#    registered account during the grace period offers "Yeniden aç" (cancels the deletion)
+#  - Bulmaca: no 🚩 while playing, only on the result list
 ```
 
 ---
@@ -131,15 +137,29 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   the last attempt stay on unmoved cards, attempt rows, result with values + "Sonucu paylaş" (`share_plus`),
   countdown to the next puzzle (reloads when it starts), home tile status. Checked on the Honor (play + share).
 - [x] **3.4** FLOW updated (daily puzzle + share diagram).
-- [~] **3.5** Feedback (S, 2026-11-22): new puzzle every morning at 07:30 Istanbul (`LINEUP_DAILY_RESET`, before it
+- [x] **3.5** Feedback (S, 2026-11-22): new puzzle every morning at 07:30 Istanbul (`LINEUP_DAILY_RESET`, before it
   the previous day's puzzle stays; boundary check 6/6, API check 24/24 rolled back). Card report on the puzzle via a
-  🚩 button (long press is the drag there). Waiting on the device check.
+  🚩 button, only on the result list (long press is the drag while playing; by request no report while playing).
+- Phase 3 done 2026-11-22.
 
 ## Phase 4: Account linking + profile
-- [ ] **4.1** Shared `accounts`: Google sign-in (server verifies the ID token; Google id per app), link to guest, login on a new device (M)
-- [ ] **4.2** Profile/stats endpoint: best streak, wins, daily streak (S)
-- [ ] **4.3** Mobile: profile, settings (Google link, legal texts, account freeze/deletion reused from accounts) (M)
-- [ ] **4.4** FLOW updated.
+- [x] **4.1a** Shared `accounts` (S, [shared]): `POST auth/guest/claim/ {email, password, username?}` turns the
+  signed-in guest into a regular account (same row = same progress; email unique per app, Django password
+  validators, username not `guest-...`), old sessions revoked, new token pair. Non-guest → 409 `not_guest`, so
+  Saving is unaffected. Login on a new device = existing `auth/login/`.
+- [ ] **4.1b** Google sign-in (server verifies the ID token; Google id per app), link to guest — **deferred by request
+  (2026-11-22)**; email + password comes first.
+- [x] **4.2** Profile/stats (S) — `GET profile/`: Timeline played/wins/best, Streak played/best, daily played/solved/
+  current + best solve streak/attempt distribution. `engine.daily.streaks` (consecutive puzzle numbers; today's open
+  puzzle does not break it) + test (62 OK); home `daily.streak`. Check 22/22 with 4.1a (rolled back).
+- [~] **4.3** Mobile (M) — session states `SessionNeedsLogin` (registered account without a session: logged out,
+  frozen, expired → `/login`, never a silent new guest) and `SessionInactive` (`/inactive`: reopen or log out);
+  `TokenStore.account` (login name; guest credentials dropped once registered). Screens: login (from the consent
+  screen on a new device, from the profile for a guest with a warning, "Misafir olarak yeni başla"), profile
+  (stats, legal texts, logout / freeze / delete with password; a guest confirms with its stored password), "Hesabını
+  kaydet". Home: profile icon, 🔥 daily streak. Home/profile data follow the signed-in user. `flutter analyze` clean;
+  waiting on the device check.
+- [x] **4.4** FLOW updated (session: claim, login, inactive).
 
 ## Phase 5: Monetization
 - [ ] **5.0** (user + decision) Permanent package name, Play Console app, AdMob app + rewarded unit with SSV callback URL, RevenueCat project.
@@ -204,3 +224,5 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
 - Fake test data is fine until Phase 7, flagged `is_demo`.
 - Daily puzzle: a new one at 07:30 Istanbul (by request); only the current puzzle is playable (archive = Pro, 5.3). Share text has no card names (no spoilers);
   the invite link joins it in Phase 6. Daily streak (consecutive days) comes with the profile stats (4.2).
+- Accounts (Phase 4): no "forgot password" yet (needs outgoing email; plan with Google sign-in or before release).
+  Logging in from a guest leaves that guest on the server (unused; could be cleaned up later).

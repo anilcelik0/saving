@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../session/session_controller.dart';
 
 /// Energy as the server computed it; the seconds count down locally from [fetchedAt].
 class EnergyInfo {
@@ -57,13 +58,20 @@ class PlayingRun {
 
 /// Today's daily puzzle as far as the user got.
 class DailyHome {
-  const DailyHome({required this.number, required this.status, required this.attemptsUsed, required this.solvedIn});
+  const DailyHome({
+    required this.number,
+    required this.status,
+    required this.attemptsUsed,
+    required this.solvedIn,
+    required this.streak,
+  });
 
   factory DailyHome.fromJson(Map<String, dynamic> json) => DailyHome(
         number: json['number'] as int,
         status: json['status'] as String,
         attemptsUsed: json['attempts_used'] as int,
         solvedIn: json['solved_in'] as int?,
+        streak: json['streak'] as int? ?? 0,
       );
 
   final int number;
@@ -72,6 +80,9 @@ class DailyHome {
   final String status;
   final int attemptsUsed;
   final int? solvedIn;
+
+  /// Consecutive solved puzzles (today's open puzzle does not break it yet).
+  final int streak;
 }
 
 /// `GET lineup/games/home/`: energy, runs to resume, records, today's puzzle.
@@ -111,6 +122,7 @@ class HomeInfo {
 
 /// Refreshed by the game controllers after a start (energy spent) and when a run ends.
 final homeProvider = FutureProvider.autoDispose<HomeInfo>((ref) async {
+  ref.watch(currentUserIdProvider);
   final data = await ref.watch(apiClientProvider).get('lineup/games/home/');
   return HomeInfo.fromJson(data as Map<String, dynamic>);
 });

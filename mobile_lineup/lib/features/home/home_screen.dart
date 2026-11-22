@@ -30,14 +30,27 @@ class HomeScreen extends ConsumerWidget {
     final timeline = info?.playing['timeline'];
     final streak = info?.playing['streak'];
     return Scaffold(
-      appBar: AppBar(title: const Text('Line Up')),
+      appBar: AppBar(
+        title: const Text('Line Up'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Profil',
+            onPressed: () => context.go('/home/profile'),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(homeProvider.future),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             Text('Merhaba, ${user.username}', style: Theme.of(context).textTheme.titleLarge),
-            if (user.isGuest) const Text('Misafir hesap · ilerlemen bu cihazda saklanıyor'),
+            if (user.isGuest)
+              InkWell(
+                onTap: () => context.go('/home/profile'),
+                child: const Text('Misafir hesap · ilerlemen bu cihazda saklanıyor · Profil > Hesabını kaydet'),
+              ),
             const SizedBox(height: 16),
             if (info != null)
               EnergyBadge(energy: info.energy)
@@ -104,7 +117,10 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-String _dailySubtitle(DailyHome? daily) => switch (daily?.status) {
+String _dailySubtitle(DailyHome? daily) =>
+    _dailyStatus(daily) + ((daily?.streak ?? 0) > 0 ? ' · 🔥 ${daily!.streak} gün' : '');
+
+String _dailyStatus(DailyHome? daily) => switch (daily?.status) {
       null => 'Şu an bulmaca yok',
       'new' => 'Bugünün kartlarını sırala · ücretsiz',
       'playing' => 'Devam et · ${3 - daily!.attemptsUsed} deneme hakkın kaldı',

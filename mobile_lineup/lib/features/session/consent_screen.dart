@@ -1,8 +1,8 @@
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
-import '../../core/models.dart';
-import '../../core/providers.dart';
+import 'legal_dialog.dart';
 import 'session_controller.dart';
 
 /// Legal texts to accept: before the first guest account, or after a new version is published.
@@ -35,7 +35,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
                 title: Text(doc.title),
                 subtitle: Text('${doc.kindLabel} · sürüm ${doc.version}'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => _showDocument(doc),
+                onTap: () => showLegalDocument(context, ref, doc),
               ),
             ),
           CheckboxListTile(
@@ -50,30 +50,14 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
             onPressed: _accepted ? () => ref.read(sessionProvider.notifier).accept() : null,
             child: const Text('Devam'),
           ),
+          if (session.newGuest) ...[
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.push('/login'),
+              child: const Text('Zaten hesabın var mı? Giriş yap'),
+            ),
+          ],
         ],
-      ),
-    );
-  }
-
-  Future<void> _showDocument(LegalDocument doc) {
-    final body = ref.read(authServiceProvider).legalBody(doc.kind);
-    return showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(doc.title),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: FutureBuilder<String>(
-            future: body,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) return Text('${snapshot.error}');
-              if (!snapshot.hasData) return const Center(heightFactor: 2, child: CircularProgressIndicator());
-              // Markdown shown as plain text for now (visual design phase can render it).
-              return SingleChildScrollView(child: SelectableText(snapshot.data!));
-            },
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Kapat'))],
       ),
     );
   }

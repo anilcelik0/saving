@@ -114,17 +114,11 @@ class _Board extends ConsumerWidget {
                     title: Text(card.title),
                     subtitle: Text([if (card.subtitle.isNotEmpty) card.subtitle, card.type, ...card.details].join(' · '),
                         maxLines: 2, overflow: TextOverflow.ellipsis),
-                    // Long press drags here, so reporting has its own button.
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ReportButton(card: card),
-                        ReorderableDragStartListener(
-                          index: i,
-                          enabled: !view.busy,
-                          child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.drag_handle)),
-                        ),
-                      ],
+                    // Card reports only on the result screen (by request).
+                    trailing: ReorderableDragStartListener(
+                      index: i,
+                      enabled: !view.busy,
+                      child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.drag_handle)),
                     ),
                   ),
                 ),

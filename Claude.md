@@ -35,7 +35,7 @@ app_manager/                          # repo root
 │   ├── requirements.txt         # single file, pinned versions
 │   ├── manage.py
 │   ├── core/                    # Django project package: settings.py, urls.py, celery.py, wsgi/asgi, base_models.py
-│   ├── accounts/                # shared: ClientApp registry + app-scoped users + JWT auth + legal docs/consents
+│   ├── accounts/                # shared: ClientApp registry + app-scoped users (guests, guest claim) + JWT auth + legal docs/consents
 │   ├── legal_texts/<app>/       # privacy.md, kvkk.md -> `publish_legal_documents <app>` (versioned in DB)
 │   ├── support/                 # shared: issue reports ("Sorun bildir") + attachments; client apps register
 │   │                            #   related-object snapshots in support.registry (e.g. "saving.statement")
@@ -59,7 +59,7 @@ app_manager/                          # repo root
         ├── main.dart / router.dart  # ProviderScope + MaterialApp.router; go_router redirects follow the session
         ├── config.dart          # API URL: debug -> http://10.0.2.2 (emulator), release -> production, --dart-define=API_URL
         ├── core/                # api_client (dio, JWT renewal: refresh -> guest re-login), token_store, models, providers
-        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, daily/, ...)
+        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, daily/, profile/)
 ```
 Planned later (decided in their phase): `lineup_social` (challenges), device tokens + Celery sends in `notifications`,
 shared `billing` (AdMob SSV + subscription webhooks; client apps register reward handlers like `support.registry`).

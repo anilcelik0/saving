@@ -3,7 +3,7 @@
 Line Up istemcisinin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 3 (Günlük bulmaca + paylaşım) — 2026-11-22
+**Son güncelleme:** Faz 4 (hesabı kaydetme, giriş, profil) — 2026-11-22
 
 ---
 
@@ -12,11 +12,11 @@ Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 ```mermaid
 flowchart LR
     subgraph Mobil["Android (Flutter) · mobile_lineup"]
-        UI[Ekranlar<br/>Başlangıç · Metin onayı · Ana ekran + enerji]
+        UI[Ekranlar<br/>Başlangıç · Metin onayı · Giriş · Ana ekran + enerji<br/>Profil · Hesabını kaydet]
         DEV[Geliştirici araçları<br/>test reklamı · push]
         MODES[Zaman Çizgisi · Seri · Günlük bulmaca<br/>sürükle-bırak · kaydır · dokun]
         SHARE[Paylaşım<br/>🟩🟨🟥 sonuç metni]
-        LATER[Meydan okuma · profil · Pro]
+        LATER[Google ile giriş · meydan okuma · Pro]
         API[ApiClient<br/>JWT + yenileme + misafir girişi]
         STORE[(Şifreli depo<br/>token + misafir şifresi)]
         UI --> API
@@ -26,10 +26,10 @@ flowchart LR
     end
 
     subgraph Sunucu["Docker Compose (Saving ile ortak sunucu)"]
-        ACC[accounts<br/>misafir hesap, giriş, metin onayı]
+        ACC[accounts<br/>misafir hesap, hesabı kaydetme, giriş,<br/>metin onayı, dondurma / silme]
         NOTIF[notifications<br/>FCM gönderimi]
         CARDS[lineup_cards<br/>kart havuzu + içe aktarma]
-        GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran,<br/>günlük bulmaca]
+        GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran,<br/>günlük bulmaca, profil]
         ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar, enerji]
         SUP[support<br/>kart hata bildirimi]
         DB[(PostgreSQL)]
@@ -62,18 +62,36 @@ sequenceDiagram
     M->>M: Şifreli depoda oturum var mı?
     alt Oturum var
         M->>S: GET /auth/me/
-        S-->>M: kullanıcı + onaylanmamış metinler
+        S-->>M: kullanıcı + onaylanmamış metinler + hesap durumu
         Note over M: Yeni metin sürümü varsa → onay ekranı → POST /auth/consents/
+        Note over M: Dondurulmuş / silinmeyi bekliyor → "Yeniden aç" (POST /auth/account/reactivate/) ya da çıkış
+    else Kayıtlı hesap vardı ama oturum yok (çıkış, dondurma, süre doldu)
+        M->>M: Giriş ekranı (e-posta dolu) · ya da "Misafir olarak yeni başla"
     else İlk açılış
         M->>S: GET /legal/lineup/
         S-->>M: gizlilik + KVKK (güncel sürümler)
-        M->>M: Onay ekranı (oku, işaretle, devam)
+        M->>M: Onay ekranı (oku, işaretle, devam) · "Zaten hesabın var mı? Giriş yap"
         M->>S: POST /auth/guest/ {app, accepted_documents}
         S-->>M: kullanıcı + misafir şifresi (bir kez) + JWT
         M->>M: Şifre ve token'ları şifreli depoya yaz
     end
-    Note over M,S: 401 → refresh token ile yenile; o da geçersizse misafir şifresiyle yeniden giriş
+    Note over M,S: 401 → refresh token ile yenile; misafirse misafir şifresiyle yeniden giriş, kayıtlıysa giriş ekranı
     M->>M: Ana ekran
+```
+
+## 2b. Hesabı kaydetme ve başka cihazda giriş
+
+```mermaid
+sequenceDiagram
+    participant M as Mobil
+    participant S as Sunucu (accounts)
+    M->>S: POST /auth/guest/claim/ {email, password, username?}
+    S->>S: aynı kullanıcı satırı: e-posta + şifre, misafir değil · eski oturumlar kapanır
+    S-->>M: kullanıcı + yeni JWT
+    M->>M: misafir şifresini sil, giriş adını sakla
+    Note over M,S: Yeni cihaz: onay ekranı → "Giriş yap" → POST /auth/login/ {app, identifier, password} → ilerleme geri gelir
+    M->>S: Profil: çıkış (POST /auth/logout/) · dondur / sil (şifreyle; misafir saklı şifresiyle)
+    Note over M,S: Google ile giriş: ertelendi (Faz 4.1b)
 ```
 
 ## 3. Kart havuzu ve içe aktarma
