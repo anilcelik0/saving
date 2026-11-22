@@ -1,9 +1,9 @@
 """
-Card import pipeline, the single way cards enter the pool in bulk. Rows come from an uploaded Excel/CSV or from a
-source adapter (lineup_cards.sources: Wikidata); both are normalized and validated against a card type's schema here,
-previewed in the admin (CardImport), then applied as an upsert by external key (or title when the key is empty).
-Automatic checks (warnings, never blocking): missing values, outliers, duplicate titles, no Turkish title, low
-popularity, future dates; adapters add their own notes in a "_warnings" column.
+Card import pipeline, the single way cards enter the pool in bulk: an uploaded Excel / CSV / JSON file (no live
+connection to an outside source, by decision 2026-11-22). Rows are normalized and validated against a card type's
+schema here, previewed in the admin (CardImport), then applied as an upsert by external key (or title when the key is
+empty). Automatic checks (warnings, never blocking): missing values, outliers, duplicate titles, no Turkish title, low
+popularity, future dates.
 
 Columns are machine keys: base columns + the type's attribute keys + its extra field keys.
 Dates: 1453 · 1453-05 · 1453-05-29 · 29.05.1453 · 05.1453 · -1200 / MÖ 1200. Numbers: 4479525 · 4.479.525 · 11891,5.
@@ -91,6 +91,16 @@ def build_template(card_type: CardType) -> bytes:
     return buffer.getvalue()
 
 
+def build_json_template(card_type: CardType) -> bytes:
+    """{"card_type", "columns": {key: explanation}, "cards": [one empty example]}: fill "cards" and upload it."""
+    import json
+
+    cols = columns(card_type)
+    example = {key: ([] if key == "tags" else "") for key, _ in cols}
+    data = {"card_type": card_type.key, "columns": dict(cols), "cards": [example]}
+    return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
+
 # ---------------------------------------------------------------- reading
 def read_file(name: str, content: bytes) -> list[dict]:
     """Rows as {column key: raw value}; raises ValueError (Turkish) for unreadable files."""
@@ -106,8 +116,10 @@ def read_file(name: str, content: bytes) -> list[dict]:
         text = content.decode("utf-8-sig", errors="replace")
         dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t") if text.strip() else csv.excel
         rows = list(csv.reader(io.StringIO(text), dialect))
+    elif lower.endswith(".json"):
+        return read_json(content)
     else:
-        raise ValueError("Yalnızca .xlsx veya .csv yüklenebilir.")
+        raise ValueError("Yalnızca .xlsx, .csv veya .json yüklenebilir.")
     if not rows:
         raise ValueError("Dosya boş.")
     header = [str(h or "").strip().lower() for h in rows[0]]
@@ -115,6 +127,38 @@ def read_file(name: str, content: bytes) -> list[dict]:
     if len(body) > MAX_ROWS:
         raise ValueError(f"En fazla {MAX_ROWS} satır içe aktarılabilir (dosyada {len(body)}).")
     return [{h: (r[i] if i < len(r) else None) for i, h in enumerate(header) if h} for r in body]
+
+
+def read_json(content: bytes) -> list[dict]:
+    """
+    A list of card objects, or {"cards": [...]} (the JSON template). Keys are the template's column keys; numbers may be
+    JSON numbers, dates strings ("1453", "1453-05-29", "-490"), tags a list or a comma-separated string.
+    """
+    import json
+
+    try:
+        data = json.loads(content.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError) as e:
+        raise ValueError(f"JSON okunamadı: {e}") from None
+    cards = data.get("cards") if isinstance(data, dict) else data
+    if not isinstance(cards, list) or not all(isinstance(c, dict) for c in cards):
+        raise ValueError('JSON bir kart listesi ya da {"cards": [...]} olmalı.')
+    if not cards:
+        raise ValueError("Dosya boş.")
+    if len(cards) > MAX_ROWS:
+        raise ValueError(f"En fazla {MAX_ROWS} kart içe aktarılabilir (dosyada {len(cards)}).")
+    rows = []
+    for card in cards:
+        row = {}
+        for key, value in card.items():
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value)
+            elif isinstance(value, bool) or isinstance(value, dict):
+                value = str(value)
+            row[str(key).strip().lower()] = value
+        rows.append(row)
+    keys = list(dict.fromkeys(k for r in rows for k in r))  # every key seen, so validate warns about unknown ones
+    return [{k: r.get(k) for k in keys} for r in rows]
 
 
 def _text(raw) -> str:
@@ -165,7 +209,7 @@ def validate(card_type: CardType, raw_rows: list[dict]) -> tuple[list[RowResult]
     known = set(BASE_KEYS) | set(schema) | set(field_keys)
     file_warnings = []
     if raw_rows:
-        unknown = sorted(set(raw_rows[0]) - known - {"_warnings"})
+        unknown = sorted(set(raw_rows[0]) - known)
         if unknown:
             file_warnings.append(f"Bilinmeyen sütunlar yok sayıldı: {', '.join(unknown)}")
         if "title" not in raw_rows[0]:
@@ -234,7 +278,6 @@ def validate(card_type: CardType, raw_rows: list[dict]) -> tuple[list[RowResult]
         missing = [e.attribute.name for k, e in schema.items() if e.is_required and k not in row.values]
         if data["title_lang"] != "tr":
             row.warnings.append("Türkçe başlık değil: onaylanamaz.")
-        row.warnings.extend(str(w) for w in (raw.get("_warnings") or []))
         if "popularity" in data and data["popularity"] < services.LOW_POPULARITY:
             row.warnings.append(f"Tanınırlık düşük ({data['popularity']}).")
         same_title = [c for c in by_title.get(title.casefold(), []) if key and c.external_key and c.external_key != key]

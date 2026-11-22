@@ -17,9 +17,6 @@
     <tr><th>Nitelik</th><th>Onaylı değer</th><th>En küçük</th><th>En büyük</th></tr>
     {% for r in t.ranges %}<tr><td>{{ r.name }}</td><td>{{ r.count }}</td><td>{{ r.low }}</td><td>{{ r.high }}</td></tr>{% endfor %}
   </table>
-  <p style="margin: 8px;">Kaynaklar:
-    {% for s in t.sources %}{{ s.name }}{% if s.last_run_at %} (son çekim {{ s.last_run_at|date:"d.m.Y" }}){% endif %}{% if not forloop.last %} · {% endif %}{% empty %}yok{% endfor %}
-  </p>
 </div>
 {% endfor %}
 {% endblock %}

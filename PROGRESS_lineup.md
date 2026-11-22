@@ -16,13 +16,10 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 #  - Invite link on the phone + its web page (http://localhost/lineup/c/KOD):
 adb shell am start -a android.intent.action.VIEW -d "https://appmanager.com.tr/lineup/c/KOD" tr.com.appmanager.lineup
 
-# Phase 7 check (admin, dev PC): new Celery task + beat entry -> restart web, worker and beat
-docker compose restart web celery_worker celery_beat
-#  - optional but asked by Wikimedia: in .env  WIKIMEDIA_USER_AGENT=LineUpCardImporter/1.0 (<your contact e-mail or URL>)
-#  - Admin > Kart kaynakları > Ekle: the preset links (İl / Film / Olay) fill the query; save
-#  - select the source > "Önizleme için çek (arka planda)" -> İçe aktarmalar: the preview (~30 s for 81 provinces
-#    with page views) -> check notes (several values, BC dates, outliers) -> "Geçerli satırları içe aktar"
-#  - Kartlar: staging Wikidata cards -> review / approve; Kart türleri > "Dağılım raporu" (+ set "hedef kart sayısı")
+# Phase 7 (admin, dev PC): restart web (code changed; migrations already applied)
+docker compose restart web
+#  - Kart türleri: template links "Excel · JSON"; Kartlar içe aktar accepts .xlsx / .csv / .json -> preview with checks
+#  - Kart türleri > "Dağılım raporu" (+ set "hedef kart sayısı")
 #  - 7.5, when enough real cards are approved (deletes data, so yours to run):
 docker compose exec web python manage.py seed_lineup_demo --purge
 ```
@@ -223,31 +220,22 @@ link / code and optionally sent to a username (push). Both modes; same rules for
 - Phase 6 done 2026-11-22 (reminder / link device check pending, by the user).
 
 ## Phase 7: Real data pipeline (deliberately last)
-- [x] **7.1** Sources (M/L): `CardSource` (card type, SPARQL query, tags, limit, page views on/off, monthly on/off,
-  last run / error) → `sources.run_source` → the same pipeline (`importer.validate` → `CardImport` preview, linked to
-  its source → apply to staging). `sources/wikidata.py`: variable contract (`?item ?title_tr ?title_mul ?title_en
-  ?sitelinks ?trwiki ?<attr> ?<attr>_precision/_date/_rank ?<field>`), rows merged per item, one value per attribute
-  (preferred rank → latest point in time → dates: earliest, numbers: most frequent then smallest = same pick every
-  run), Wikidata BC years converted (astronomical -489 = MÖ 490), precision coarser than a year refused, retries on
-  429. Presets checked live (`sources/presets.py`): 81 provinces (population, km², region where Wikidata has it:
-  13), ~72 films (80+ Wikipedias: date = first release, director), ~146 battles (40+ Wikipedias, point in time or
-  start). Wikidata's language-independent `mul` label counts as Turkish (flagged for a spelling check).
-  Admin: sources with preset links, "Önizleme için çek" (Celery `fetch_source`).
-- [x] **7.2** Checks (M) in `importer.validate` (Excel too, warnings only): source notes (different values > 1 % /
-  different years, BC date, no trwiki article, `mul` label), outliers (robust z > 5 on log scale for positive
-  numbers), duplicate titles (batch or other external key), low popularity, future dates, no Turkish title, missing
-  values. Popularity (`sources/popularity.py`) = mean of sitelinks score (log, 250 = 100) and trwiki monthly views
-  score (log, 100k = 100; last 3 full months), sitelinks alone without a trwiki article.
-- [x] **7.3** Monthly refresh (S): beat `lineup_cards.tasks.refresh_sources` on the 1st at 04:30 → `run_source(...,
-  auto_apply=True)`: new and changed cards go to staging (an approved card whose value changed is reviewed again;
-  unchanged cards stay approved).
+Decision 2026-11-22 (by request): **no live source connection.** The Wikidata adapter (sources, presets, page views,
+monthly refresh) was built and then removed (migration 0004, its tables were empty); card data comes later as JSON
+files through the same import pipeline. Kept: the automatic checks and the report.
+- [x] **7.1** JSON import (S): `.json` upload (a list of cards or `{"cards": [...]}`; keys = template columns; numbers
+  as JSON numbers or text, dates "1453" / "1453-05-29" / "-490", tags a list or comma text) next to Excel / CSV;
+  per type JSON template (`{"card_type", "columns": {key: explanation}, "cards": [example]}`), "Şablon: Excel · JSON".
+- [x] **7.2** Checks (M) in `importer.validate` (every format, warnings only): outliers (robust z > 5, log scale for
+  positive numbers), duplicate titles (in the file or another external key), low popularity, future dates, no Turkish
+  title, missing values. Popularity is given in the file (0-100).
+- [-] **7.3** Monthly refresh: dropped with the live source.
 - [x] **7.4** Report (S): `CardType.target_count`, "hedef" column, admin "Dağılım raporu" (approved vs target,
-  staging / rejected / demo / non-Turkish counts, popularity buckets, value range per attribute, sources).
-  Check 22/22 against live Wikidata (rolled back, nothing left).
+  staging / rejected / demo / non-Turkish counts, popularity buckets, value range per attribute).
+  Check 15/15 (JSON parse / template / admin upload / apply / checks / report; rolled back).
 - [~] **7.5** Purge demo cards (S): `seed_lineup_demo --purge` when enough real cards are approved (user, deletes
   data). Runs / puzzles on demo decks then answer `card_missing`. The production DB was never seeded (report: demo 0).
-- Phase 7 notes: set `WIKIMEDIA_USER_AGENT` with a contact (Wikimedia policy) before heavy use; the provinces'
-  region exists on Wikidata for 13 of 81 (optional field, can be filled by Excel import with a source).
+- [ ] **7.6** (later, user) Prepare the real card JSON files (values from sources, never invented) and import them.
 
 ## Phase 8: Visual design (dedicated phase)
 ## Phase 9: Release

@@ -47,9 +47,8 @@ app_manager/                          # repo root
 │   ├── saving_budget/           # accounts + computed balances, categories, transactions, payment plans (recurring/installment, auto-pay), monthly summary, statement parsing
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
 │   ├── saving_reports/          # aggregated reporting endpoints
-│   ├── lineup_cards/            # card pool: flexible schema, importer.py (template -> preview -> staging + checks),
-│   │                            #   sources/ (Wikidata adapter, presets, popularity; monthly refresh task),
-│   │                            #   `seed_lineup_demo [--purge]` (fictional demo cards)
+│   ├── lineup_cards/            # card pool: flexible schema, importer.py (Excel / CSV / JSON template -> preview
+│   │                            #   with checks -> staging), distribution report, `seed_lineup_demo [--purge]`
 │   ├── lineup_social/           # invite challenges from a finished run (link / code / username), public /lineup/c/<code>
 │   └── lineup_games/            # runs + moves, home/energy, daily puzzle API (/api/v1/lineup/games/); engine/ = pure-Python engine,
 │                                #   tests: `python manage.py test lineup_games`
@@ -111,7 +110,8 @@ Planned later (decided in their phase): live race (Django Channels; see PROGRESS
    - **Energy:** lazy, no cron: `energy = min(max, stored + (now - last) / refill)`. Daily puzzle and accepting a challenge never cost energy.
    - **Card values come from sources, never invented** (`source_url` is optional, not a review warning). Exception: demo
      cards from the seed command, flagged `is_demo`, purged before release. A card value whose attribute is missing from
-     its type adds that attribute to the type as optional (admin save). One import pipeline; sources (Excel/CSV upload, later Wikidata) are adapters feeding it.
+     its type adds that attribute to the type as optional (admin save). One import pipeline: Excel / CSV / JSON upload; no live connection to outside sources (Wikidata adapter removed
+     2026-11-22 by request: card data comes later as JSON files).
    - **Guests:** first launch creates a guest user (empty email allowed; email unique per app only when set); later link
      Google or set email + password.
    - Card error reports use the shared `support` app (registry key `lineup.card`).

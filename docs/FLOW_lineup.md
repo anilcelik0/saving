@@ -3,7 +3,7 @@
 Line Up istemcisinin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 7 (Wikidata kaynağı, otomatik kontroller, aylık yenileme, dağılım raporu) — 2026-11-22
+**Son güncelleme:** Faz 7 (JSON içe aktarma, otomatik kontroller, dağılım raporu) — 2026-11-22
 
 ---
 
@@ -35,7 +35,7 @@ flowchart LR
     subgraph Sunucu["Docker Compose (Saving ile ortak sunucu)"]
         ACC[accounts<br/>misafir hesap, hesabı kaydetme, giriş,<br/>metin onayı, dondurma / silme]
         NOTIF[notifications<br/>cihaz token'ları, FCM gönderimi]
-        CARDS[lineup_cards<br/>kart havuzu + içe aktarma<br/>Wikidata kaynağı]
+        CARDS[lineup_cards<br/>kart havuzu + içe aktarma<br/>Excel / CSV / JSON]
         GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran,<br/>günlük bulmaca, profil]
         ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar, enerji]
         SUP[support<br/>kart hata bildirimi]
@@ -118,14 +118,12 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    T[Kart türü<br/>nitelikler + ek alanlar] -->|Şablon indir| X[Excel / CSV]
+    T[Kart türü<br/>nitelikler + ek alanlar] -->|Şablon indir| X[Excel / CSV / JSON]
     X -->|Dosya yükle| V[Doğrulama<br/>tarih/sayı biçimi, eksik değer,<br/>Türkçe başlık, tekrar]
     V --> P[Önizleme<br/>yeni · güncelle · değişmedi · hata]
     P -->|İçe aktar| S[Onay bekliyor<br/>dış anahtar ile güncelleme]
     S -->|Onayla: eksiksiz + Türkçe başlık| A[Onaylı kartlar<br/>oyun havuzu]
-    W[Wikidata kaynağı<br/>SPARQL + hazır sorgular] -->|satırlar: değerler, tanınırlık,<br/>kaynak notları| V
     V -.->|otomatik kontroller| K[Uyarılar<br/>aykırı değer, aynı başlık, MÖ tarih,<br/>farklı değerler, düşük tanınırlık]
-    B[Celery beat<br/>her ayın 1'i] -->|yenile: yeni + değişen| S
     D[seed_lineup_demo<br/>uydurma demo kartlar] -.->|yayından önce --purge| A
     A --> R[Dağılım raporu<br/>hedef, tanınırlık, değer aralığı]
 ```

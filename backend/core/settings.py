@@ -74,8 +74,6 @@ LINEUP_ENERGY_REFILL_MINUTES = env.int("LINEUP_ENERGY_REFILL_MINUTES", default=2
 LINEUP_ENERGY_GRACE_DAYS = env.int("LINEUP_ENERGY_GRACE_DAYS", default=3)
 LINEUP_DAILY_RESET = env.str("LINEUP_DAILY_RESET", default="07:30")  # Istanbul time a new daily puzzle starts
 LINEUP_DAILY_AD_CAP = env.int("LINEUP_DAILY_AD_CAP", default=10)  # rewarded ads per user and day
-# Wikimedia asks automated clients for a descriptive User-Agent with contact info (Wikidata / page views)
-WIKIMEDIA_USER_AGENT = env.str("WIKIMEDIA_USER_AGENT", default="LineUpCardImporter/1.0")
 LINEUP_CHALLENGE_DAYS = env.int("LINEUP_CHALLENGE_DAYS", default=7)  # a challenge can be accepted this long
 LINEUP_PUBLIC_URL = env.str("LINEUP_PUBLIC_URL", default="https://appmanager.com.tr")  # invite links (App Links)
 
@@ -182,11 +180,6 @@ CELERY_BEAT_SCHEDULE = {
     "support-purge-issue-attachments": {
         "task": "support.tasks.purge_issue_attachments",
         "schedule": crontab(hour=3, minute=30),
-    },
-    # Line Up card sources (Wikidata): monthly, new / changed cards to staging
-    "lineup-cards-refresh-sources": {
-        "task": "lineup_cards.tasks.refresh_sources",
-        "schedule": crontab(day_of_month=1, hour=4, minute=30),
     },
 }
 
