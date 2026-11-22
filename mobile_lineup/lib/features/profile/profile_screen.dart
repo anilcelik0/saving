@@ -6,6 +6,8 @@ import '../../core/api_client.dart';
 import '../../core/models.dart';
 import '../../core/providers.dart';
 import '../billing/reward_ads.dart';
+import '../home/home_data.dart';
+import '../notifications/local_notices.dart';
 import '../session/legal_dialog.dart';
 import '../session/session_controller.dart';
 import 'profile_data.dart';
@@ -89,6 +91,16 @@ class ProfileScreen extends ConsumerWidget {
               ),
             const _AdPrivacyTile(),
             const SizedBox(height: 16),
+            Text('Bildirimler', style: theme.textTheme.titleMedium),
+            const _NoticeSwitch(
+              prefKey: LocalNotices.prefEnergy,
+              title: 'Enerji dolunca haber ver',
+            ),
+            const _NoticeSwitch(
+              prefKey: LocalNotices.prefDaily,
+              title: 'Günlük bulmaca hatırlatması (07:30)',
+            ),
+            const SizedBox(height: 16),
             Text('Hesap', style: theme.textTheme.titleMedium),
             if (!user.isGuest) ...[
               ListTile(
@@ -142,6 +154,49 @@ class ProfileScreen extends ConsumerWidget {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
+}
+
+/// On-device reminder on / off (stored on this device).
+class _NoticeSwitch extends ConsumerStatefulWidget {
+  const _NoticeSwitch({required this.prefKey, required this.title});
+
+  final String prefKey;
+  final String title;
+
+  @override
+  ConsumerState<_NoticeSwitch> createState() => _NoticeSwitchState();
+}
+
+class _NoticeSwitchState extends ConsumerState<_NoticeSwitch> {
+  bool? _on;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.read(localNoticesProvider).enabled(widget.prefKey).then((v) {
+      if (mounted) setState(() => _on = v);
+    });
+  }
+
+  Future<void> _set(bool value) async {
+    setState(() => _on = value);
+    final notices = ref.read(localNoticesProvider);
+    await notices.setEnabled(widget.prefKey, value);
+    if (widget.prefKey == LocalNotices.prefDaily) {
+      await notices.dailyReminder();
+    } else {
+      final e = ref.read(homeProvider).value?.energy;
+      await notices.energyFullIn(value && e != null && !e.unlimited ? e.fullInSeconds : null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(widget.title),
+        value: _on ?? true,
+        onChanged: _on == null ? null : _set,
+      );
 }
 
 /// "Reklam gizlilik ayarları": only where Google's consent message applies (EEA / UK), as UMP requires.

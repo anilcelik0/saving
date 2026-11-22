@@ -39,7 +39,8 @@ app_manager/                          # repo root
 │   ├── legal_texts/<app>/       # privacy.md, kvkk.md -> `publish_legal_documents <app>` (versioned in DB)
 │   ├── support/                 # shared: issue reports ("Sorun bildir") + attachments; client apps register
 │   │                            #   related-object snapshots in support.registry (e.g. "saving.statement")
-│   ├── notifications/           # shared: FCM sends, one Firebase project per client (fcm.py, `send_test_push <app>`)
+│   ├── notifications/           # shared: FCM, one Firebase project per client (fcm.py, `send_test_push <app>`),
+│   │                            #   device tokens + notify(user, ...) → Celery send
 │   ├── billing/                 # shared: rewarded-ad intents + AdMob SSV, entitlements (Pro) + RevenueCat webhook;
 │   │                            #   client apps register rewards in billing.registry (e.g. "lineup.energy")
 │   ├── secrets/                 # git/docker-ignored keys: firebase-<app>.json (copied to the server by hand)
@@ -48,6 +49,7 @@ app_manager/                          # repo root
 │   ├── saving_reports/          # aggregated reporting endpoints
 │   ├── lineup_cards/            # card pool: flexible schema, importer.py (template -> preview -> staging),
 │   │                            #   `seed_lineup_demo [--purge]` (fictional demo cards)
+│   ├── lineup_social/           # invite challenges from a finished run (link / code / username), public /lineup/c/<code>
 │   └── lineup_games/            # runs + moves, home/energy, daily puzzle API (/api/v1/lineup/games/); engine/ = pure-Python engine,
 │                                #   tests: `python manage.py test lineup_games`
 ├── mobile/                      # Saving: Flet 1.x Android client (pyproject.toml, own .venv)
@@ -61,9 +63,9 @@ app_manager/                          # repo root
         ├── main.dart / router.dart  # ProviderScope + MaterialApp.router; go_router redirects follow the session
         ├── config.dart          # API URL: debug -> http://10.0.2.2 (emulator), release -> production, --dart-define=API_URL
         ├── core/                # api_client (dio, JWT renewal: refresh -> guest re-login), token_store, models, providers
-        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, daily/, profile/, billing/)
+        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, daily/, profile/, billing/, social/, notifications/)
 ```
-Planned later (decided in their phase): `lineup_social` (challenges), device tokens + Celery sends in `notifications`.
+Planned later (decided in their phase): live race (Django Channels; see PROGRESS "Later").
 
 ### Working Across Clients (IMPORTANT)
 - Before any change, identify the target client from the request (Saving: budget, statements, investments, reports, Flet;

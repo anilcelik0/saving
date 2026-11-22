@@ -9,17 +9,20 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# Phase 5 device check: restart the backend (new shared app `billing` + lineup code; migrations already applied)
-docker compose restart web
-#  - Rewarded ads use Google's TEST unit; on a debug build the server grants through the DEBUG-only dev endpoint
-#    (the real AdMob callback can't reach a dev PC). To see the energy limit, as in Phase 2 add to .env:
-#    LINEUP_ENERGY_GRACE_DAYS=0  (then `docker compose up -d web`; remove it afterwards)
-#  - Energy 0 -> "Enerjin bitti": "Reklam izle, +1 enerji" -> test ad -> watch to the end -> "+1 enerji kazandın"
-#    (closing the ad early gives nothing; "Bugün N reklam hakkın var" counts down, cap 10/day)
-#  - Seri / Zaman Çizgisi: lose -> "Reklam izle, devam et · +1 can" -> run continues with 1 life; only once per run
-#  - Pro: Home > "Line Up Pro" > "Pro'yu aç (30 gün)" (debug only) -> energy "sınırsız · Pro", end panel shows
-#    "Devam et (Pro)" without an ad, Bulmaca > history icon -> past puzzles playable (no streak for those)
-#  - "Pro'yu kapat" turns it off again
+# Phase 6 device check: new Celery task + new apps -> restart web AND the worker (migrations already applied)
+docker compose restart web celery_worker
+#  - New packages (local notifications, prefs) -> F5 does a full rebuild. Two devices make it easy:
+#    emulator = player A, Honor = player B (each its own guest; give B a username via Profil > Hesabını kaydet).
+#  - A: finish a Seri / Zaman Çizgisi run -> "Arkadaşına meydan oku" -> "Linki paylaş" + "Kullanıcı adına gönder" (B)
+#  - B: push "Meydan okuma!" -> tap -> challenge -> "Kabul et ve oyna (ücretsiz)" (no energy) -> finish -> "Sonucu gör"
+#  - A: push "Meydan okuma sonucu" -> challenge screen lists B with the score
+#  - Home: "Meydan okumalar · 1 yeni"; Meydan okumalar > "Kodla katıl" with the 6-letter code
+#  - Invite link on the phone (App Links are verified only on the real server; explicit package works now):
+adb shell am start -a android.intent.action.VIEW -d "https://appmanager.com.tr/lineup/c/KOD" tr.com.appmanager.lineup
+#  - Web page of a link: http://localhost/lineup/c/KOD in the PC browser
+#  - Reminders: Profil > Bildirimler (both on). Energy: with LINEUP_ENERGY_GRACE_DAYS=0 + LINEUP_ENERGY_REFILL_MINUTES=2
+#    in .env (`docker compose up -d web`), spend energy, close the app -> "Enerjin doldu" ~10 min later (inexact);
+#    daily: tomorrow 07:30. Remove the .env lines afterwards.
 ```
 
 ---
@@ -183,9 +186,10 @@ are at the end (Phase 9: 9.1-9.3), because SSV callbacks and RevenueCat webhooks
   ends the old user's). Lineup: Pro = unlimited energy, `POST runs/<id>/continue/` without an ad, daily archive
   (`daily/archive/`, `daily/?number=`, archive plays are `late` → no streak). DEBUG-only `dev/entitlements/`.
   Backend check 41/41 (signed SSV with a test key, RevenueCat events; rolled back, cache restored).
-- [~] **5.4** Mobile Pro (M): Pro screen (status, benefits, debug-only Pro toggle), home Pro tile, archive screen,
+- [x] **5.4** Mobile Pro (M): Pro screen (status, benefits, debug-only Pro toggle), home Pro tile, archive screen,
   energy "sınırsız · Pro", Pro continue. Store purchase (`purchases_flutter`, restore) → 9.2 (needs the RevenueCat
-  project + Play products). `flutter analyze` clean; waiting on the device check.
+  project + Play products). Checked on the Honor (after the fix: `set_entitlement` in its own transaction).
+- Phase 5 done 2026-11-22 (store / ad accounts and real end-to-end checks in 9.1-9.3).
 - [x] **5.5** UMP consent before the first ad + "Reklam gizlilik ayarları" in the profile where required; privacy +
   KVKK drafts updated for AdMob, Google Play, RevenueCat (abroad transfer). **Publishing them is a new version
   everyone re-accepts: run at release (9.3), or on dev to try the re-consent flow.** Have the texts reviewed by a
@@ -193,11 +197,27 @@ are at the end (Phase 9: 9.1-9.3), because SSV callbacks and RevenueCat webhooks
 - [x] **5.6** FLOW updated (rewarded ad + Pro diagram).
 
 ## Phase 6: Invite challenges + push
-- [ ] **6.1** `lineup_social`: challenge (code, mode, frozen deck, creator result, expiry), accept (free) → compare (M)
-- [ ] **6.2** App Links: `/.well-known/assetlinks.json` via nginx (list of all clients) + web fallback page for the invite link (M)
-- [ ] **6.3** Shared `notifications`: device tokens, Celery FCM sends; push on challenge received / result (M)
-- [ ] **6.4** Mobile: create/share, incoming list, result compare, deep links, push, local notifications (energy full, daily ready) (L, split)
-- [ ] **6.5** FLOW updated.
+Decisions (2026-11-22): a challenge is made from a finished run (same deck, its score is the target); shared by
+link / code and optionally sent to a username (push). Both modes; same rules for both sides (continue included).
+- [x] **6.1** `lineup_social` (M): `Challenge` (6-char code without 0/O/1/I, one per source run, 7 days
+  `LINEUP_CHALLENGE_DAYS`), `ChallengeInvite` (to a username → push + incoming list), `ChallengeEntry` (free challenge
+  run on the same frozen deck, one per user, accept again = same run). `Run.is_challenge`: not resumed from home,
+  not abandoned by normal starts, no records / stats. `lineup_games.signals.run_finished` → push the creator once.
+  API `lineup/social/challenges/` (lists, create), `<code>/`, `accept/`, `send/`.
+- [x] **6.2** Links (M): public page `/lineup/c/<code>` (who challenged, code, how to join; 404 page for unknown) and
+  `/.well-known/assetlinks.json` served by Django for every client with `android_package` + `ANDROID_SHA256_<APP>`
+  fingerprints (instead of an nginx file: config, not a file per server). Release fingerprint → 9.4.
+- [x] **6.3** Shared `notifications` (M, [shared]): `DeviceToken` (token follows the last user who registered it),
+  `POST/DELETE notifications/devices/`, `notify(user, title, body, data)` → Celery `send_push` after commit (only
+  active accounts; dead tokens deleted). Check 28/28 (rolled back; pushes captured).
+- [~] **6.4** Mobile (L): game screens open a given run (`?run=&challenge=`, providers per run id), end panel
+  "Arkadaşına meydan oku" / "Sonucu gör", challenges list (incoming / played / sent, join by code), challenge screen
+  (share, send to username, accept, results), home tile with new count; App Link intent filter + router keeps a link
+  until sign-in; push: token registered for the signed-in user (moved on account change, removed on logout / freeze /
+  delete), tap opens the challenge, SnackBar while open; local reminders (`flutter_local_notifications`, inexact):
+  energy full, daily puzzle 07:30, switches in the profile. compileSdk 37 (plugin requirement), desugaring on.
+  `flutter analyze` clean, debug APK builds; waiting on the device check.
+- [x] **6.5** FLOW updated (challenge + push diagram).
 
 ## Phase 7: Real data pipeline (deliberately last)
 - [ ] **7.1** Source adapter interface feeding the 1.3 import pipeline; Wikidata SPARQL adapter per card type (M/L)
@@ -234,6 +254,9 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
   release build with `--dart-define=ADMOB_REWARDED_UNIT=...` (+ the RevenueCat public key). Real SSV + webhook test
   on an internal-test build.
 - [ ] **9.3** `publish_legal_documents lineup` on the server (ads / subscription texts, 5.5).
+- [ ] **9.4** App Links: Play Console > App signing SHA-256 → server `.env` `ANDROID_SHA256_LINEUP=...`; check
+  `https://appmanager.com.tr/.well-known/assetlinks.json` and that an invite link opens the release app directly.
+  Play Store link on the invite page.
 - Icon/splash, signed AAB, Play forms (audience 13+, data safety: ads + advertising id + purchases), internal →
   closed test, metrics (D1/D7/D30, puzzle share rate, challenge accept rate).
 
@@ -260,3 +283,5 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
 - Monetization (Phase 5): rewards are granted only by the server (SSV, or the DEBUG-only dev grant on a dev PC);
   `BILLING_DEV_TOOLS` is forced off when DEBUG is off. Daily ad cap 10 (tunable). Archive plays never count for the
   daily streak.
+- Challenges (Phase 6): the public invite page shows the creator's username and score (meant for sharing). Logging in
+  from a guest on a phone moves that phone's push token to the new account.

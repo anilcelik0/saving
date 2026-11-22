@@ -3,7 +3,7 @@
 Line Up istemcisinin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 5 (ödüllü reklam, Pro, bulmaca arşivi; mağaza bağlantısı yayından önce) — 2026-11-22
+**Son güncelleme:** Faz 6 (meydan okuma, push, yerel hatırlatmalar) — 2026-11-22
 
 ---
 
@@ -17,25 +17,34 @@ flowchart LR
         MODES[Zaman Çizgisi · Seri · Günlük bulmaca<br/>sürükle-bırak · kaydır · dokun]
         SHARE[Paylaşım<br/>🟩🟨🟥 sonuç metni]
         ADS[Ödüllü reklam · Pro ekranı<br/>UMP izni]
-        LATER[Google ile giriş · meydan okuma ·<br/>mağazadan Pro satın alma]
+        SOC[Meydan okumalar<br/>link · kod · kullanıcı adı]
+        LOCAL[Yerel hatırlatmalar<br/>enerji doldu · bulmaca 07:30]
+        LATER[Google ile giriş · mağazadan Pro satın alma ·<br/>canlı yarış]
         API[ApiClient<br/>JWT + yenileme + misafir girişi]
         STORE[(Şifreli depo<br/>token + misafir şifresi)]
         UI --> API
         MODES --> API
         MODES --> SHARE
         MODES --> ADS
+        MODES --> SOC
+        SOC --> API
         ADS --> API
         API --- STORE
     end
 
     subgraph Sunucu["Docker Compose (Saving ile ortak sunucu)"]
         ACC[accounts<br/>misafir hesap, hesabı kaydetme, giriş,<br/>metin onayı, dondurma / silme]
-        NOTIF[notifications<br/>FCM gönderimi]
+        NOTIF[notifications<br/>cihaz token'ları, FCM gönderimi]
         CARDS[lineup_cards<br/>kart havuzu + içe aktarma]
         GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran,<br/>günlük bulmaca, profil]
         ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar, enerji]
         SUP[support<br/>kart hata bildirimi]
         BILL[billing<br/>ödül niyeti, SSV, Pro hakkı]
+        SOCIAL[lineup_social<br/>meydan okuma, davet, sonuç]
+        SOCIAL --> DB
+        SOCIAL --> GAMES
+        SOCIAL -->|notify| NOTIF
+        WORKER[Celery worker] --> NOTIF
         BILL --> DB
         GAMES --> BILL
         DB[(PostgreSQL)]
@@ -51,6 +60,8 @@ flowchart LR
     API -->|lineup.card| SUP
     NOTIF -->|firebase-admin| FCM[Firebase Cloud Messaging]
     FCM -->|bildirim| DEV
+    FCM -->|meydan okuma / sonuç| SOC
+    LINK[Davet linki<br/>/lineup/c/KOD] -->|App Links| SOC
     SHARE -->|Android paylaş menüsü| WA[WhatsApp vb.]
     DEV -->|test reklam birimi| ADMOB[AdMob]
     ADS -->|reklam + SSV seçenekleri| ADMOB
@@ -207,4 +218,32 @@ sequenceDiagram
     S-->>M: verildi → +1 enerji / tur 1 canla devam
     Note over M,S: Pro: sınırsız enerji · POST runs/<id>/continue/ reklamsız · geçmiş bulmacalar (seriye sayılmaz)
     Note over S: RevenueCat webhook → Pro hakkı (bitiş tarihi) · satın alma ekranı yayından önce (9.2)
+```
+
+## 8. Meydan okuma ve push
+
+```mermaid
+sequenceDiagram
+    participant A as Mobil (meydan okuyan)
+    participant S as Sunucu (lineup_social + notifications)
+    participant W as Celery + FCM
+    participant B as Mobil (davet edilen)
+    A->>S: tur bitti → POST /lineup/social/challenges/ {run}
+    S-->>A: kod (6 harf) + link /lineup/c/KOD (7 gün)
+    alt Link / kod
+        A->>B: WhatsApp vb. ile link (App Links uygulamayı açar) ya da kod
+    else Kullanıcı adı
+        A->>S: POST challenges/KOD/send/ {username}
+        S->>W: notify(B, "Meydan okuma!")
+        W->>B: push → dokununca meydan okuma ekranı
+    end
+    B->>S: POST challenges/KOD/accept/ (ücretsiz, enerji yok)
+    S-->>B: meydan okuma turu: aynı donmuş deste, aynı kurallar
+    loop hamleler (normal tur uç noktaları)
+        B->>S: POST runs/<id>/moves/
+    end
+    S->>W: tur bitti (run_finished) → notify(A, "B: 5 – 7")
+    W->>A: push "Meydan okuma sonucu"
+    Note over A,B: Meydan okuma turları ana ekranda devam ettirilmez, rekorlara sayılmaz
+    Note over B: Yerel hatırlatmalar (sunucusuz): enerji doldu · günlük bulmaca 07:30
 ```

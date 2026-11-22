@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../config.dart';
 import '../../core/providers.dart';
+import '../notifications/local_notices.dart';
 import '../session/session_controller.dart';
 import '../social/challenge_data.dart';
 import 'energy_widgets.dart';
@@ -26,6 +27,11 @@ class HomeScreen extends ConsumerWidget {
     if (session is! SessionReady) return const Scaffold();
     final user = session.user;
     final health = ref.watch(_healthProvider);
+    ref.watch(dailyReminderProvider);
+    ref.listen(homeProvider, (_, next) {
+      final e = next.value?.energy;
+      if (e != null) ref.read(localNoticesProvider).energyFullIn(e.unlimited ? null : e.fullInSeconds);
+    });
     final home = ref.watch(homeProvider);
     final info = home.value;
     final timeline = info?.playing['timeline'];
