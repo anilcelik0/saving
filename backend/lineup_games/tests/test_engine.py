@@ -437,3 +437,11 @@ class DailyTests(TestCase):
         for order in (list("abcde"), list("abcdeX"), list("abcdea")):
             with self.assertRaises(ValueError):
                 daily.submit(self.state, order, self.values)
+
+    def test_streaks(self):
+        self.assertEqual(daily.streaks(set(), 5), (0, 0))
+        self.assertEqual(daily.streaks({3, 4, 5}, 5), (3, 3))  # solved today
+        self.assertEqual(daily.streaks({3, 4}, 5), (2, 2))  # today still open: yesterday's run counts
+        self.assertEqual(daily.streaks({3, 4}, 5, current_lost=True), (0, 2))  # lost today
+        self.assertEqual(daily.streaks({1, 2, 3, 5}, 6), (1, 3))  # day 4 missed
+        self.assertEqual(daily.streaks({1, 2}, 6), (0, 2))

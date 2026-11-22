@@ -381,7 +381,44 @@ def daily_home(user) -> dict | None:
         "status": play.status if play and play.attempts else "new",
         "attempts_used": len(play.attempts) if play else 0,
         "solved_in": play.solved_in if play else None,
+        "streak": daily_streaks(user, puzzle, play)[0],
         "next_in_seconds": next_daily_seconds(),
+    }
+
+
+def daily_streaks(user, puzzle: DailyPuzzle, play: DailyPlay | None) -> tuple[int, int]:
+    """(current, best) consecutive solved puzzles; today's open puzzle does not break the run yet."""
+    won = set(DailyPlay.objects.filter(user=user, status=DailyPlay.Status.WON).values_list("puzzle__number", flat=True))
+    lost = bool(play and play.status == DailyPlay.Status.LOST)
+    return daily.streaks(won, puzzle.number, current_lost=lost)
+
+
+# ---------------------------------------------------------------- profile
+def profile_payload(user) -> dict:
+    """Stats per mode. Played = finished runs (abandoned ones and the run being played do not count)."""
+    done = [Run.Status.WON, Run.Status.LOST, Run.Status.FINISHED]
+    runs = Run.objects.filter(user=user, status__in=done).aggregate(
+        timeline_played=Count("id", filter=Q(mode=Run.Mode.TIMELINE)),
+        timeline_wins=Count("id", filter=Q(mode=Run.Mode.TIMELINE, status=Run.Status.WON)),
+        timeline_best=Max("score", filter=Q(mode=Run.Mode.TIMELINE)),
+        streak_played=Count("id", filter=Q(mode=Run.Mode.STREAK)),
+    )
+    plays = DailyPlay.objects.filter(user=user).exclude(status=DailyPlay.Status.PLAYING)
+    distribution = {str(n): 0 for n in range(1, daily.ATTEMPTS + 1)} | {"fail": 0}
+    for play in plays.only("status", "attempts"):
+        distribution[str(play.solved_in) if play.solved_in else "fail"] += 1
+    try:
+        puzzle = daily_puzzle()
+        current, best = daily_streaks(user, puzzle, DailyPlay.objects.filter(user=user, puzzle=puzzle).first())
+    except GameConflict:
+        current, best = 0, 0
+    played = sum(distribution.values())
+    return {
+        "timeline": {"played": runs["timeline_played"], "wins": runs["timeline_wins"],
+                     "best_score": runs["timeline_best"] or 0},
+        "streak": {"played": runs["streak_played"], "best": best_streak(user.pk)},
+        "daily": {"played": played, "solved": played - distribution["fail"], "current_streak": current,
+                  "best_streak": best, "distribution": distribution},
     }
 
 

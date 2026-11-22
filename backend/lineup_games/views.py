@@ -37,6 +37,15 @@ class HomeView(APIView):
         return Response(services.home_payload(request.user))
 
 
+class ProfileView(APIView):
+    """GET: stats per mode (Timeline wins/best, best streak, daily solved/streak/attempt distribution)."""
+
+    permission_classes = [IsLineupUser]
+
+    def get(self, request):
+        return Response(services.profile_payload(request.user))
+
+
 class RunListView(APIView):
     """
     GET ?mode=: the playing run of that mode (resume) + last finished runs.

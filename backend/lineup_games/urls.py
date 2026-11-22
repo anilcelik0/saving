@@ -1,11 +1,14 @@
 from django.urls import path
 
-from .views import DailyAttemptView, DailyView, HomeView, RunDetailView, RunListView, RunMoveView
+from .views import (
+    DailyAttemptView, DailyView, HomeView, ProfileView, RunDetailView, RunListView, RunMoveView,
+)
 
 app_name = "lineup_games"
 
 urlpatterns = [
     path("home/", HomeView.as_view(), name="home"),
+    path("profile/", ProfileView.as_view(), name="profile"),
     path("daily/", DailyView.as_view(), name="daily"),
     path("daily/attempts/", DailyAttemptView.as_view(), name="daily-attempts"),
     path("runs/", RunListView.as_view(), name="runs"),

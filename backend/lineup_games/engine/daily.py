@@ -82,3 +82,23 @@ def submit(state: DailyState, order: list[str], values: dict[str, Value]) -> Att
     attempts = state.attempts + (tuple(order),)
     status = WON if solved else LOST if len(attempts) >= state.max_attempts else PLAYING
     return AttemptResult(state=replace(state, attempts=attempts, status=status), marks=result, solved=solved)
+
+
+def streaks(won: set[int], current: int, current_lost: bool = False) -> tuple[int, int]:
+    """
+    (current, best) runs of consecutive solved puzzle numbers. The current run ends at today's puzzle when solved,
+    else at yesterday's while today is still open; losing today's puzzle (or missing a day) breaks it.
+    """
+    number = current if current in won else current - 1
+    now = 0
+    if not current_lost:
+        while number in won:
+            now += 1
+            number -= 1
+    best = run = 0
+    previous = None
+    for n in sorted(won):
+        run = run + 1 if previous is not None and n == previous + 1 else 1
+        best = max(best, run)
+        previous = n
+    return now, best
