@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'features/daily/daily_screen.dart';
 import 'features/dev/dev_tools_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/session/consent_screen.dart';
@@ -40,6 +41,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: 'dev', builder: (context, state) => const DevToolsScreen()),
           GoRoute(path: 'timeline', builder: (context, state) => const TimelineScreen()),
           GoRoute(path: 'streak', builder: (context, state) => const StreakScreen()),
+          GoRoute(path: 'daily', builder: (context, state) => const DailyScreen()),
         ],
       ),
     ],

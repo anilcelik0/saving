@@ -55,9 +55,34 @@ class PlayingRun {
   final int score;
 }
 
-/// `GET lineup/games/home/`: energy, runs to resume, records.
+/// Today's daily puzzle as far as the user got.
+class DailyHome {
+  const DailyHome({required this.number, required this.status, required this.attemptsUsed, required this.solvedIn});
+
+  factory DailyHome.fromJson(Map<String, dynamic> json) => DailyHome(
+        number: json['number'] as int,
+        status: json['status'] as String,
+        attemptsUsed: json['attempts_used'] as int,
+        solvedIn: json['solved_in'] as int?,
+      );
+
+  final int number;
+
+  /// new | playing | won | lost
+  final String status;
+  final int attemptsUsed;
+  final int? solvedIn;
+}
+
+/// `GET lineup/games/home/`: energy, runs to resume, records, today's puzzle.
 class HomeInfo {
-  const HomeInfo({required this.energy, required this.playing, required this.bestStreak, required this.timelineWins});
+  const HomeInfo({
+    required this.energy,
+    required this.playing,
+    required this.bestStreak,
+    required this.timelineWins,
+    required this.daily,
+  });
 
   factory HomeInfo.fromJson(Map<String, dynamic> json) {
     final playing = json['playing'] as Map<String, dynamic>;
@@ -69,6 +94,7 @@ class HomeInfo {
       },
       bestStreak: json['best_streak'] as int,
       timelineWins: json['timeline_wins'] as int,
+      daily: json['daily'] == null ? null : DailyHome.fromJson(json['daily'] as Map<String, dynamic>),
     );
   }
 
@@ -78,6 +104,9 @@ class HomeInfo {
   final Map<String, PlayingRun> playing;
   final int bestStreak;
   final int timelineWins;
+
+  /// null when no puzzle can be made (not enough cards).
+  final DailyHome? daily;
 }
 
 /// Refreshed by the game controllers after a start (energy spent) and when a run ends.

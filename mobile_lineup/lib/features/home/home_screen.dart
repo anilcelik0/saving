@@ -69,7 +69,12 @@ class HomeScreen extends ConsumerWidget {
                         '${(info?.bestStreak ?? 0) > 0 ? ' · rekor ${info!.bestStreak}' : ''}',
               onTap: () => context.go('/home/streak'),
             ),
-            const _ModeTile(icon: Icons.today, title: 'Günlük Bulmaca', subtitle: 'Yakında (Faz 3)'),
+            _ModeTile(
+              icon: Icons.today,
+              title: info?.daily == null ? 'Günlük Bulmaca' : 'Günlük Bulmaca #${info!.daily!.number}',
+              subtitle: _dailySubtitle(info?.daily),
+              onTap: info?.daily == null ? null : () => context.go('/home/daily'),
+            ),
             const SizedBox(height: 24),
             ListTile(
               dense: true,
@@ -98,6 +103,14 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 }
+
+String _dailySubtitle(DailyHome? daily) => switch (daily?.status) {
+      null => 'Şu an bulmaca yok',
+      'new' => 'Bugünün kartlarını sırala · ücretsiz',
+      'playing' => 'Devam et · ${3 - daily!.attemptsUsed} deneme hakkın kaldı',
+      'won' => '${daily!.solvedIn}. denemede çözdün · sonucu paylaş',
+      _ => 'Çözülemedi · yarın yeni bulmaca',
+    };
 
 class _ModeTile extends StatelessWidget {
   const _ModeTile({required this.icon, required this.title, required this.subtitle, this.onTap});

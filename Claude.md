@@ -46,7 +46,7 @@ app_manager/                          # repo root
 │   ├── saving_reports/          # aggregated reporting endpoints
 │   ├── lineup_cards/            # card pool: flexible schema, importer.py (template -> preview -> staging),
 │   │                            #   `seed_lineup_demo [--purge]` (fictional demo cards)
-│   └── lineup_games/            # runs + moves + home/energy API (/api/v1/lineup/games/); engine/ = pure-Python engine,
+│   └── lineup_games/            # runs + moves, home/energy, daily puzzle API (/api/v1/lineup/games/); engine/ = pure-Python engine,
 │                                #   tests: `python manage.py test lineup_games`
 ├── mobile/                      # Saving: Flet 1.x Android client (pyproject.toml, own .venv)
 │   ├── main.py                  # entry: builds AppState, ft.run(main)
@@ -59,7 +59,7 @@ app_manager/                          # repo root
         ├── main.dart / router.dart  # ProviderScope + MaterialApp.router; go_router redirects follow the session
         ├── config.dart          # API URL: debug -> http://10.0.2.2 (emulator), release -> production, --dart-define=API_URL
         ├── core/                # api_client (dio, JWT renewal: refresh -> guest re-login), token_store, models, providers
-        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, ...)
+        └── features/<feature>/  # screens + Riverpod controllers + services (session/, home/ + energy, timeline/, streak/, daily/, ...)
 ```
 Planned later (decided in their phase): `lineup_social` (challenges), device tokens + Celery sends in `notifications`,
 shared `billing` (AdMob SSV + subscription webhooks; client apps register reward handlers like `support.registry`).
@@ -95,7 +95,7 @@ shared `billing` (AdMob SSV + subscription webhooks; client apps register reward
    - **Seeded, frozen decks:** a seed always yields the same deck for the same pool; the resolved card ids are stored on
      the run / daily puzzle / challenge at creation, so later pool changes never alter them.
    - **Engine:** `lineup_games/engine/` is pure Python (no ORM/request), takes plain DTOs: one rules module per mode
-     (`timeline.py`, `streak.py`), deck generators with their difficulty params (min value gap, popularity threshold,
+     (`timeline.py`, `streak.py`, `daily.py`), deck generators with their difficulty params (min value gap, popularity threshold,
      category mix) in `decks.py`, lazy energy in `energy.py`.
    - **Flexible card model:** new categories need no migration. `Attribute` (comparable value: number or date + unit +
      compare labels) · `CardType` (schema: required/optional attributes, display fields) · `Card` (title, popularity

@@ -3,7 +3,7 @@
 Line Up istemcisinin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 2 (Seri modu, enerji, ana ekran) — 2026-11-22
+**Son güncelleme:** Faz 3 (Günlük bulmaca + paylaşım) — 2026-11-22
 
 ---
 
@@ -14,12 +14,14 @@ flowchart LR
     subgraph Mobil["Android (Flutter) · mobile_lineup"]
         UI[Ekranlar<br/>Başlangıç · Metin onayı · Ana ekran + enerji]
         DEV[Geliştirici araçları<br/>test reklamı · push]
-        MODES[Zaman Çizgisi · Seri<br/>sürükle-bırak · kaydır · dokun]
-        LATER[Günlük bulmaca]
+        MODES[Zaman Çizgisi · Seri · Günlük bulmaca<br/>sürükle-bırak · kaydır · dokun]
+        SHARE[Paylaşım<br/>🟩🟨🟥 sonuç metni]
+        LATER[Meydan okuma · profil · Pro]
         API[ApiClient<br/>JWT + yenileme + misafir girişi]
         STORE[(Şifreli depo<br/>token + misafir şifresi)]
         UI --> API
         MODES --> API
+        MODES --> SHARE
         API --- STORE
     end
 
@@ -27,7 +29,7 @@ flowchart LR
         ACC[accounts<br/>misafir hesap, giriş, metin onayı]
         NOTIF[notifications<br/>FCM gönderimi]
         CARDS[lineup_cards<br/>kart havuzu + içe aktarma]
-        GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran]
+        GAMES[lineup_games<br/>tur, hamle, enerji, ana ekran,<br/>günlük bulmaca]
         ENGINE[engine<br/>saf Python: deste, eşitlik, kurallar, enerji]
         SUP[support<br/>kart hata bildirimi]
         DB[(PostgreSQL)]
@@ -43,6 +45,7 @@ flowchart LR
     API -->|lineup.card| SUP
     NOTIF -->|firebase-admin| FCM[Firebase Cloud Messaging]
     FCM -->|bildirim| DEV
+    SHARE -->|Android paylaş menüsü| WA[WhatsApp vb.]
     DEV -->|test reklam birimi| ADMOB[AdMob]
     ADM[Django admin<br/>şablon → yükle → önizle → onay] --> CARDS
 
@@ -128,4 +131,28 @@ sequenceDiagram
         end
         Note over M,S: ilk hatada tur biter (1 can) · rekor = en uzun seri · devam hakkı Faz 5'te
     end
+```
+
+## 6. Günlük bulmaca ve paylaşım
+
+```mermaid
+sequenceDiagram
+    participant M as Mobil
+    participant S as Sunucu (lineup_games)
+    participant E as Motor (saf Python)
+    M->>S: GET /lineup/games/daily/
+    alt Günün ilk isteği (İstanbul saati)
+        S->>E: rastgele nitelik + tohum → 6 kart (tanınmış, değerler arası boşluk, sıralı gösterilmez)
+        S->>S: DailyPuzzle (tarih tekil, no +1, deste donar)
+    end
+    S-->>M: herkese aynı 6 kart (değersiz) · denemeler · yeni bulmacaya kalan süre
+    loop en fazla 3 deneme (enerji harcamaz)
+        M->>M: kartları sürükleyerek sırala
+        M->>S: POST daily/attempts/ {number, order}
+        S->>E: her yer: 🟩 doğru · 🟨 bir yer yanında · 🟥 daha uzakta (eşitlikte iki yer de doğru)
+        S-->>M: işaretler + yeni durum
+    end
+    S-->>M: bitince: değerler + doğru sıra + paylaşım metni
+    M->>M: "Sonucu paylaş" → Line Up · Günlük #12 (Nüfus) / 🟥🟨🟩… / 🟩🟩🟩… – 2. deneme
+    Note over M,S: gün değiştiyse 409 daily_expired → yeni bulmaca yüklenir · kart adları paylaşılmaz (spoiler yok)
 ```

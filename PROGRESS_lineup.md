@@ -9,14 +9,13 @@ Legend: `[x]` done · `[~]` in progress / waiting on user · `[ ]` todo · Size:
 ## ⏳ Waiting on user (pending commands)
 
 ```powershell
-# Phase 2 device check: VS Code F5 "Line Up (dev backend)" (backend already migrated)
-#  - Home: energy line. Your guest is < 3 days old -> "Enerji: sınırsız" (new-player grace).
-#  - To see the limit, add to .env:  LINEUP_ENERGY_GRACE_DAYS=0  and  LINEUP_ENERGY_REFILL_MINUTES=2 , then:
-docker compose up -d web
-#  - Seri: swipe the card up/down (or the buttons); wrong guess ends the run; record on the end panel + home
-#  - start runs until energy is 0 -> "Enerjin bitti" dialog; after 2 min the home line shows +1
-#  - leave a run and come back: home shows "Devam eden ..." and the screen resumes it (no energy spent)
-#  - afterwards delete the two .env lines and run `docker compose up -d web` again
+# Phase 3 device check: VS Code F5 "Line Up (dev backend)" (backend already migrated: 0004_daily_puzzle)
+#  - new package share_plus -> F5 does a full rebuild (not a hot reload)
+#  - Home: "Günlük Bulmaca #1 · Bugünün kartlarını sırala · ücretsiz"
+#  - Bulmaca: drag the cards (handle on the right = instant, anywhere on the card = long press), "Kontrol et";
+#    🟩/🟨/🟥 colors stay on cards not moved since; 3 attempts; energy does not change
+#  - Result: correct order with values (long press = Hata bildir), "Sonucu paylaş" -> WhatsApp / Notes
+#  - Home tile shows "2. denemede çözdün" / "Çözülemedi"; countdown to the next puzzle (Istanbul midnight)
 ```
 
 ---
@@ -113,17 +112,27 @@ Goal: `lineup` exists as a client, a guest can log in from a Flutter app on a re
   wins); `POST runs/ {mode: streak}`; `moves/ {guess}`; `runs/?mode=`; starting a mode abandons its playing run;
   409 `no_energy` / `invalid_guess`. `Run.score` stored (migration 0003 fills old timeline runs), `continues_used`,
   `Move.guess`; Energy admin. Check 26/26 (rolled back).
-- [~] **2.4** Mobile (M) — `features/streak/` (open card with value, swipe up/down or buttons, history, end panel with
+- [x] **2.4** Mobile (M) — `features/streak/` (open card with value, swipe up/down or buttons, history, end panel with
   record + disabled "Reklam izle, devam et"), `home/energy_widgets.dart` (live countdown, "Enerjin bitti" dialog with
-  disabled ad/Pro buttons), home tiles with resume/record, ⚡1 on start buttons. `flutter analyze` clean; waiting on
-  the device check.
+  disabled ad/Pro buttons), home tiles with resume/record, ⚡1 on start buttons. Checked on the Honor.
+- Phase 2 done 2026-11-22.
 - [x] **2.5** FLOW updated (energy + streak run diagram).
 
 ## Phase 3: Daily puzzle + share
-- [ ] **3.1** Engine `DailyGenerator` (6 cards) + per-position attempt scoring + tests (S)
-- [ ] **3.2** `DailyPuzzle` (unique date, Europe/Istanbul, frozen deck, created lazily), max 3 attempts, no energy, share text `🟩🟨🟥 – 2. deneme` (S/M)
-- [ ] **3.3** Mobile: reorder screen, attempt feedback, result + `share_plus`, home status (M)
-- [ ] **3.4** FLOW updated.
+- [x] **3.1** Engine (S) — `engine/daily.py`: 6 cards, 3 attempts; per position 🟩 right (inside the card's rank
+  range, so ties accept either place) / 🟨 one place off / 🟥 further; solved = all right; `solution`.
+  `decks.daily_deck`: normal difficulty (popularity ≥ 40, 4 years / 12% gap), else the whole pool; never dealt
+  already sorted. Engine tests 61 OK.
+- [x] **3.2** API (S/M) — `DailyPuzzle` (unique date + number, Europe/Istanbul, random playable attribute, frozen
+  deck, created by the first request of the day), `DailyPlay` (user + puzzle unique, attempts with marks, status).
+  `GET daily/` (cards in the current order, values + solution + share text only when finished, seconds to the next
+  puzzle), `POST daily/attempts/ {number, order}` (409 `daily_expired` / `daily_over` / `invalid_order`; free).
+  Home gets `daily`. Admin: puzzles with plays. Migration 0004; check 24/24 (rolled back).
+- [~] **3.3** Mobile (M) — `features/daily/`: reorderable list (handle = instant drag, card = long press), marks of
+  the last attempt stay on unmoved cards, attempt rows, result with values + "Sonucu paylaş" (`share_plus`),
+  countdown to the next puzzle (reloads at midnight), home tile status. `flutter analyze` clean; waiting on the
+  device check.
+- [x] **3.4** FLOW updated (daily puzzle + share diagram).
 
 ## Phase 4: Account linking + profile
 - [ ] **4.1** Shared `accounts`: Google sign-in (server verifies the ID token; Google id per app), link to guest, login on a new device (M)
@@ -192,3 +201,5 @@ docker compose exec web python manage.py send_test_push lineup --title "Sunucuda
 - Defaults to tune later: Timeline win = line reaches 10 cards (start card + 9), 3 lives; Streak 1 life + one ad
   continue per run; energy max 5, +1 every 25 min, no limit for new players' first days.
 - Fake test data is fine until Phase 7, flagged `is_demo`.
+- Daily puzzle: only today's puzzle is playable (archive = Pro, 5.3). Share text has no card names (no spoilers);
+  the invite link joins it in Phase 6. Daily streak (consecutive days) comes with the profile stats (4.2).
