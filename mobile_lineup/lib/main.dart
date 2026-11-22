@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'features/notifications/push.dart';
 import 'router.dart';
 
 Future<void> main() async {
@@ -21,8 +22,10 @@ class LineUpApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(pushSessionProvider); // registers this device for push once a user is signed in
     return MaterialApp.router(
       title: 'Line Up',
+      scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.indigo),
       routerConfig: ref.watch(routerProvider),

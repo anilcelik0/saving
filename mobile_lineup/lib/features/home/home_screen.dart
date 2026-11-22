@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../config.dart';
 import '../../core/providers.dart';
 import '../session/session_controller.dart';
+import '../social/challenge_data.dart';
 import 'energy_widgets.dart';
 import 'home_data.dart';
 
@@ -41,7 +42,10 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(homeProvider.future),
+        onRefresh: () {
+          ref.invalidate(challengeListsProvider);
+          return ref.refresh(homeProvider.future);
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -88,6 +92,20 @@ class HomeScreen extends ConsumerWidget {
               subtitle: _dailySubtitle(info?.daily),
               onTap: info?.daily == null ? null : () => context.go('/home/daily'),
             ),
+            Builder(builder: (context) {
+              final incoming = ref.watch(challengeListsProvider).value?.incoming.length ?? 0;
+              return _ModeTile(
+                icon: Icons.sports_kabaddi,
+                title: incoming > 0 ? 'Meydan okumalar · $incoming yeni' : 'Meydan okumalar',
+                subtitle: incoming > 0
+                    ? 'Sana meydan okuyanlar var · kabul etmek ücretsiz'
+                    : 'Bir turu bitir, linkle ya da kullanıcı adıyla meydan oku',
+                onTap: () async {
+                  await context.push('/home/challenges');
+                  ref.invalidate(challengeListsProvider);
+                },
+              );
+            }),
             _ModeTile(
               icon: Icons.workspace_premium,
               title: (info?.pro.active ?? false) ? 'Pro üyeliğin aktif' : 'Line Up Pro',

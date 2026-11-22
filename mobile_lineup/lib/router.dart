@@ -14,20 +14,27 @@ import 'features/session/inactive_screen.dart';
 import 'features/session/login_screen.dart';
 import 'features/session/session_controller.dart';
 import 'features/session/start_screen.dart';
+import 'features/social/challenge_screens.dart';
 import 'features/streak/streak_screen.dart';
 import 'features/timeline/timeline_screen.dart';
 
 /// Routes follow the session: loading/error → `/`, legal texts → `/consent` (a new device may open `/login` from
 /// there), registered account without a session → `/login`, frozen account → `/inactive`, signed in → `/home`.
+/// An invite link (App Link `https://<server>/lineup/c/<code>`) opens the challenge, after sign-in if needed.
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier(0);
   ref.listen(sessionProvider, (_, _) => refresh.value++);
   ref.onDispose(refresh.dispose);
+  String? pendingLink; // a deep link that arrived before the session was ready
 
   return GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
     redirect: (context, state) {
+      final location = state.matchedLocation;
+      if (location.startsWith('/lineup/c/')) {
+        pendingLink = '/home/challenges/${state.pathParameters['code'] ?? location.split('/').last}';
+      }
       final session = ref.read(sessionProvider);
       final value = session.isLoading || session.hasError ? null : session.value;
       final target = switch (value) {
@@ -37,12 +44,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         SessionInactive() => '/inactive',
         SessionReady() => '/home',
       };
+      if (target == '/home' && pendingLink != null) {
+        final link = pendingLink;
+        pendingLink = null;
+        return link;
+      }
       if (target == '/home' && state.matchedLocation.startsWith('/home')) return null;
       if (value is SessionNeedsConsent && value.newGuest && state.matchedLocation == '/login') return null;
       return state.matchedLocation == target ? null : target;
     },
     routes: [
       GoRoute(path: '/', builder: (context, state) => const StartScreen()),
+      GoRoute(path: '/lineup/c/:code', builder: (context, state) => const StartScreen()), // redirected above
       GoRoute(path: '/consent', builder: (context, state) => const ConsentScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/inactive', builder: (context, state) => const InactiveScreen()),
@@ -51,8 +64,31 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HomeScreen(),
         routes: [
           GoRoute(path: 'dev', builder: (context, state) => const DevToolsScreen()),
-          GoRoute(path: 'timeline', builder: (context, state) => const TimelineScreen()),
-          GoRoute(path: 'streak', builder: (context, state) => const StreakScreen()),
+          // ?run=<id>&challenge=<code>: a challenge run
+          GoRoute(
+            path: 'timeline',
+            builder: (context, state) => TimelineScreen(
+              runId: state.uri.queryParameters['run'],
+              challengeCode: state.uri.queryParameters['challenge'],
+            ),
+          ),
+          GoRoute(
+            path: 'streak',
+            builder: (context, state) => StreakScreen(
+              runId: state.uri.queryParameters['run'],
+              challengeCode: state.uri.queryParameters['challenge'],
+            ),
+          ),
+          GoRoute(
+            path: 'challenges',
+            builder: (context, state) => const ChallengesScreen(),
+            routes: [
+              GoRoute(
+                path: ':code',
+                builder: (context, state) => ChallengeScreen(code: state.pathParameters['code']!),
+              ),
+            ],
+          ),
           GoRoute(path: 'daily', builder: (context, state) => const DailyScreen()),
           GoRoute(
             path: 'archive',

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../home/energy_widgets.dart';
 import '../billing/continue_offer.dart';
+import '../social/challenge_buttons.dart';
 import '../support/card_report_dialog.dart';
 import 'timeline_controller.dart';
 import 'timeline_models.dart';
@@ -14,13 +15,18 @@ import 'timeline_models.dart';
 /// Timeline mode: a vertical line (lower values on top), the new card at the bottom. Drag the card onto a gap,
 /// or tap a gap. Every rule is checked by the server; there is no move timer.
 class TimelineScreen extends ConsumerStatefulWidget {
-  const TimelineScreen({super.key});
+  const TimelineScreen({super.key, this.runId, this.challengeCode});
+
+  /// A challenge run (null = the normal run being played, or the difficulty picker).
+  final String? runId;
+  final String? challengeCode;
 
   @override
   ConsumerState<TimelineScreen> createState() => _TimelineScreenState();
 }
 
 class _TimelineScreenState extends ConsumerState<TimelineScreen> {
+  late final _provider = timelineProvider(widget.runId);
   final _scroll = ScrollController();
   final _listKey = GlobalKey();
   Timer? _autoScroll;
@@ -71,12 +77,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
 
   void _place(int slot) {
     _stopAutoScroll();
-    ref.read(timelineProvider.notifier).place(slot);
+    ref.read(_provider.notifier).place(slot);
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(timelineProvider, (previous, next) {
+    ref.listen(_provider, (previous, next) {
       final view = next.value;
       if (view == null) return;
       if (view.error != null) {
@@ -91,12 +97,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       }
     });
 
-    final async = ref.watch(timelineProvider);
+    final async = ref.watch(_provider);
     final view = async.value;
     final run = view?.run;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Zaman Çizgisi'),
+        title: Text(widget.challengeCode == null ? 'Zaman Çizgisi' : 'Meydan okuma'),
         actions: [
           if (run != null) ...[
             for (var i = 0; i < 3; i++)
@@ -113,7 +119,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           AsyncValue(hasError: true) => _Message(
               text: '${async.error}',
               action: 'Tekrar dene',
-              onAction: () => ref.invalidate(timelineProvider),
+              onAction: () => ref.invalidate(_provider),
             ),
           _ when view == null => const Center(child: CircularProgressIndicator()),
           _ when run == null => _DifficultyPicker(busy: view.busy),
@@ -169,7 +175,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
             onDragFinished: _stopAutoScroll,
           )
         else
-          _EndPanel(run: run),
+          _EndPanel(run: run, provider: _provider, challengeCode: widget.challengeCode),
       ],
     );
   }
@@ -183,7 +189,7 @@ class _DifficultyPicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(timelineProvider.notifier);
+    final controller = ref.read(timelineProvider(null).notifier);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -399,9 +405,13 @@ class _ResultBanner extends StatelessWidget {
 }
 
 class _EndPanel extends ConsumerWidget {
-  const _EndPanel({required this.run});
+  const _EndPanel({required this.run, required this.provider, required this.challengeCode});
 
   final RunState run;
+  final AsyncNotifierProvider<TimelineController, TimelineView> provider;
+
+  /// Set for a challenge run: no new run from here, the result goes back to the challenge.
+  final String? challengeCode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -419,13 +429,23 @@ class _EndPanel extends ConsumerWidget {
           Text('Skor: ${run.score}/${run.goal}'),
           if (run.canContinue) ...[
             const SizedBox(height: 8),
-            ContinueOffer(runId: run.id, onResumed: ref.read(timelineProvider.notifier).reload),
+            ContinueOffer(runId: run.id, onResumed: ref.read(provider.notifier).reload),
+          ],
+          if (challengeCode == null && !run.isPlaying) ...[
+            const SizedBox(height: 8),
+            ChallengeFromRunButton(runId: run.id),
           ],
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              FilledButton(onPressed: () => ref.read(timelineProvider.notifier).newRun(), child: const Text('Yeni tur')),
+              if (challengeCode != null)
+                FilledButton(
+                  onPressed: () => context.go('/home/challenges/$challengeCode'),
+                  child: const Text('Sonucu gör'),
+                )
+              else
+                FilledButton(onPressed: () => ref.read(provider.notifier).newRun(), child: const Text('Yeni tur')),
               const SizedBox(width: 12),
               OutlinedButton(onPressed: () => context.go('/home'), child: const Text('Ana menü')),
             ],

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../billing/continue_offer.dart';
+import '../social/challenge_buttons.dart';
 import '../home/energy_widgets.dart';
 import '../home/home_data.dart';
 import '../support/card_report_dialog.dart';
@@ -19,11 +20,16 @@ String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 /// Streak mode: the open card shows its value; swipe the next card up (higher) or down (lower), or use the buttons.
 /// One mistake ends the run. The server judges every guess.
 class StreakScreen extends ConsumerWidget {
-  const StreakScreen({super.key});
+  const StreakScreen({super.key, this.runId, this.challengeCode});
+
+  /// A challenge run (null = the normal run being played, or the intro).
+  final String? runId;
+  final String? challengeCode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.listen(streakProvider, (previous, next) {
+    final provider = streakProvider(runId);
+    ref.listen(provider, (previous, next) {
       final view = next.value;
       if (view == null) return;
       if (view.error != null) {
@@ -38,12 +44,12 @@ class StreakScreen extends ConsumerWidget {
       }
     });
 
-    final async = ref.watch(streakProvider);
+    final async = ref.watch(provider);
     final view = async.value;
     final run = view?.run;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Seri'),
+        title: Text(challengeCode == null ? 'Seri' : 'Meydan okuma'),
         actions: [
           if (run != null)
             Padding(
@@ -61,13 +67,13 @@ class StreakScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(padding: const EdgeInsets.all(24), child: Text('${async.error}', textAlign: TextAlign.center)),
-                  FilledButton(onPressed: () => ref.invalidate(streakProvider), child: const Text('Tekrar dene')),
+                  FilledButton(onPressed: () => ref.invalidate(provider), child: const Text('Tekrar dene')),
                 ],
               ),
             ),
           _ when view == null => const Center(child: CircularProgressIndicator()),
           _ when run == null => _Intro(busy: view.busy),
-          _ => _Board(view: view, run: run),
+          _ => _Board(view: view, run: run, provider: provider, challengeCode: challengeCode),
         },
       ),
     );
@@ -101,7 +107,7 @@ class _Intro extends ConsumerWidget {
               const CircularProgressIndicator()
             else
               FilledButton(
-                onPressed: () => ref.read(streakProvider.notifier).start(),
+                onPressed: () => ref.read(streakProvider(null).notifier).start(),
                 child: const Text('Başla · ⚡1'),
               ),
           ],
@@ -112,15 +118,17 @@ class _Intro extends ConsumerWidget {
 }
 
 class _Board extends ConsumerWidget {
-  const _Board({required this.view, required this.run});
+  const _Board({required this.view, required this.run, required this.provider, required this.challengeCode});
 
   final StreakView view;
   final StreakRun run;
+  final AsyncNotifierProvider<StreakController, StreakView> provider;
+  final String? challengeCode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final controller = ref.read(streakProvider.notifier);
+    final controller = ref.read(provider.notifier);
     final a = run.attribute;
     final canGuess = run.isPlaying && run.current != null && !view.busy;
     void report(GameCard card) => showCardReportDialog(context, ref, card, screen: 'streak');
@@ -168,7 +176,7 @@ class _Board extends ConsumerWidget {
           ),
           Text(view.busy ? 'Kontrol ediliyor...' : 'Kartı yukarı ya da aşağı kaydır', style: theme.textTheme.bodySmall),
         ] else
-          _EndPanel(run: run, busy: view.busy),
+          _EndPanel(run: run, busy: view.busy, provider: provider, challengeCode: challengeCode),
         const Divider(),
         Expanded(
           child: ListView(
@@ -332,10 +340,14 @@ class _ResultBanner extends StatelessWidget {
 }
 
 class _EndPanel extends ConsumerWidget {
-  const _EndPanel({required this.run, required this.busy});
+  const _EndPanel({required this.run, required this.busy, required this.provider, required this.challengeCode});
 
   final StreakRun run;
   final bool busy;
+  final AsyncNotifierProvider<StreakController, StreakView> provider;
+
+  /// Set for a challenge run: no new run from here, the result goes back to the challenge.
+  final String? challengeCode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -354,16 +366,26 @@ class _EndPanel extends ConsumerWidget {
           Text(record ? 'Seri: ${run.score} · Yeni rekor!' : 'Seri: ${run.score} · Rekor: ${run.best}'),
           if (run.canContinue) ...[
             const SizedBox(height: 8),
-            ContinueOffer(runId: run.id, onResumed: ref.read(streakProvider.notifier).reload),
+            ContinueOffer(runId: run.id, onResumed: ref.read(provider.notifier).reload),
+          ],
+          if (challengeCode == null && !run.isPlaying) ...[
+            const SizedBox(height: 8),
+            ChallengeFromRunButton(runId: run.id),
           ],
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              FilledButton(
-                onPressed: busy ? null : () => ref.read(streakProvider.notifier).start(),
-                child: const Text('Yeni tur · ⚡1'),
-              ),
+              if (challengeCode != null)
+                FilledButton(
+                  onPressed: () => context.go('/home/challenges/$challengeCode'),
+                  child: const Text('Sonucu gör'),
+                )
+              else
+                FilledButton(
+                  onPressed: busy ? null : () => ref.read(provider.notifier).start(),
+                  child: const Text('Yeni tur · ⚡1'),
+                ),
               const SizedBox(width: 12),
               OutlinedButton(onPressed: () => context.go('/home'), child: const Text('Ana menü')),
             ],

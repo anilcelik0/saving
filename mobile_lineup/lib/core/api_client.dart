@@ -68,6 +68,9 @@ class ApiClient {
   Future<dynamic> post(String path, {Object? data, bool auth = true}) =>
       _send(() => _dio.post(path, data: data, options: Options(extra: {'auth': auth})));
 
+  Future<dynamic> delete(String path, {Object? data, bool auth = true}) =>
+      _send(() => _dio.delete(path, data: data, options: Options(extra: {'auth': auth})));
+
   Future<dynamic> _send(Future<Response<dynamic>> Function() call) async {
     try {
       return (await call()).data;

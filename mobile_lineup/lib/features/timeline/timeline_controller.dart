@@ -35,15 +35,21 @@ class TimelineView {
       );
 }
 
+/// null = the normal run being played (resume); a run id = that run (a challenge run).
 final timelineProvider =
-    AsyncNotifierProvider.autoDispose<TimelineController, TimelineView>(TimelineController.new);
+    AsyncNotifierProvider.autoDispose.family<TimelineController, TimelineView, String?>(TimelineController.new);
 
 /// The server decides everything (CLAUDE.md rule 8); this only sends moves and keeps the latest payload.
 class TimelineController extends AsyncNotifier<TimelineView> {
+  TimelineController(this.runId);
+
+  final String? runId;
+
   TimelineApi get _api => ref.read(timelineApiProvider);
 
   @override
-  Future<TimelineView> build() async => TimelineView(run: await _api.playing());
+  Future<TimelineView> build() async =>
+      TimelineView(run: runId == null ? await _api.playing() : await _api.get(runId!));
 
   Future<void> start(String difficulty) async {
     final current = state.value ?? const TimelineView();
@@ -81,7 +87,7 @@ class TimelineController extends AsyncNotifier<TimelineView> {
       // e.g. the run ended meanwhile: reload what the server has
       RunState? fresh;
       try {
-        fresh = await _api.playing();
+        fresh = runId == null ? await _api.playing() : await _api.get(runId!);
       } on ApiException {
         fresh = null;
       }

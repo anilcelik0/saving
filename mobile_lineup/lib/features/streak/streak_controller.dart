@@ -22,14 +22,21 @@ class StreakView {
   final bool noEnergy;
 }
 
-final streakProvider = AsyncNotifierProvider.autoDispose<StreakController, StreakView>(StreakController.new);
+/// null = the normal run being played (resume); a run id = that run (a challenge run).
+final streakProvider =
+    AsyncNotifierProvider.autoDispose.family<StreakController, StreakView, String?>(StreakController.new);
 
 /// The server decides every guess (CLAUDE.md rule 8); this only sends them and keeps the latest payload.
 class StreakController extends AsyncNotifier<StreakView> {
+  StreakController(this.runId);
+
+  final String? runId;
+
   StreakApi get _api => ref.read(streakApiProvider);
 
   @override
-  Future<StreakView> build() async => StreakView(run: await _api.playing());
+  Future<StreakView> build() async =>
+      StreakView(run: runId == null ? await _api.playing() : await _api.get(runId!));
 
   Future<void> start() async {
     final current = state.value ?? const StreakView();
@@ -67,7 +74,7 @@ class StreakController extends AsyncNotifier<StreakView> {
     } on ApiException catch (e) {
       StreakRun? fresh;
       try {
-        fresh = await _api.playing();
+        fresh = runId == null ? await _api.playing() : await _api.get(runId!);
       } on ApiException {
         fresh = null;
       }

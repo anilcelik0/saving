@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_client.dart';
 import '../../core/models.dart';
 import '../../core/providers.dart';
+import '../notifications/push.dart';
 
 /// Where the app stands at start-up. The router redirects on it (see router.dart).
 sealed class Session {
@@ -97,6 +98,7 @@ class SessionController extends AsyncNotifier<Session> {
 
   /// Registered accounts only (a guest has no way back in).
   Future<void> logout() async {
+    await ref.read(pushProvider).stop();
     final auth = ref.read(authServiceProvider);
     await auth.logout();
     state = AsyncData(SessionNeedsLogin(auth.account ?? ''));
@@ -104,6 +106,7 @@ class SessionController extends AsyncNotifier<Session> {
 
   /// Freeze: signed out everywhere; logging in again offers to reopen.
   Future<void> deactivate(String password) async {
+    await ref.read(pushProvider).stop();
     final auth = ref.read(authServiceProvider);
     await auth.deactivate(password);
     state = AsyncData(SessionNeedsLogin(auth.account ?? ''));
@@ -111,6 +114,7 @@ class SessionController extends AsyncNotifier<Session> {
 
   /// Deletion requested: this device starts over with a new guest.
   Future<void> requestDeletion(String password) async {
+    await ref.read(pushProvider).stop();
     await ref.read(authServiceProvider).requestDeletion(password);
     ref.invalidateSelf();
   }
