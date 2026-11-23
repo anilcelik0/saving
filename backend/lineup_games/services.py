@@ -482,6 +482,7 @@ def daily_home(user) -> dict | None:
         "number": puzzle.number,
         "status": play.status if play and play.attempts else "new",
         "attempts_used": len(play.attempts) if play else 0,
+        "max_attempts": daily.ATTEMPTS,
         "solved_in": play.solved_in if play else None,
         "streak": daily_streaks(user, puzzle, play)[0],
         "next_in_seconds": next_daily_seconds(),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'core/theme.dart';
 import 'features/notifications/push.dart';
 import 'router.dart';
 
@@ -27,7 +28,7 @@ class LineUpApp extends ConsumerWidget {
       title: 'Line Up',
       scaffoldMessengerKey: messengerKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      theme: buildTheme(),
       routerConfig: ref.watch(routerProvider),
     );
   }

@@ -10,7 +10,7 @@ from .status import LOST, PLAYING, WON
 from .values import Value, compare
 
 SIZE = 6
-ATTEMPTS = 3
+ATTEMPTS = 5
 
 RIGHT = "right"  # 🟩
 NEAR = "near"  # 🟨 one place off

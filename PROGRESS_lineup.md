@@ -238,6 +238,21 @@ files through the same import pipeline. Kept: the automatic checks and the repor
 - [ ] **7.6** (later, user) Prepare the real card JSON files (values from sources, never invented) and import them.
 
 ## Phase 8: Visual design (dedicated phase)
+Design canvas (claude.ai artifact, private): 3 directions per game. Choices (2026-11-23): daily puzzle = "Gece" layout
+(attempt grid + value axis) on the light theme; Zaman Çizgisi, Seri and home = "Gündüz". Game by game, user tests each.
+- [x] **8.0** Shared light theme `core/theme.dart` (palette `LU`, Space Grotesk headings/numbers + Inter via
+  `google_fonts`, buttons / cards / app bar, `CircleIconButton`). Fonts are fetched at runtime and cached; bundle
+  them as assets before release (9.x).
+- [x] **8.1** Daily puzzle screen: header (#n · attribute, daily streak, archive), attempt grid (marks with icons, current
+  row outlined), vertical value axis, cards lifted while dragging, "Kontrol et"; result card (grid, share, countdown)
+  + solution list with values and report flag. Approved by the user (2026-11-23).
+  Attempts raised 3 -> 5 by request (`engine.daily.ATTEMPTS`; home payload sends `max_attempts`, profile distribution
+  follows the server keys). Old plays keep their stored status.
+- [x] Fix (shared `core`): `/api/v1/health/` answered 500 since 9490a6e (its DRF decorators had moved onto the new
+  `assetlinks` view), so the dev home screen showed "Sunucu: hata". Decorators restored; health 200, assetlinks 200.
+- [ ] **8.2** Zaman Çizgisi (Gündüz).
+- [ ] **8.3** Seri (Gündüz).
+- [ ] **8.4** Home (Gündüz, first screen) + the remaining screens (profile, Pro, challenges, login) in the same theme.
 ## Phase 9: Release
 - [ ] **9.0** Server deploy (deferred from 0.7 by request; run when the user decides):
 

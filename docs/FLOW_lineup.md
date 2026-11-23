@@ -185,7 +185,7 @@ sequenceDiagram
         S->>S: DailyPuzzle (tarih tekil, no +1, deste donar)
     end
     S-->>M: herkese aynı 6 kart (değersiz) · denemeler · yeni bulmacaya kalan süre
-    loop en fazla 3 deneme (enerji harcamaz)
+    loop en fazla 5 deneme (enerji harcamaz)
         M->>M: kartları sürükleyerek sırala (🚩 = kart hata bildirimi)
         M->>S: POST daily/attempts/ {number, order}
         S->>E: her yer: 🟩 doğru · 🟨 bir yer yanında · 🟥 daha uzakta (eşitlikte iki yer de doğru)

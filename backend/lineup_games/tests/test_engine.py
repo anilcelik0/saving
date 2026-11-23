@@ -448,7 +448,7 @@ class DailyTests(TestCase):
         first = daily.submit(self.state, list("bacdef"), self.values)
         self.assertFalse(first.solved)
         self.assertEqual(first.state.status, daily.PLAYING)
-        self.assertEqual(first.state.attempts_left, 2)
+        self.assertEqual(first.state.attempts_left, daily.ATTEMPTS - 1)
         second = daily.submit(first.state, list("abcdef"), self.values)
         self.assertTrue(second.solved)
         self.assertEqual(second.state.status, daily.WON)
@@ -456,7 +456,7 @@ class DailyTests(TestCase):
         with self.assertRaises(ValueError):
             daily.submit(second.state, list("abcdef"), self.values)
 
-    def test_lost_after_three_wrong_attempts(self):
+    def test_lost_after_every_attempt_wrong(self):
         state = self.state
         for _ in range(daily.ATTEMPTS):
             state = daily.submit(state, list("bacdef"), self.values).state

@@ -155,7 +155,7 @@ String _dailySubtitle(DailyHome? daily) =>
 String _dailyStatus(DailyHome? daily) => switch (daily?.status) {
       null => 'Şu an bulmaca yok',
       'new' => 'Bugünün kartlarını sırala · ücretsiz',
-      'playing' => 'Devam et · ${3 - daily!.attemptsUsed} deneme hakkın kaldı',
+      'playing' => 'Devam et · ${daily!.maxAttempts - daily.attemptsUsed} deneme hakkın kaldı',
       'won' => '${daily!.solvedIn}. denemede çözdün · sonucu paylaş',
       _ => "Çözülemedi · yeni bulmaca sabah 07:30'da",
     };

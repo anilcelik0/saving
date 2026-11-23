@@ -326,7 +326,8 @@ class _Stats extends StatelessWidget {
                 row('Seri (art arda çözülen gün)', '${stats.dailyStreak}'),
                 row('En uzun seri', '${stats.dailyBestStreak}'),
                 const SizedBox(height: 4),
-                for (final n in ['1', '2', '3']) bar('$n. deneme', d[n] ?? 0),
+                for (final n in (d.keys.where((k) => k != 'fail').toList()..sort((a, b) => int.parse(a).compareTo(int.parse(b)))))
+                  bar('$n. deneme', d[n] ?? 0),
                 bar('Çözülemedi', d['fail'] ?? 0),
               ],
             ),
