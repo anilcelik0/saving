@@ -1,0 +1,1338 @@
+{
+  "card_type": "province",
+  "definition": {
+    "key": "province",
+    "name": "İl",
+    "emoji": "🏙️",
+    "description": "Türkiye'nin 81 ili: nüfus (TÜİK ADNKS) ve yüzölçümü (Harita Genel Müdürlüğü).",
+    "attributes": [
+      {
+        "key": "population",
+        "name": "Nüfus",
+        "value_type": "number",
+        "unit": "kişi",
+        "decimal_places": 0,
+        "lower_label": "daha az nüfuslu",
+        "higher_label": "daha kalabalık",
+        "required": true
+      },
+      {
+        "key": "area",
+        "name": "Yüzölçümü",
+        "value_type": "number",
+        "unit": "km²",
+        "decimal_places": 0,
+        "lower_label": "daha küçük",
+        "higher_label": "daha büyük",
+        "required": true
+      }
+    ],
+    "fields": []
+  },
+  "meta": {
+    "built_at": "2026-11-23T22:01:18+00:00",
+    "sources": {
+      "population": "TÜİK ADNKS, 31.12.2025 (https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899; nip.tuik.gov.tr)",
+      "area": "Harita Genel Müdürlüğü, il yüz ölçümleri 2026 (https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri)"
+    },
+    "check": "81 il toplamı = TÜİK Türkiye toplamı 86092168"
+  },
+  "cards": [
+    {
+      "external_key": "il:ADANA",
+      "title": "Adana",
+      "title_lang": "tr",
+      "popularity": 66,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 2283609,
+      "area": 13847,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ADIYAMAN",
+      "title": "Adıyaman",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 617821,
+      "area": 7351,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:AFYONKARAHİSAR",
+      "title": "Afyonkarahisar",
+      "title_lang": "tr",
+      "popularity": 61,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 751808,
+      "area": 14016,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:AĞRI",
+      "title": "Ağrı",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 491489,
+      "area": 11095,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:AKSARAY",
+      "title": "Aksaray",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 441136,
+      "area": 7671,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:AMASYA",
+      "title": "Amasya",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 342242,
+      "area": 5672,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ANKARA",
+      "title": "Ankara",
+      "title_lang": "tr",
+      "popularity": 71,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 5910320,
+      "area": 25664,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ANTALYA",
+      "title": "Antalya",
+      "title_lang": "tr",
+      "popularity": 67,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 2777677,
+      "area": 20171,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ARDAHAN",
+      "title": "Ardahan",
+      "title_lang": "tr",
+      "popularity": 49,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 90392,
+      "area": 4932,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ARTVİN",
+      "title": "Artvin",
+      "title_lang": "tr",
+      "popularity": 53,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 167531,
+      "area": 7394,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:AYDIN",
+      "title": "Aydın",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1172107,
+      "area": 8130,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BALIKESİR",
+      "title": "Balıkesir",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1284517,
+      "area": 14573,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BARTIN",
+      "title": "Bartın",
+      "title_lang": "tr",
+      "popularity": 54,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 206663,
+      "area": 2329,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BATMAN",
+      "title": "Batman",
+      "title_lang": "tr",
+      "popularity": 60,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 662626,
+      "area": 4559,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BAYBURT",
+      "title": "Bayburt",
+      "title_lang": "tr",
+      "popularity": 49,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 82836,
+      "area": 3746,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BİLECİK",
+      "title": "Bilecik",
+      "title_lang": "tr",
+      "popularity": 54,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 228995,
+      "area": 4180,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BİNGÖL",
+      "title": "Bingöl",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 282299,
+      "area": 8015,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BİTLİS",
+      "title": "Bitlis",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 360423,
+      "area": 8329,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BOLU",
+      "title": "Bolu",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 327173,
+      "area": 8317,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BURDUR",
+      "title": "Burdur",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 277226,
+      "area": 7174,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:BURSA",
+      "title": "Bursa",
+      "title_lang": "tr",
+      "popularity": 68,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 3263011,
+      "area": 10817,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ÇANAKKALE",
+      "title": "Çanakkale",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 573976,
+      "area": 9804,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ÇANKIRI",
+      "title": "Çankırı",
+      "title_lang": "tr",
+      "popularity": 54,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 200549,
+      "area": 7550,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ÇORUM",
+      "title": "Çorum",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 519590,
+      "area": 12425,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:DENİZLİ",
+      "title": "Denizli",
+      "title_lang": "tr",
+      "popularity": 62,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1060975,
+      "area": 12141,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:DİYARBAKIR",
+      "title": "Diyarbakır",
+      "title_lang": "tr",
+      "popularity": 65,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1852356,
+      "area": 15071,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:DÜZCE",
+      "title": "Düzce",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 415622,
+      "area": 2505,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:EDİRNE",
+      "title": "Edirne",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 422438,
+      "area": 6149,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ELAZIĞ",
+      "title": "Elazığ",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 605678,
+      "area": 9339,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ERZİNCAN",
+      "title": "Erzincan",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 239625,
+      "area": 11818,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ERZURUM",
+      "title": "Erzurum",
+      "title_lang": "tr",
+      "popularity": 60,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 736877,
+      "area": 25011,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ESKİŞEHİR",
+      "title": "Eskişehir",
+      "title_lang": "tr",
+      "popularity": 62,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 927956,
+      "area": 13954,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:GAZİANTEP",
+      "title": "Gaziantep",
+      "title_lang": "tr",
+      "popularity": 66,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 2222415,
+      "area": 6805,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:GİRESUN",
+      "title": "Giresun",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 455074,
+      "area": 6977,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:GÜMÜŞHANE",
+      "title": "Gümüşhane",
+      "title_lang": "tr",
+      "popularity": 52,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 138807,
+      "area": 6666,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:HAKKÂRİ",
+      "title": "Hakkâri",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 279681,
+      "area": 7094,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:HATAY",
+      "title": "Hatay",
+      "title_lang": "tr",
+      "popularity": 64,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1577531,
+      "area": 5525,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:IĞDIR",
+      "title": "Iğdır",
+      "title_lang": "tr",
+      "popularity": 54,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 205071,
+      "area": 3657,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ISPARTA",
+      "title": "Isparta",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 445303,
+      "area": 8948,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:İSTANBUL",
+      "title": "İstanbul",
+      "title_lang": "tr",
+      "popularity": 76,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 15754053,
+      "area": 5469,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:İZMİR",
+      "title": "İzmir",
+      "title_lang": "tr",
+      "popularity": 70,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 4504185,
+      "area": 11880,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KAHRAMANMARAŞ",
+      "title": "Kahramanmaraş",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1146278,
+      "area": 14524,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KARABÜK",
+      "title": "Karabük",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 249614,
+      "area": 4145,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KARAMAN",
+      "title": "Karaman",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 262355,
+      "area": 8657,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KARS",
+      "title": "Kars",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 268991,
+      "area": 10200,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KASTAMONU",
+      "title": "Kastamonu",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 379934,
+      "area": 13063,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KAYSERİ",
+      "title": "Kayseri",
+      "title_lang": "tr",
+      "popularity": 64,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1458991,
+      "area": 16936,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KIRIKKALE",
+      "title": "Kırıkkale",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 282830,
+      "area": 4792,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KIRKLARELİ",
+      "title": "Kırklareli",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 379595,
+      "area": 6417,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KIRŞEHİR",
+      "title": "Kırşehir",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 242777,
+      "area": 6582,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KİLİS",
+      "title": "Kilis",
+      "title_lang": "tr",
+      "popularity": 52,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 157363,
+      "area": 1413,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KOCAELİ",
+      "title": "Kocaeli",
+      "title_lang": "tr",
+      "popularity": 66,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 2161171,
+      "area": 3423,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KONYA",
+      "title": "Konya",
+      "title_lang": "tr",
+      "popularity": 66,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 2343409,
+      "area": 40824,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:KÜTAHYA",
+      "title": "Kütahya",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 570478,
+      "area": 11638,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:MALATYA",
+      "title": "Malatya",
+      "title_lang": "tr",
+      "popularity": 61,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 755854,
+      "area": 12282,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:MANİSA",
+      "title": "Manisa",
+      "title_lang": "tr",
+      "popularity": 64,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1477756,
+      "area": 13337,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:MARDİN",
+      "title": "Mardin",
+      "title_lang": "tr",
+      "popularity": 61,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 903576,
+      "area": 8788,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:MERSİN",
+      "title": "Mersin",
+      "title_lang": "tr",
+      "popularity": 65,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1956428,
+      "area": 16011,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:MUĞLA",
+      "title": "Muğla",
+      "title_lang": "tr",
+      "popularity": 62,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1099547,
+      "area": 12652,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:MUŞ",
+      "title": "Muş",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 389127,
+      "area": 8679,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:NEVŞEHİR",
+      "title": "Nevşehir",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 320150,
+      "area": 5564,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:NİĞDE",
+      "title": "Niğde",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 374492,
+      "area": 7252,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ORDU",
+      "title": "Ordu",
+      "title_lang": "tr",
+      "popularity": 61,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 768087,
+      "area": 5910,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:OSMANİYE",
+      "title": "Osmaniye",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 564123,
+      "area": 3316,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:RİZE",
+      "title": "Rize",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 346947,
+      "area": 3835,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:SAKARYA",
+      "title": "Sakarya",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1123693,
+      "area": 4784,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:SAMSUN",
+      "title": "Samsun",
+      "title_lang": "tr",
+      "popularity": 64,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1392403,
+      "area": 9688,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:SİİRT",
+      "title": "Siirt",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 332369,
+      "area": 5658,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:SİNOP",
+      "title": "Sinop",
+      "title_lang": "tr",
+      "popularity": 54,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 225848,
+      "area": 5720,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:SİVAS",
+      "title": "Sivas",
+      "title_lang": "tr",
+      "popularity": 60,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 631401,
+      "area": 28138,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ŞANLIURFA",
+      "title": "Şanlıurfa",
+      "title_lang": "tr",
+      "popularity": 66,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 2265800,
+      "area": 19225,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ŞIRNAK",
+      "title": "Şırnak",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 573666,
+      "area": 7083,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:TEKİRDAĞ",
+      "title": "Tekirdağ",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1208441,
+      "area": 6228,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:TOKAT",
+      "title": "Tokat",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 614141,
+      "area": 10029,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:TRABZON",
+      "title": "Trabzon",
+      "title_lang": "tr",
+      "popularity": 61,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 823323,
+      "area": 4627,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:TUNCELİ",
+      "title": "Tunceli",
+      "title_lang": "tr",
+      "popularity": 49,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 85083,
+      "area": 7590,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:UŞAK",
+      "title": "Uşak",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 374405,
+      "area": 5556,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:VAN",
+      "title": "Van",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 1112013,
+      "area": 20920,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:YALOVA",
+      "title": "Yalova",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 311635,
+      "area": 799,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:YOZGAT",
+      "title": "Yozgat",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 413208,
+      "area": 13650,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    },
+    {
+      "external_key": "il:ZONGULDAK",
+      "title": "Zonguldak",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Türkiye",
+        "İller"
+      ],
+      "source_url": "https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899",
+      "population": 585203,
+      "area": 3338,
+      "sources": {
+        "area": "https://www.harita.gov.tr/il-ve-ilce-yuzolcumleri"
+      }
+    }
+  ]
+}

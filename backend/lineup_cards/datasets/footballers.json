@@ -1,0 +1,656 @@
+{
+  "card_type": "footballer",
+  "definition": {
+    "key": "footballer",
+    "name": "Futbolcu",
+    "emoji": "⚽",
+    "description": "Süper Lig tarihinde 100 ve üzeri lig golü atan oyuncular.",
+    "attributes": [
+      {
+        "key": "superlig_goals",
+        "name": "Süper Lig golü",
+        "value_type": "number",
+        "unit": "gol",
+        "decimal_places": 0,
+        "lower_label": "daha az gol",
+        "higher_label": "daha çok gol",
+        "required": true
+      }
+    ],
+    "fields": [
+      {
+        "key": "clubs",
+        "label": "Kulüpler (gol)",
+        "required": false
+      }
+    ]
+  },
+  "meta": {
+    "built_at": "2026-11-23T21:58:40+00:00",
+    "sources": {
+      "superlig_goals": "Wikipedia, List of Süper Lig top scorers (revizyon 1372501567, tablo güncelleme: 9 May 2026; kaynak Mackolik)"
+    },
+    "note": "Kalın yazılan (hâlâ Süper Lig'de oynayan) oyuncuların gol sayısı değişir; seti yeniden üretin."
+  },
+  "cards": [
+    {
+      "external_key": "enwiki:Hakan Şükür",
+      "title": "Hakan Şükür",
+      "subtitle": "1987–2008",
+      "title_lang": "tr",
+      "popularity": 90,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Galatasaray",
+        "Bursaspor",
+        "Sakaryaspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 249,
+      "clubs": "Galatasaray (228), Bursaspor (11), Sakaryaspor (10)"
+    },
+    {
+      "external_key": "enwiki:Tanju Çolak",
+      "title": "Tanju Çolak",
+      "subtitle": "1982–1993",
+      "title_lang": "tr",
+      "popularity": 88,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Galatasaray",
+        "Samsunspor",
+        "Fenerbahçe"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 240,
+      "clubs": "Galatasaray (116), Samsunspor (74), Fenerbahçe (50)"
+    },
+    {
+      "external_key": "enwiki:Hami Mandıralı",
+      "title": "Hami Mandıralı",
+      "subtitle": "1984–2003",
+      "title_lang": "tr",
+      "popularity": 83,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Trabzonspor",
+        "Ankaragücü"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 219,
+      "clubs": "Trabzonspor (218), Ankaragücü (1)"
+    },
+    {
+      "external_key": "enwiki:Metin Oktay",
+      "title": "Metin Oktay",
+      "subtitle": "1959–1969",
+      "title_lang": "tr",
+      "popularity": 82,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Galatasaray"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 217,
+      "clubs": "Galatasaray (217)"
+    },
+    {
+      "external_key": "enwiki:Aykut Kocaman",
+      "title": "Aykut Kocaman",
+      "subtitle": "1984–2000",
+      "title_lang": "tr",
+      "popularity": 78,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Fenerbahçe",
+        "İstanbulspor",
+        "Sakaryaspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 200,
+      "clubs": "Fenerbahçe (140), İstanbulspor (37), Sakaryaspor (23)"
+    },
+    {
+      "external_key": "enwiki:Feyyaz Uçar",
+      "title": "Feyyaz Uçar",
+      "subtitle": "1982–1996",
+      "title_lang": "tr",
+      "popularity": 76,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Beşiktaş",
+        "Fenerbahçe",
+        "Antalyaspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 191,
+      "clubs": "Beşiktaş (170), Fenerbahçe (13), Antalyaspor (8)"
+    },
+    {
+      "external_key": "enwiki:Serkan Aykut",
+      "title": "Serkan Aykut",
+      "subtitle": "1993–2006",
+      "title_lang": "tr",
+      "popularity": 76,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Samsunspor",
+        "Galatasaray"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 188,
+      "clubs": "Samsunspor (165), Galatasaray (23)"
+    },
+    {
+      "external_key": "enwiki:Burak Yılmaz",
+      "title": "Burak Yılmaz",
+      "subtitle": "2006–2020",
+      "title_lang": "tr",
+      "popularity": 75,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Trabzonspor",
+        "Galatasaray",
+        "Beşiktaş",
+        "Manisaspor",
+        "Eskişehirspor",
+        "Fenerbahçe"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 187,
+      "clubs": "Trabzonspor (82), Galatasaray (65), Beşiktaş (30), Manisaspor (9), Eskişehirspor (1), Fenerbahçe (0)"
+    },
+    {
+      "external_key": "enwiki:Umut Bulut",
+      "title": "Umut Bulut",
+      "subtitle": "2001–2021",
+      "title_lang": "tr",
+      "popularity": 70,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Trabzonspor",
+        "Ankaragücü",
+        "Galatasaray",
+        "Kayserispor",
+        "Yeni Malatyaspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 163,
+      "clubs": "Trabzonspor (67), Ankaragücü (36), Galatasaray (32), Kayserispor (23), Yeni Malatyaspor (5)"
+    },
+    {
+      "external_key": "enwiki:Necati Ateş",
+      "title": "Necati Ateş",
+      "subtitle": "1997–2015",
+      "title_lang": "tr",
+      "popularity": 64,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Galatasaray",
+        "Antalyaspor",
+        "Adanaspor",
+        "Eskişehirspor",
+        "İstanbul Başakşehir",
+        "Ankaraspor",
+        "Altay",
+        "Kayseri Erciyesspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 138,
+      "clubs": "Galatasaray (54), Antalyaspor (30), Adanaspor (23), Eskişehirspor (16), İstanbul Başakşehir (8), Ankaraspor (3), Altay (2), Kayseri Erciyesspor (2)"
+    },
+    {
+      "external_key": "enwiki:Cenk İşler",
+      "title": "Cenk İşler",
+      "subtitle": "1995–2011",
+      "title_lang": "tr",
+      "popularity": 64,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Adanaspor",
+        "Samsunspor",
+        "Kayseri Erciyesspor",
+        "İstanbulspor",
+        "Konyaspor",
+        "Ankaragücü",
+        "Kasımpaşa",
+        "Bucaspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 137,
+      "clubs": "Adanaspor (34), Samsunspor (33), Kayseri Erciyesspor (27), İstanbulspor (17), Konyaspor (12), Ankaragücü (8), Kasımpaşa (6), Bucaspor (0)"
+    },
+    {
+      "external_key": "enwiki:Alex (footballer, born 1977)",
+      "title": "Alex",
+      "subtitle": "2004–2013",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Fenerbahçe"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 136,
+      "clubs": "Fenerbahçe (136)"
+    },
+    {
+      "external_key": "enwiki:Ümit Karan",
+      "title": "Ümit Karan",
+      "subtitle": "1996–2011",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Galatasaray",
+        "Gençlerbirliği",
+        "Eskişehirspor",
+        "Ankaraspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 136,
+      "clubs": "Galatasaray (71), Gençlerbirliği (49), Eskişehirspor (11), Ankaraspor (5)"
+    },
+    {
+      "external_key": "enwiki:Fevzi Zemzem",
+      "title": "Fevzi Zemzem",
+      "subtitle": "1963–1973",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Göztepe"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 135,
+      "clubs": "Göztepe (135)"
+    },
+    {
+      "external_key": "enwiki:Saffet Sancaklı",
+      "title": "Saffet Sancaklı",
+      "subtitle": "1987–1998",
+      "title_lang": "tr",
+      "popularity": 62,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Kocaelispor",
+        "Galatasaray",
+        "Fenerbahçe",
+        "Eskişehirspor",
+        "Konyaspor",
+        "Beşiktaş",
+        "Sarıyer"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 130,
+      "clubs": "Kocaelispor (53), Galatasaray (31), Fenerbahçe (21), Eskişehirspor (11), Konyaspor (10), Beşiktaş (4), Sarıyer (0)"
+    },
+    {
+      "external_key": "enwiki:Fatih Tekke",
+      "title": "Fatih Tekke",
+      "subtitle": "1994–2012",
+      "title_lang": "tr",
+      "popularity": 62,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Trabzonspor",
+        "Gaziantepspor",
+        "Altay",
+        "Ankaragücü",
+        "Orduspor",
+        "Beşiktaş"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 130,
+      "clubs": "Trabzonspor (88), Gaziantepspor (28), Altay (8), Ankaragücü (3), Orduspor (3), Beşiktaş (0)"
+    },
+    {
+      "external_key": "enwiki:Mehmet Özdilek",
+      "title": "Mehmet Özdilek",
+      "subtitle": "1988–2001",
+      "title_lang": "tr",
+      "popularity": 62,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Beşiktaş"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 130,
+      "clubs": "Beşiktaş (130)"
+    },
+    {
+      "external_key": "enwiki:Elvir Bolić",
+      "title": "Elvir Bolić",
+      "subtitle": "1992–2005",
+      "title_lang": "tr",
+      "popularity": 62,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Fenerbahçe",
+        "Gaziantepspor",
+        "İstanbulspor",
+        "Galatasaray",
+        "Gençlerbirliği",
+        "Yeni Malatyaspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 128,
+      "clubs": "Fenerbahçe (69), Gaziantepspor (43), İstanbulspor (11), Galatasaray (2), Gençlerbirliği (2), Yeni Malatyaspor (1)"
+    },
+    {
+      "external_key": "enwiki:Ertuğrul Sağlam",
+      "title": "Ertuğrul Sağlam",
+      "subtitle": "1989–2003",
+      "title_lang": "tr",
+      "popularity": 61,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Beşiktaş",
+        "Samsunspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 126,
+      "clubs": "Beşiktaş (82), Samsunspor (44)"
+    },
+    {
+      "external_key": "enwiki:Mustafa Denizli",
+      "title": "Mustafa Denizli",
+      "subtitle": "1967–1984",
+      "title_lang": "tr",
+      "popularity": 61,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Altay",
+        "Galatasaray"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 124,
+      "clubs": "Altay (121), Galatasaray (3)"
+    },
+    {
+      "external_key": "enwiki:Oktay Derelioğlu",
+      "title": "Oktay Derelioğlu",
+      "subtitle": "1992–2006",
+      "title_lang": "tr",
+      "popularity": 60,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Beşiktaş",
+        "Gaziantepspor",
+        "Trabzonspor",
+        "Akçaabat Sebatspor",
+        "Fenerbahçe",
+        "Samsunspor",
+        "Diyarbakırspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 122,
+      "clubs": "Beşiktaş (73), Gaziantepspor (16), Trabzonspor (15), Akçaabat Sebatspor (9), Fenerbahçe (5), Samsunspor (4), Diyarbakırspor (0)"
+    },
+    {
+      "external_key": "enwiki:Fikri Elma",
+      "title": "Fikri Elma",
+      "subtitle": "1959–1969",
+      "title_lang": "tr",
+      "popularity": 60,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Ankara Demirspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 122,
+      "clubs": "Ankara Demirspor (122)"
+    },
+    {
+      "external_key": "enwiki:Ertan Adatepe",
+      "title": "Ertan Adatepe",
+      "subtitle": "1959–1971",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Ankaragücü",
+        "PTT",
+        "Galatasaray"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 118,
+      "clubs": "Ankaragücü (69), PTT (48), Galatasaray (1)"
+    },
+    {
+      "external_key": "enwiki:Cemil Turan",
+      "title": "Cemil Turan",
+      "subtitle": "1968–1980",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Fenerbahçe",
+        "İstanbulspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 117,
+      "clubs": "Fenerbahçe (85), İstanbulspor (32)"
+    },
+    {
+      "external_key": "enwiki:Halil İbrahim Eren",
+      "title": "Halil İbrahim Eren",
+      "subtitle": "1976–1989",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Ankaragücü",
+        "Boluspor",
+        "Gençlerbirliği",
+        "Sakaryaspor",
+        "Samsunspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 113,
+      "clubs": "Ankaragücü (53), Boluspor (37), Gençlerbirliği (16), Sakaryaspor (4), Samsunspor (3)"
+    },
+    {
+      "external_key": "enwiki:Osman Arpacıoğlu",
+      "title": "Osman Arpacıoğlu",
+      "subtitle": "1965–1977",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Fenerbahçe",
+        "Mersin Talim Yurdu",
+        "Hacettepe"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 112,
+      "clubs": "Fenerbahçe (60), Mersin Talim Yurdu (52), Hacettepe (0)"
+    },
+    {
+      "external_key": "enwiki:Márcio Nobre",
+      "title": "Márcio Nobre",
+      "subtitle": "2004–2014",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Fenerbahçe",
+        "Beşiktaş",
+        "Mersin Talim Yurdu",
+        "Kayserispor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 109,
+      "clubs": "Fenerbahçe (46), Beşiktaş (35), Mersin Talim Yurdu (23), Kayserispor (5)"
+    },
+    {
+      "external_key": "enwiki:Zafer Tüzün",
+      "title": "Zafer Tüzün",
+      "subtitle": "1980–1996",
+      "title_lang": "tr",
+      "popularity": 57,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Bakırköyspor",
+        "Eskişehirspor",
+        "Fenerbahçe",
+        "Adana Demirspor",
+        "Kayseri Erciyesspor",
+        "Sakaryaspor",
+        "Denizlispor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 109,
+      "clubs": "Bakırköyspor (43), Eskişehirspor (18), Fenerbahçe (14), Adana Demirspor (11), Kayseri Erciyesspor (11), Sakaryaspor (10), Denizlispor (2)"
+    },
+    {
+      "external_key": "enwiki:Cenk Tosun",
+      "title": "Cenk Tosun",
+      "subtitle": "2011–2026",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Beşiktaş",
+        "Gaziantepspor",
+        "Fenerbahçe",
+        "Kasımpaşa"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 106,
+      "clubs": "Beşiktaş (65), Gaziantepspor (39), Fenerbahçe (1), Kasımpaşa (1)"
+    },
+    {
+      "external_key": "enwiki:Sergen Yalçın",
+      "title": "Sergen Yalçın",
+      "subtitle": "1991–2006",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Beşiktaş",
+        "İstanbulspor",
+        "Galatasaray",
+        "Fenerbahçe",
+        "Trabzonspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 105,
+      "clubs": "Beşiktaş (71), İstanbulspor (14), Galatasaray (11), Fenerbahçe (8), Trabzonspor (1)"
+    },
+    {
+      "external_key": "enwiki:Arif Erdem",
+      "title": "Arif Erdem",
+      "subtitle": "1991–2005",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Galatasaray"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 105,
+      "clubs": "Galatasaray (105)"
+    },
+    {
+      "external_key": "enwiki:Gökmen Özdenak",
+      "title": "Gökmen Özdenak",
+      "subtitle": "1965–1980",
+      "title_lang": "tr",
+      "popularity": 56,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Galatasaray",
+        "İstanbulspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 104,
+      "clubs": "Galatasaray (99), İstanbulspor (5)"
+    },
+    {
+      "external_key": "enwiki:Ogün Altıparmak",
+      "title": "Ogün Altıparmak",
+      "subtitle": "1959–1971",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Fenerbahçe",
+        "Karşıyaka"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 102,
+      "clubs": "Fenerbahçe (67), Karşıyaka (35)"
+    },
+    {
+      "external_key": "enwiki:Edin Višća",
+      "title": "Edin Višća",
+      "subtitle": "2011–2025",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "İstanbul Başakşehir",
+        "Trabzonspor"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 101,
+      "clubs": "İstanbul Başakşehir (101), Trabzonspor (16)"
+    },
+    {
+      "external_key": "enwiki:Gökhan Ünal",
+      "title": "Gökhan Ünal",
+      "subtitle": "1999–2015",
+      "title_lang": "tr",
+      "popularity": 55,
+      "tags": [
+        "Futbol",
+        "Süper Lig",
+        "Kayserispor",
+        "Trabzonspor",
+        "Balıkesirspor",
+        "Karabükspor",
+        "Gençlerbirliği",
+        "Fenerbahçe",
+        "İstanbul Başakşehir"
+      ],
+      "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%C3%BCper_Lig_top_scorers&oldid=1372501567",
+      "superlig_goals": 100,
+      "clubs": "Kayserispor (67), Trabzonspor (17), Balıkesirspor (5), Karabükspor (4), Gençlerbirliği (3), Fenerbahçe (2), İstanbul Başakşehir (2)"
+    }
+  ]
+}

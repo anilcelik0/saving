@@ -1,0 +1,526 @@
+{
+  "card_type": "film",
+  "definition": {
+    "key": "film",
+    "name": "Film",
+    "emoji": "🎬",
+    "description": "Dünya sinemasının bilinen klasikleri: çıkış yılı ve IMDb puanı.",
+    "attributes": [
+      {
+        "key": "date",
+        "name": "Tarih",
+        "value_type": "date",
+        "unit": "",
+        "decimal_places": 0,
+        "lower_label": "daha eski",
+        "higher_label": "daha yeni",
+        "required": true
+      },
+      {
+        "key": "imdb_rating",
+        "name": "IMDb puanı",
+        "value_type": "number",
+        "unit": "",
+        "decimal_places": 1,
+        "lower_label": "daha düşük puanlı",
+        "higher_label": "daha yüksek puanlı",
+        "required": true
+      }
+    ],
+    "fields": [
+      {
+        "key": "director",
+        "label": "Yönetmen",
+        "required": false
+      }
+    ]
+  },
+  "meta": {
+    "built_at": "2026-11-23T21:59:45+00:00",
+    "sources": {
+      "imdb_rating": "IMDb dataset title.ratings.tsv.gz (indirildi 2026-11-23)",
+      "date": "Wikidata P577, en erken yayın tarihinin yılı",
+      "title": "Türkçe Vikipedi madde adı"
+    },
+    "imdb_votes": {
+      "tt0033467": 498913,
+      "tt0034583": 664742,
+      "tt0047478": 408205,
+      "tt0050083": 1013111,
+      "tt0052357": 465369,
+      "tt0054215": 800647,
+      "tt0060196": 907443,
+      "tt0062622": 797964,
+      "tt0068646": 2274014,
+      "tt0073486": 1174691,
+      "tt0076759": 1599071,
+      "tt0081505": 1255272,
+      "tt0088763": 1488884,
+      "tt0099685": 1424899,
+      "tt0102926": 1768170,
+      "tt0108052": 1614626,
+      "tt0111161": 3267483,
+      "tt0110912": 2485128,
+      "tt0109830": 2555151,
+      "tt0118799": 828520,
+      "tt0120338": 1421326,
+      "tt0133093": 2295858,
+      "tt0245429": 994602,
+      "tt0167260": 2209578,
+      "tt0468569": 3253223
+    },
+    "license": "IMDb verisi yalnızca kişisel ve ticari olmayan kullanım içindir; yayından önce lisans gerekir."
+  },
+  "cards": [
+    {
+      "external_key": "imdb:tt0033467",
+      "title": "Yurttaş Kane",
+      "subtitle": "Citizen Kane",
+      "title_lang": "tr",
+      "popularity": 60,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0033467/",
+      "date": "1941",
+      "imdb_rating": "8.2",
+      "director": "Orson Welles",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q24815"
+      }
+    },
+    {
+      "external_key": "imdb:tt0034583",
+      "title": "Kazablanka",
+      "subtitle": "Casablanca",
+      "title_lang": "tr",
+      "popularity": 63,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0034583/",
+      "date": "1942",
+      "imdb_rating": "8.5",
+      "director": "Michael Curtiz",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q132689"
+      }
+    },
+    {
+      "external_key": "imdb:tt0047478",
+      "title": "Yedi Samuray",
+      "subtitle": "Seven Samurai",
+      "title_lang": "tr",
+      "popularity": 58,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0047478/",
+      "date": "1954",
+      "imdb_rating": "8.6",
+      "director": "Akira Kurosava",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q189540"
+      }
+    },
+    {
+      "external_key": "imdb:tt0050083",
+      "title": "12 Öfkeli Adam",
+      "subtitle": "12 Angry Men",
+      "title_lang": "tr",
+      "popularity": 68,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0050083/",
+      "date": "1957",
+      "imdb_rating": "9.0",
+      "director": "Sidney Lumet",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q2345"
+      }
+    },
+    {
+      "external_key": "imdb:tt0052357",
+      "title": "Ölüm Korkusu",
+      "subtitle": "Vertigo",
+      "title_lang": "tr",
+      "popularity": 59,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0052357/",
+      "date": "1958",
+      "imdb_rating": "8.2",
+      "director": "Alfred Hitchcock",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q202548"
+      }
+    },
+    {
+      "external_key": "imdb:tt0054215",
+      "title": "Sapık",
+      "subtitle": "Psycho",
+      "title_lang": "tr",
+      "popularity": 65,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0054215/",
+      "date": "1960",
+      "imdb_rating": "8.5",
+      "director": "Alfred Hitchcock",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q163038"
+      }
+    },
+    {
+      "external_key": "imdb:tt0060196",
+      "title": "İyi, Kötü ve Çirkin",
+      "subtitle": "The Good, the Bad and the Ugly",
+      "title_lang": "tr",
+      "popularity": 66,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0060196/",
+      "date": "1966",
+      "imdb_rating": "8.8",
+      "director": "Sergio Leone",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q41483"
+      }
+    },
+    {
+      "external_key": "imdb:tt0062622",
+      "title": "2001: Bir Uzay Destanı",
+      "subtitle": "2001: A Space Odyssey",
+      "title_lang": "tr",
+      "popularity": 65,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0062622/",
+      "date": "1968",
+      "imdb_rating": "8.3",
+      "director": "Stanley Kubrick",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q103474"
+      }
+    },
+    {
+      "external_key": "imdb:tt0068646",
+      "title": "Baba",
+      "subtitle": "The Godfather",
+      "title_lang": "tr",
+      "popularity": 76,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0068646/",
+      "date": "1972",
+      "imdb_rating": "9.2",
+      "director": "Francis Ford Coppola",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q47703"
+      }
+    },
+    {
+      "external_key": "imdb:tt0073486",
+      "title": "Guguk Kuşu",
+      "subtitle": "One Flew Over the Cuckoo's Nest",
+      "title_lang": "tr",
+      "popularity": 69,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0073486/",
+      "date": "1975",
+      "imdb_rating": "8.6",
+      "director": "Miloš Forman",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q171669"
+      }
+    },
+    {
+      "external_key": "imdb:tt0076759",
+      "title": "Yıldız Savaşları: Bölüm IV - Yeni Bir Umut",
+      "subtitle": "Star Wars",
+      "title_lang": "tr",
+      "popularity": 73,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0076759/",
+      "date": "1977",
+      "imdb_rating": "8.6",
+      "director": "George Lucas",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q17738"
+      }
+    },
+    {
+      "external_key": "imdb:tt0081505",
+      "title": "Cinnet",
+      "subtitle": "The Shining",
+      "title_lang": "tr",
+      "popularity": 70,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0081505/",
+      "date": "1980",
+      "imdb_rating": "8.4",
+      "director": "Stanley Kubrick",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q186341"
+      }
+    },
+    {
+      "external_key": "imdb:tt0088763",
+      "title": "Geleceğe Dönüş",
+      "subtitle": "Back to the Future",
+      "title_lang": "tr",
+      "popularity": 72,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0088763/",
+      "date": "1985",
+      "imdb_rating": "8.5",
+      "director": "Robert Zemeckis",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q91540"
+      }
+    },
+    {
+      "external_key": "imdb:tt0099685",
+      "title": "Sıkı Dostlar",
+      "subtitle": "Goodfellas",
+      "title_lang": "tr",
+      "popularity": 71,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0099685/",
+      "date": "1990",
+      "imdb_rating": "8.7",
+      "director": "Martin Scorsese",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q42047"
+      }
+    },
+    {
+      "external_key": "imdb:tt0102926",
+      "title": "Kuzuların Sessizliği",
+      "subtitle": "The Silence of the Lambs",
+      "title_lang": "tr",
+      "popularity": 74,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0102926/",
+      "date": "1991",
+      "imdb_rating": "8.6",
+      "director": "Jonathan Demme",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q133654"
+      }
+    },
+    {
+      "external_key": "imdb:tt0108052",
+      "title": "Schindler'in Listesi",
+      "subtitle": "Schindler's List",
+      "title_lang": "tr",
+      "popularity": 73,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0108052/",
+      "date": "1993",
+      "imdb_rating": "9.0",
+      "director": "Steven Spielberg",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q483941"
+      }
+    },
+    {
+      "external_key": "imdb:tt0111161",
+      "title": "Esaretin Bedeli",
+      "subtitle": "The Shawshank Redemption",
+      "title_lang": "tr",
+      "popularity": 80,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0111161/",
+      "date": "1994",
+      "imdb_rating": "9.3",
+      "director": "Frank Darabont",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q172241"
+      }
+    },
+    {
+      "external_key": "imdb:tt0110912",
+      "title": "Ucuz Roman",
+      "subtitle": "Pulp Fiction",
+      "title_lang": "tr",
+      "popularity": 77,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0110912/",
+      "date": "1994",
+      "imdb_rating": "8.8",
+      "director": "Quentin Tarantino",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q104123"
+      }
+    },
+    {
+      "external_key": "imdb:tt0109830",
+      "title": "Forrest Gump",
+      "subtitle": "Forrest Gump",
+      "title_lang": "tr",
+      "popularity": 78,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0109830/",
+      "date": "1994",
+      "imdb_rating": "8.8",
+      "director": "Robert Zemeckis",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q134773"
+      }
+    },
+    {
+      "external_key": "imdb:tt0118799",
+      "title": "Hayat Güzeldir",
+      "subtitle": "Life Is Beautiful",
+      "title_lang": "tr",
+      "popularity": 65,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0118799/",
+      "date": "1997",
+      "imdb_rating": "8.6",
+      "director": "Roberto Benigni",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q19355"
+      }
+    },
+    {
+      "external_key": "imdb:tt0120338",
+      "title": "Titanik",
+      "subtitle": "Titanic",
+      "title_lang": "tr",
+      "popularity": 71,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0120338/",
+      "date": "1997",
+      "imdb_rating": "8.0",
+      "director": "James Cameron",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q44578"
+      }
+    },
+    {
+      "external_key": "imdb:tt0133093",
+      "title": "Matrix",
+      "subtitle": "The Matrix",
+      "title_lang": "tr",
+      "popularity": 77,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0133093/",
+      "date": "1999",
+      "imdb_rating": "8.7",
+      "director": "Lana Vahovski, Lilly Vahovski",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q83495"
+      }
+    },
+    {
+      "external_key": "imdb:tt0245429",
+      "title": "Ruhların Kaçışı",
+      "subtitle": "Spirited Away",
+      "title_lang": "tr",
+      "popularity": 67,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0245429/",
+      "date": "2001",
+      "imdb_rating": "8.6",
+      "director": "Hayao Miyazaki",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q155653"
+      }
+    },
+    {
+      "external_key": "imdb:tt0167260",
+      "title": "Yüzüklerin Efendisi: Kralın Dönüşü",
+      "subtitle": "The Lord of the Rings: The Return of the King",
+      "title_lang": "tr",
+      "popularity": 76,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0167260/",
+      "date": "2003",
+      "imdb_rating": "9.0",
+      "director": "Peter Jackson",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q131074"
+      }
+    },
+    {
+      "external_key": "imdb:tt0468569",
+      "title": "Kara Şövalye",
+      "subtitle": "The Dark Knight",
+      "title_lang": "tr",
+      "popularity": 80,
+      "tags": [
+        "Sinema",
+        "Dünya klasikleri"
+      ],
+      "source_url": "https://www.imdb.com/title/tt0468569/",
+      "date": "2008",
+      "imdb_rating": "9.1",
+      "director": "Christopher Nolan",
+      "sources": {
+        "date": "https://www.wikidata.org/wiki/Q163872"
+      }
+    }
+  ]
+}

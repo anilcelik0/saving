@@ -20,8 +20,11 @@ adb shell am start -a android.intent.action.VIEW -d "https://appmanager.com.tr/l
 docker compose restart web
 #  - Kart türleri: template links "Excel · JSON"; Kartlar içe aktar accepts .xlsx / .csv / .json -> preview with checks
 #  - Kart türleri > "Dağılım raporu" (+ set "hedef kart sayısı")
-#  - 7.5, when enough real cards are approved (deletes data, so yours to run):
-docker compose exec web python manage.py seed_lineup_demo --purge
+#  - 7.5 / 7.6 real card sets (deletes the demo pool, puzzles and challenges, so yours to run; try --dry-run first):
+docker compose exec web python manage.py load_lineup_sets --reset --dry-run
+docker compose exec web python manage.py load_lineup_sets --reset
+#    rebuild a set from its sources (TÜİK each February, goals as they change):
+docker compose exec web python lineup_cards/datasets/build_sets.py provinces
 ```
 
 ---
@@ -233,9 +236,24 @@ files through the same import pipeline. Kept: the automatic checks and the repor
 - [x] **7.4** Report (S): `CardType.target_count`, "hedef" column, admin "Dağılım raporu" (approved vs target,
   staging / rejected / demo / non-Turkish counts, popularity buckets, value range per attribute).
   Check 15/15 (JSON parse / template / admin upload / apply / checks / report; rolled back).
-- [~] **7.5** Purge demo cards (S): `seed_lineup_demo --purge` when enough real cards are approved (user, deletes
-  data). Runs / puzzles on demo decks then answer `card_missing`. The production DB was never seeded (report: demo 0).
-- [ ] **7.6** (later, user) Prepare the real card JSON files (values from sources, never invented) and import them.
+- [~] **7.5** Purge demo cards: done by `load_lineup_sets --reset` (7.6), waiting for the user to run it on the dev DB.
+  The production DB was never seeded (report: demo 0).
+- [~] **7.6** First real card sets (2026-11-24, by request), `backend/lineup_cards/datasets/`:
+  `build_sets.py` (dev tool, run by hand; the app never connects to the sources) writes one JSON per set in the
+  import format + the card type definition; `manage.py load_lineup_sets [sets] [--reset] [--dry-run]` ensures the
+  types / attributes / fields, runs the import pipeline (validate, apply, CardImport record), sets per-value sources
+  and approves. `--reset` deletes every card, card import, daily puzzle (+ plays) and challenge, and abandons runs
+  being played (frozen decks would answer `card_missing`).
+  - İl (81): population 31.12.2025 from TÜİK ADNKS (nip.tuik.gov.tr; the 81 add up to TÜİK's 86 092 168), area
+    from Harita Genel Müdürlüğü's 2026 province areas (TÜİK publishes density only). Popularity from population.
+  - Futbolcu (35): Süper Lig players with 100+ league goals (English Wikipedia list, table updated 9 May 2026, cites
+    Mackolik; revision pinned), clubs with goals as a display field, club tags (a Galatasaray-only set is a tag
+    filter). Active players' goals change: rebuild.
+  - Film (25): IMDb rating (official dataset title.ratings) + year (Wikidata earliest publication date) on the shared
+    `date` attribute, director, Turkish title from Turkish Wikipedia. **IMDb data is licensed for personal /
+    non-commercial use only: license it or drop the rating before release (9.x).**
+  Check (rolled back): reset + load 141 cards all approved, no warnings; timeline easy/normal/hard and streak start on
+  all 5 attributes, daily puzzle builds: 21/21.
 
 ## Phase 8: Visual design (dedicated phase)
 Design canvas (claude.ai artifact, private): 3 directions per game. Choices (2026-11-23): daily puzzle = "Gece" layout
@@ -252,18 +270,25 @@ Design canvas (claude.ai artifact, private): 3 directions per game. Choices (202
   `assetlinks` view), so the dev home screen showed "Sunucu: hata". Decorators restored; health 200, assetlinks 200.
 - [~] **8.2** Zaman Çizgisi (user's spec, 2026-11-23/24): the line fills the screen, **highest value on top** (display
   only: the client sends `slot = len(line) - screen gap`); the new card waits at the bottom as a dark row with "?".
-  Free drag; over the line it snaps into the nearest gap (cards part, animated) and letting go places it
-  (n cards = n + 1 gaps); the next card then comes in at the bottom. The start card is dragged onto the empty line
-  first (display only, the server already placed it). The whole line fits without scrolling (rows, then spacing,
-  shrink). Placed card green until the next move; a wrong card simply disappears (no ghost, no banner), the lost heart
-  pops. Waiting for the user's test.
-- [~] **8.3** Seri: Gündüz layout kept (open card, up / down buttons around the swipe card); the previous-cards list is
+  Drag without a magnet (2026-11-24, by request): the card stays under the finger while the cards part smoothly
+  where it would go (gap judged against the resting line, so it never flickers); letting go glides it into the gap
+  (or back home) and places it (n cards = n + 1 gaps); the next card slides in at the bottom. The line rests centred
+  in room for one more row, so a right card turns over exactly where it was dropped. The start card is dragged onto
+  the empty line first (display only, the server already placed it). The whole line fits without scrolling (rows,
+  then spacing, shrink). Placed card green until the next move; a wrong card simply disappears (no ghost, no banner),
+  the lost heart pops. Committed 06484ba (before the smooth drag); smooth drag waiting for the user's test.
+- [x] **8.3** Seri: Gündüz layout kept (open card, up / down buttons around the swipe card); the previous-cards list is
   replaced by a value axis on the left: every revealed card spread evenly (highest on top), the open card's dot blue;
   no scrolling / re-centring (by request); value only when crowded. Revealed card green / red instead of a banner.
   Right column top-aligned, open and hidden cards with a fixed minimum height (nothing jumps between cards).
   Backend: `engine.values.sort_key` + `sort` in revealed card payloads (display order only), engine test added (66 OK).
-  Waiting for the user's test.
-- [ ] **8.4** Home (Gündüz, first screen) + the remaining screens (profile, Pro, challenges, login) in the same theme.
+  Committed 06484ba.
+- [~] **8.4** Home (Gündüz, first screen): LineUp logo + profile button, energy box (a bolt per point), today's puzzle
+  as the big blue card (number, streak, "Bugünün 6 kartını sırala" / continue / solved / lost, card shapes),
+  Zaman Çizgisi and Seri side by side (record or the run being played, cost), challenges row with a red "n yeni"
+  badge, outlined Pro row; guest note under the energy box. Server line kept as a small footer until release (9.0
+  deploy check), dev tools link debug only. Backend: `cards` in the home daily payload. Waiting for the user's test.
+- [ ] **8.5** The remaining screens (profile, Pro, challenges, login, archive) in the same theme.
 ## Phase 9: Release
 - [ ] **9.0** Server deploy (deferred from 0.7 by request; run when the user decides):
 

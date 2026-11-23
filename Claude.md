@@ -48,7 +48,9 @@ app_manager/                          # repo root
 │   ├── saving_invest/           # asset prices (gold, silver, USD, EUR), daily fetch, user portfolio
 │   ├── saving_reports/          # aggregated reporting endpoints
 │   ├── lineup_cards/            # card pool: flexible schema, importer.py (Excel / CSV / JSON template -> preview
-│   │                            #   with checks -> staging), distribution report, `seed_lineup_demo [--purge]`
+│   │                            #   with checks -> staging), distribution report, `seed_lineup_demo [--purge]`;
+│   │                            #   datasets/: real sets as JSON (+ their type definition) built by build_sets.py
+│   │                            #   from the sources, loaded by `load_lineup_sets [--reset] [--dry-run]`
 │   ├── lineup_social/           # invite challenges from a finished run (link / code / username), public /lineup/c/<code>
 │   └── lineup_games/            # runs + moves, home/energy, daily puzzle API (/api/v1/lineup/games/); engine/ = pure-Python engine,
 │                                #   tests: `python manage.py test lineup_games`
