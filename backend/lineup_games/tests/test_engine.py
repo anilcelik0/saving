@@ -6,7 +6,7 @@ from unittest import TestCase
 
 from lineup_games.engine import daily, decks, energy, streak, timeline
 from lineup_games.engine.decks import DeckCard, DeckParams
-from lineup_games.engine.values import Value, compare, gap
+from lineup_games.engine.values import Value, compare, gap, sort_key
 
 
 def year(y, m=None, d=None):
@@ -42,6 +42,13 @@ class CompareTests(TestCase):
     def test_date_vs_number_rejected(self):
         with self.assertRaises(ValueError):
             compare(year(2000), num("2000"))
+
+    def test_sort_key_follows_compare(self):
+        values = [year(-500, 3), year(-500), year(1453, 5, 29), year(1453), year(1923, 10, 29), year(1)]
+        ordered = sorted(values, key=sort_key)
+        self.assertEqual(ordered, [year(-500), year(-500, 3), year(1), year(1453), year(1453, 5, 29), year(1923, 10, 29)])
+        self.assertLess(sort_key(num("-3.5")), sort_key(num("2")))
+        self.assertEqual(sort_key(num("10.50")), 10.5)
 
     def test_gap(self):
         self.assertEqual(gap(year(1950), year(1999, 3)), 49)

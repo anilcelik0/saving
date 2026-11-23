@@ -8,6 +8,7 @@ class GameCard {
     required this.type,
     required this.details,
     this.value,
+    this.sort,
   });
 
   factory GameCard.fromJson(Map<String, dynamic> json) => GameCard(
@@ -18,6 +19,7 @@ class GameCard {
         type: json['type'] as String? ?? '',
         details: [for (final d in (json['details'] as List? ?? const [])) d as String],
         value: json['value'] as String?,
+        sort: (json['sort'] as num?)?.toDouble(),
       );
 
   final String id;
@@ -27,6 +29,9 @@ class GameCard {
   final String type;
   final List<String> details;
   final String? value;
+
+  /// Display order of a revealed value (value axes); never used to judge a move.
+  final double? sort;
 }
 
 class RunAttribute {

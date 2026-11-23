@@ -42,6 +42,16 @@ def compare(a: Value, b: Value) -> int:
     return (left > right) - (left < right)
 
 
+def sort_key(v: Value) -> float:
+    """
+    Order for display only (value axes on the mobile, after the value was revealed): dates as year*10000 +
+    month*100 + day (missing parts = 0, so "2001" sorts first within 2001), numbers as they are. Never used to judge.
+    """
+    if v.is_date:
+        return float(v.year * 10000 + (v.month or 0) * 100 + (v.day or 0))
+    return float(v.number)
+
+
 def gap(a: Value, b: Value) -> float:
     """Distance used for difficulty: whole years for dates, relative difference (0..1) for numbers."""
     if a.is_date:

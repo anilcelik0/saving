@@ -19,7 +19,7 @@ from lineup_cards.models import Attribute, Card, CardValue
 
 from .engine import daily, decks, energy, streak, timeline
 from .engine.decks import DeckCard
-from .engine.values import Value
+from .engine.values import Value, sort_key
 from .models import DailyPlay, DailyPuzzle, Energy, Move, Run
 from .signals import run_finished
 
@@ -279,6 +279,7 @@ def card_payload(card: Card, value: CardValue | None = None) -> dict:
     }
     if value is not None:
         data["value"] = value.display()
+        data["sort"] = sort_key(_value(value))  # display order for the value axes, never used to judge
     return data
 
 

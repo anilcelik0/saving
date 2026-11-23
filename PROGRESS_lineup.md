@@ -250,8 +250,19 @@ Design canvas (claude.ai artifact, private): 3 directions per game. Choices (202
   follows the server keys). Old plays keep their stored status.
 - [x] Fix (shared `core`): `/api/v1/health/` answered 500 since 9490a6e (its DRF decorators had moved onto the new
   `assetlinks` view), so the dev home screen showed "Sunucu: hata". Decorators restored; health 200, assetlinks 200.
-- [ ] **8.2** Zaman Çizgisi (Gündüz).
-- [ ] **8.3** Seri (Gündüz).
+- [~] **8.2** Zaman Çizgisi (user's spec, 2026-11-23/24): the line fills the screen, **highest value on top** (display
+  only: the client sends `slot = len(line) - screen gap`); the new card waits at the bottom as a dark row with "?".
+  Free drag; over the line it snaps into the nearest gap (cards part, animated) and letting go places it
+  (n cards = n + 1 gaps); the next card then comes in at the bottom. The start card is dragged onto the empty line
+  first (display only, the server already placed it). The whole line fits without scrolling (rows, then spacing,
+  shrink). Placed card green until the next move; a wrong card simply disappears (no ghost, no banner), the lost heart
+  pops. Waiting for the user's test.
+- [~] **8.3** Seri: Gündüz layout kept (open card, up / down buttons around the swipe card); the previous-cards list is
+  replaced by a value axis on the left: every revealed card spread evenly (highest on top), the open card's dot blue;
+  no scrolling / re-centring (by request); value only when crowded. Revealed card green / red instead of a banner.
+  Right column top-aligned, open and hidden cards with a fixed minimum height (nothing jumps between cards).
+  Backend: `engine.values.sort_key` + `sort` in revealed card payloads (display order only), engine test added (66 OK).
+  Waiting for the user's test.
 - [ ] **8.4** Home (Gündüz, first screen) + the remaining screens (profile, Pro, challenges, login) in the same theme.
 ## Phase 9: Release
 - [ ] **9.0** Server deploy (deferred from 0.7 by request; run when the user decides):

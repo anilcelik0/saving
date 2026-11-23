@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/game_ui.dart';
+import '../../core/theme.dart';
 import '../billing/continue_offer.dart';
-import '../social/challenge_buttons.dart';
 import '../home/energy_widgets.dart';
 import '../home/home_data.dart';
+import '../social/challenge_buttons.dart';
 import '../support/card_report_dialog.dart';
 import '../timeline/timeline_models.dart';
 import 'streak_controller.dart';
@@ -15,10 +17,18 @@ import 'streak_models.dart';
 const _higher = 'higher';
 const _lower = 'lower';
 
-String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+/// Minimum height of the open and the hidden card (a two-line title fits), so nothing jumps between cards.
+const _cardHeight = 168.0;
+
+/// First letter upper-case, Turkish aware ("ileri" -> "İleri").
+String _cap(String s) {
+  if (s.isEmpty) return s;
+  final first = switch (s[0]) { 'i' => 'İ', 'ı' => 'I', final c => c.toUpperCase() };
+  return first + s.substring(1);
+}
 
 /// Streak mode: the open card shows its value; swipe the next card up (higher) or down (lower), or use the buttons.
-/// One mistake ends the run. The server judges every guess.
+/// One mistake ends the run. The server judges every guess. Layout: Phase 8 "Gündüz".
 class StreakScreen extends ConsumerWidget {
   const StreakScreen({super.key, this.runId, this.challengeCode});
 
@@ -33,9 +43,7 @@ class StreakScreen extends ConsumerWidget {
       final view = next.value;
       if (view == null) return;
       if (view.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(view.error!), behavior: SnackBarBehavior.floating),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(view.error!)));
       }
       if (view.noEnergy) showNoEnergyDialog(context, ref);
       final last = view.last;
@@ -48,36 +56,51 @@ class StreakScreen extends ConsumerWidget {
     final view = async.value;
     final run = view?.run;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(challengeCode == null ? 'Seri' : 'Meydan okuma'),
-        actions: [
-          if (run != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Center(
-                child: Text('Seri: ${run.score}  ·  Rekor: ${run.best}', style: Theme.of(context).textTheme.titleSmall),
-              ),
-            ),
-        ],
-      ),
       body: SafeArea(
-        child: switch (async) {
-          AsyncValue(hasError: true) => Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(padding: const EdgeInsets.all(24), child: Text('${async.error}', textAlign: TextAlign.center)),
-                  FilledButton(onPressed: () => ref.invalidate(provider), child: const Text('Tekrar dene')),
-                ],
-              ),
+        child: Column(
+          children: [
+            GameHeader(
+              title: challengeCode == null ? 'Seri' : 'Meydan okuma',
+              trailing: run == null ? null : _Counter(score: run.score, best: run.best),
             ),
-          _ when view == null => const Center(child: CircularProgressIndicator()),
-          _ when run == null => _Intro(busy: view.busy),
-          _ => _Board(view: view, run: run, provider: provider, challengeCode: challengeCode),
-        },
+            Expanded(
+              child: switch (async) {
+                AsyncValue(hasError: true) => GameMessage(
+                    text: '${async.error}',
+                    action: 'Tekrar dene',
+                    onAction: () => ref.invalidate(provider),
+                  ),
+                _ when view == null => const Center(child: CircularProgressIndicator()),
+                _ when run == null => _Intro(busy: view.busy),
+                _ => _Board(view: view, run: run, provider: provider, challengeCode: challengeCode),
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// "7" over "rekor 14".
+class _Counter extends StatelessWidget {
+  const _Counter({required this.score, required this.best});
+
+  final int score;
+  final int best;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: 'Seri $score, rekor $best',
+        excludeSemantics: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text('$score', style: display(22, color: LU.accentText)),
+            Text('rekor $best', style: const TextStyle(fontSize: 12, color: LU.muted)),
+          ],
+        ),
+      );
 }
 
 class _Intro extends ConsumerWidget {
@@ -88,31 +111,36 @@ class _Intro extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final best = ref.watch(homeProvider).value?.bestStreak ?? 0;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Daha büyük mü, daha küçük mü?', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            const Text('Açık kartın değerini görürsün. Sıradaki kartı yukarı (daha büyük) ya da aşağı (daha küçük) '
-                'kaydır. Her doğru tahmin serini uzatır; ilk hatada tur biter.', textAlign: TextAlign.center),
-            if (best > 0) ...[
-              const SizedBox(height: 8),
-              Text('Rekorun: $best', style: Theme.of(context).textTheme.titleMedium),
-            ],
-            const SizedBox(height: 24),
-            if (busy)
-              const CircularProgressIndicator()
-            else
-              FilledButton(
-                onPressed: () => ref.read(streakProvider(null).notifier).start(),
-                child: const Text('Başla · ⚡1'),
-              ),
-          ],
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        Text('Daha büyük mü, daha küçük mü?', style: display(26)),
+        const SizedBox(height: 8),
+        const Text(
+          'Açık kartın değerini görürsün. Sıradaki kartı yukarı (daha büyük) ya da aşağı (daha küçük) kaydır. '
+          'Her doğru tahmin serini uzatır; ilk hatada tur biter.',
+          style: TextStyle(fontSize: 15, color: LU.muted, height: 1.4),
         ),
-      ),
+        const SizedBox(height: 20),
+        if (best > 0)
+          Panel(
+            child: Row(
+              children: [
+                const Expanded(child: Text('Rekorun', style: TextStyle(fontSize: 15, color: LU.muted))),
+                Text('$best', style: display(32, color: LU.accentText)),
+              ],
+            ),
+          ),
+        const SizedBox(height: 20),
+        if (busy)
+          const Center(child: CircularProgressIndicator())
+        else
+          FilledButton.icon(
+            onPressed: () => ref.read(streakProvider(null).notifier).start(),
+            icon: const Icon(Icons.bolt),
+            label: const Text('Başla · 1 enerji'),
+          ),
+      ],
     );
   }
 }
@@ -127,70 +155,84 @@ class _Board extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final controller = ref.read(provider.notifier);
     final a = run.attribute;
     final canGuess = run.isPlaying && run.current != null && !view.busy;
     void report(GameCard card) => showCardReportDialog(context, ref, card, screen: 'streak');
+    final last = view.last;
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Text('${a.name}  ·  yukarı: ${a.higherLabel}  ·  aşağı: ${a.lowerLabel}',
-              style: theme.textTheme.labelLarge, textAlign: TextAlign.center),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          child: Text(
+            run.current == null ? a.name : '${a.name}: sıradaki kart açık karttan…',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 15, color: LU.muted),
+          ),
         ),
-        if (view.last != null) _ResultBanner(result: view.last!, onReport: () => report(view.last!.card)),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: _OpenCard(card: run.open, onReport: () => report(run.open)),
-        ),
-        if (run.isPlaying && run.current != null) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                onPressed: canGuess ? () => controller.guess(_higher) : null,
-                icon: const Icon(Icons.arrow_upward),
-                label: Text(_cap(a.higherLabel)),
-              ),
-            ),
-          ),
-          _SwipeCard(
-            key: ValueKey(run.current!.id),
-            card: run.current!,
-            enabled: canGuess,
-            onGuess: controller.guess,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                onPressed: canGuess ? () => controller.guess(_lower) : null,
-                icon: const Icon(Icons.arrow_downward),
-                label: Text(_cap(a.lowerLabel)),
-              ),
-            ),
-          ),
-          Text(view.busy ? 'Kontrol ediliyor...' : 'Kartı yukarı ya da aşağı kaydır', style: theme.textTheme.bodySmall),
-        ] else
-          _EndPanel(run: run, busy: view.busy, provider: provider, challengeCode: challengeCode),
-        const Divider(),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              for (final card in run.history)
-                ListTile(
-                  dense: true,
-                  leading: Text(card.emoji),
-                  title: Text(card.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  trailing: Text(card.value ?? '', style: theme.textTheme.labelLarge),
-                  onLongPress: () => report(card),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 104,
+                  child: _ValueAxis(
+                    open: run.open,
+                    history: run.history,
+                    higher: a.higherLabel,
+                    lower: a.lowerLabel,
+                    onReport: report,
+                  ),
                 ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  // Top-aligned with fixed-height cards: the open card never moves.
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      _OpenCard(
+                        card: run.open,
+                        // The card just revealed: green when the guess was right, red when wrong.
+                        tint: last == null || last.card.id != run.open.id
+                            ? null
+                            : last.correct
+                                ? const Color(0xFFDDF5E6)
+                                : const Color(0xFFFDE4E4),
+                        onReport: () => report(run.open),
+                      ),
+                      if (run.isPlaying && run.current != null) ...[
+                        const SizedBox(height: 10),
+                        _GuessButton(
+                          label: _cap(a.higherLabel),
+                          icon: Icons.arrow_upward,
+                          bg: LU.primarySoft,
+                          fg: LU.onPrimarySoft,
+                          onPressed: canGuess ? () => controller.guess(_higher) : null,
+                        ),
+                        _SwipeCard(
+                          key: ValueKey(run.current!.id),
+                          card: run.current!,
+                          enabled: canGuess,
+                          busy: view.busy,
+                          onGuess: controller.guess,
+                        ),
+                        _GuessButton(
+                          label: _cap(a.lowerLabel),
+                          icon: Icons.arrow_downward,
+                          bg: LU.accentSoft,
+                          fg: LU.onAccentSoft,
+                          onPressed: canGuess ? () => controller.guess(_lower) : null,
+                        ),
+                      ] else
+                        _EndPanel(run: run, busy: view.busy, provider: provider, challengeCode: challengeCode),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -198,39 +240,216 @@ class _Board extends ConsumerWidget {
   }
 }
 
+/// Every revealed card on a vertical value axis, spread evenly: highest value on top (by `sort`, display only).
+/// The open card's dot is blue. The axis does not scroll or re-centre.
+class _ValueAxis extends StatelessWidget {
+  const _ValueAxis({
+    required this.open,
+    required this.history,
+    required this.higher,
+    required this.lower,
+    required this.onReport,
+  });
+
+  final GameCard open;
+  final List<GameCard> history;
+  final String higher;
+  final String lower;
+  final void Function(GameCard card) onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = <String, GameCard>{for (final c in history) c.id: c, open.id: open}.values.toList();
+    final ordered = [...cards]..sort((a, b) => (a.sort ?? 0).compareTo(b.sort ?? 0));
+    final highestFirst = ordered.reversed.toList();
+    const labelStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.3);
+    return Semantics(
+      label: 'Değer ekseni: ${[for (final c in ordered.reversed) '${c.title} ${c.value ?? ''}'].join(', ')}',
+      excludeSemantics: true,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // Every card gets an equal share between the zone labels; nothing moves except new cards slotting in.
+          const top = 40.0;
+          final slot = (box.maxHeight - 2 * top) / highestFirst.length;
+          final itemHeight = slot < 40 ? slot : 40.0;
+          final compact = slot < 34; // value only when crowded
+          return Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        LU.primary.withValues(alpha: 0.10),
+                        LU.primary.withValues(alpha: 0.02),
+                        LU.accent.withValues(alpha: 0.03),
+                        LU.accent.withValues(alpha: 0.12),
+                      ],
+                      stops: const [0, 0.5, 0.5, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 8,
+                right: 6,
+                top: 8,
+                child: Text('↑ $higher',
+                    maxLines: 2, overflow: TextOverflow.ellipsis, style: labelStyle.copyWith(color: LU.onPrimarySoft)),
+              ),
+              Positioned(
+                left: 8,
+                right: 6,
+                bottom: 8,
+                child: Text('↓ $lower',
+                    maxLines: 2, overflow: TextOverflow.ellipsis, style: labelStyle.copyWith(color: LU.onAccentSoft)),
+              ),
+              const Positioned(
+                left: 15,
+                top: 40,
+                bottom: 40,
+                child: SizedBox(width: 2, child: ColoredBox(color: Color(0xFFC3C9D6))),
+              ),
+              for (final (i, card) in highestFirst.indexed)
+                _axisItem(card, top + slot * (i + 0.5), itemHeight, compact, card.id == open.id),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _axisItem(GameCard card, double y, double height, bool compact, bool isOpen) {
+    final value = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(card.value ?? '', style: display(14, color: isOpen ? LU.primary : LU.ink)),
+    );
+    return Positioned(
+      key: ValueKey(card.id),
+      left: 8,
+      right: 4,
+      top: y - height / 2,
+      height: height,
+      child: GestureDetector(
+        onLongPress: () => onReport(card),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              child: Center(
+                child: Container(
+                  width: isOpen ? 14 : 10,
+                  height: isOpen ? 14 : 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isOpen ? LU.primary : const Color(0xFF8E97AE),
+                    boxShadow: isOpen ? [BoxShadow(color: LU.primary.withValues(alpha: 0.25), spreadRadius: 4)] : null,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              // Crowded axis: the value alone, scaled into the row height.
+              child: compact
+                  ? value
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        value,
+                        Text(card.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 11, color: LU.muted, fontWeight: isOpen ? FontWeight.w600 : FontWeight.w400)),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GuessButton extends StatelessWidget {
+  const _GuessButton({required this.label, required this.icon, required this.bg, required this.fg, this.onPressed});
+
+  final String label;
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: bg,
+            foregroundColor: fg,
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          ),
+          onPressed: onPressed,
+          icon: Icon(icon),
+          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      );
+}
+
 /// The reference card: its value is shown big.
 class _OpenCard extends StatelessWidget {
-  const _OpenCard({required this.card, required this.onReport});
+  const _OpenCard({required this.card, required this.onReport, this.tint});
 
   final GameCard card;
+  final Color? tint;
   final VoidCallback onReport;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      color: theme.colorScheme.secondaryContainer,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onLongPress: onReport,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              if (card.emoji.isNotEmpty) Text(card.emoji, style: const TextStyle(fontSize: 28)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(card.title, style: theme.textTheme.titleMedium),
-                    if (card.subtitle.isNotEmpty) Text(card.subtitle, style: theme.textTheme.bodySmall),
-                  ],
+    final sub = [if (card.subtitle.isNotEmpty) card.subtitle, if (card.type.isNotEmpty) card.type].join(' · ');
+    return Container(
+      width: double.infinity,
+      // Room for a two-line title: the card keeps its size from card to card.
+      constraints: const BoxConstraints(minHeight: _cardHeight),
+      decoration: BoxDecoration(color: tint ?? LU.surface, borderRadius: BorderRadius.circular(22), boxShadow: LU.shadow),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onLongPress: onReport,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Açık kart',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: LU.muted, letterSpacing: 0.5)),
+                const SizedBox(height: 2),
+                Text('${card.emoji.isEmpty ? '' : '${card.emoji} '}${card.title}',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 19)),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(card.value ?? '', textAlign: TextAlign.center, style: display(40, color: LU.primary)),
                 ),
-              ),
-              Text(card.value ?? '', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            ],
+                if (sub.isNotEmpty)
+                  Text(sub,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: LU.muted)),
+              ],
+            ),
           ),
         ),
       ),
@@ -240,10 +459,11 @@ class _OpenCard extends StatelessWidget {
 
 /// The hidden card: drag it up (higher) or down (lower) past a threshold, or flick it.
 class _SwipeCard extends StatefulWidget {
-  const _SwipeCard({super.key, required this.card, required this.enabled, required this.onGuess});
+  const _SwipeCard({super.key, required this.card, required this.enabled, required this.busy, required this.onGuess});
 
   final GameCard card;
   final bool enabled;
+  final bool busy;
   final void Function(String guess) onGuess;
 
   @override
@@ -271,69 +491,52 @@ class _SwipeCardState extends State<_SwipeCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final card = widget.card;
-    final tint = _dy.abs() >= _threshold ? theme.colorScheme.primaryContainer : null;
+    final sub = [if (card.subtitle.isNotEmpty) card.subtitle, if (card.type.isNotEmpty) card.type].join(' · ');
+    // Past the threshold the border shows which answer a release gives.
+    final border = _dy <= -_threshold
+        ? LU.primary
+        : _dy >= _threshold
+            ? LU.accent
+            : Colors.transparent;
     return GestureDetector(
       onVerticalDragUpdate: widget.enabled ? (d) => setState(() => _dy = (_dy + d.delta.dy).clamp(-90.0, 90.0)) : null,
       onVerticalDragEnd: widget.enabled ? _end : null,
       child: Transform.translate(
         offset: Offset(0, _dy),
-        child: Card(
-          elevation: 3,
-          color: tint,
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                if (card.emoji.isNotEmpty) Text(card.emoji, style: const TextStyle(fontSize: 36)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(card.title, style: theme.textTheme.titleLarge),
-                      if (card.subtitle.isNotEmpty) Text(card.subtitle),
-                      Text([card.type, ...card.details].join(' · '), style: theme.textTheme.bodySmall),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.unfold_more),
-              ],
-            ),
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: _cardHeight),
+          margin: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+          decoration: BoxDecoration(
+            color: LU.ink,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: border, width: 3),
+            boxShadow: LU.liftShadow,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('${card.emoji.isEmpty ? '' : '${card.emoji} '}${card.title}',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 21)),
+              Text('????',
+                  style: display(34, color: Colors.white.withValues(alpha: 0.85)).copyWith(letterSpacing: 6)),
+              if (sub.isNotEmpty)
+                Text(sub,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(widget.busy ? 'Kontrol ediliyor...' : 'Yukarı ya da aşağı kaydır',
+                  style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ResultBanner extends StatelessWidget {
-  const _ResultBanner({required this.result, required this.onReport});
-
-  final GuessResult result;
-  final VoidCallback onReport;
-
-  @override
-  Widget build(BuildContext context) {
-    final ok = result.correct;
-    final label = ok ? (result.relation == 'equal' ? 'Eşit, doğru!' : 'Doğru!') : 'Yanlış';
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.only(left: 12),
-      decoration: BoxDecoration(
-        color: ok ? Colors.green.shade100 : Colors.red.shade100,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(ok ? Icons.check_circle : Icons.cancel, color: ok ? Colors.green.shade800 : Colors.red.shade800),
-          const SizedBox(width: 8),
-          Expanded(child: Text('$label  ${result.card.title}: ${result.card.value ?? ''}')),
-          TextButton(onPressed: onReport, child: const Text('Hata bildir')),
-        ],
       ),
     );
   }
@@ -351,21 +554,22 @@ class _EndPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final record = run.score > 0 && run.score >= run.best;
     final title = switch (run.status) {
       'finished' => 'Bütün kartları bildin!',
       _ => 'Seri bitti',
     };
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    return Panel(
+      margin: const EdgeInsets.only(top: 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(title, style: theme.textTheme.titleLarge),
-          Text(record ? 'Seri: ${run.score} · Yeni rekor!' : 'Seri: ${run.score} · Rekor: ${run.best}'),
+          Text(title, style: display(22), textAlign: TextAlign.center),
+          const SizedBox(height: 4),
+          Text(record ? 'Seri ${run.score} · yeni rekor!' : 'Seri ${run.score} · rekor ${run.best}',
+              style: TextStyle(color: record ? LU.accentText : LU.muted, fontWeight: FontWeight.w600)),
           if (run.canContinue) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             ContinueOffer(runId: run.id, onResumed: ref.read(provider.notifier).reload),
           ],
           if (challengeCode == null && !run.isPlaying) ...[
@@ -373,22 +577,23 @@ class _EndPanel extends ConsumerWidget {
             ChallengeFromRunButton(runId: run.id),
           ],
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (challengeCode != null)
-                FilledButton(
-                  onPressed: () => context.go('/home/challenges/$challengeCode'),
-                  child: const Text('Sonucu gör'),
-                )
-              else
-                FilledButton(
-                  onPressed: busy ? null : () => ref.read(provider.notifier).start(),
-                  child: const Text('Yeni tur · ⚡1'),
-                ),
-              const SizedBox(width: 12),
-              OutlinedButton(onPressed: () => context.go('/home'), child: const Text('Ana menü')),
-            ],
+          // Stacked: the column next to the value axis is narrow.
+          SizedBox(
+            width: double.infinity,
+            child: challengeCode != null
+                ? FilledButton(
+                    onPressed: () => context.go('/home/challenges/$challengeCode'),
+                    child: const Text('Sonucu gör'),
+                  )
+                : FilledButton(
+                    onPressed: busy ? null : () => ref.read(provider.notifier).start(),
+                    child: const Text('Yeni tur · ⚡1'),
+                  ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(onPressed: () => context.go('/home'), child: const Text('Ana menü')),
           ),
         ],
       ),
