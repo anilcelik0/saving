@@ -68,6 +68,7 @@ class DailyHome {
     required this.status,
     required this.attemptsUsed,
     required this.maxAttempts,
+    required this.cards,
     required this.solvedIn,
     required this.streak,
   });
@@ -77,6 +78,7 @@ class DailyHome {
         status: json['status'] as String,
         attemptsUsed: json['attempts_used'] as int,
         maxAttempts: json['max_attempts'] as int? ?? 5,
+        cards: json['cards'] as int? ?? 6,
         solvedIn: json['solved_in'] as int?,
         streak: json['streak'] as int? ?? 0,
       );
@@ -87,6 +89,9 @@ class DailyHome {
   final String status;
   final int attemptsUsed;
   final int maxAttempts;
+
+  /// Cards in today's puzzle.
+  final int cards;
   final int? solvedIn;
 
   /// Consecutive solved puzzles (today's open puzzle does not break it yet).

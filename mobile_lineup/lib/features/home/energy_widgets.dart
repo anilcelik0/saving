@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/api_client.dart';
+import '../../core/theme.dart';
 import '../billing/reward_ads.dart';
 import 'home_data.dart';
 
@@ -60,38 +61,52 @@ class _EnergyBadgeState extends ConsumerState<EnergyBadge> {
   Widget build(BuildContext context) {
     final e = widget.energy;
     final now = DateTime.now();
-    final theme = Theme.of(context);
     final String title;
     final String subtitle;
     if (e.unlimited && e.pro) {
-      title = 'Enerji: sınırsız · Pro';
+      title = 'Sınırsız enerji · Pro';
       subtitle = e.unlimitedSeconds == null
           ? 'Pro üyeliğin aktif'
           : 'Pro: ${formatWait(e.left(e.unlimitedSeconds!, now))} kaldı';
     } else if (e.unlimited) {
-      title = 'Enerji: sınırsız';
+      title = 'Sınırsız enerji';
       subtitle = 'Yeni oyunculara özel · ${formatWait(e.left(e.unlimitedSeconds ?? 0, now))} kaldı';
     } else {
-      title = 'Enerji: ${e.current}/${e.max}';
+      title = 'Enerji ${e.current}/${e.max}';
       subtitle = e.nextInSeconds == null
           ? 'Dolu · her tur ${e.cost} enerji'
           : '+1 enerji ${formatWait(e.left(e.nextInSeconds!, now))} sonra · '
               'dolu: ${formatWait(e.left(e.fullInSeconds!, now))}';
     }
-    return Card(
-      child: ListTile(
-        leading: Icon(Icons.bolt, color: theme.colorScheme.primary),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: e.unlimited
-            ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
+    // Phase 8 "Gündüz": white box, a bolt per energy point (orange = full).
+    return Semantics(
+      label: '$title. $subtitle',
+      excludeSemantics: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(color: LU.surface, borderRadius: BorderRadius.circular(20), boxShadow: LU.shadow),
+        child: Row(
+          children: [
+            if (e.unlimited)
+              const Icon(Icons.all_inclusive, color: LU.accent, size: 26)
+            else
+              for (var i = 0; i < e.max; i++)
+                Icon(Icons.bolt, size: 22, color: i < e.current ? LU.accent : const Color(0xFFC3C9D6)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (var i = 0; i < e.max; i++)
-                    Icon(Icons.bolt, size: 18, color: i < e.current ? Colors.amber.shade700 : theme.disabledColor),
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  Text(subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: LU.muted)),
                 ],
               ),
+            ),
+          ],
+        ),
       ),
     );
   }

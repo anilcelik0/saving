@@ -15,10 +15,10 @@ import 'timeline_controller.dart';
 import 'timeline_models.dart';
 
 /// Timeline mode (Phase 8 design): the line fills the screen, highest value on top; the new card waits at the bottom
-/// with "?" for its value. Drag it freely: over the line it snaps into the nearest gap (the cards part) and letting go
-/// places it there; after every move the next card comes in at the bottom. The start card is dragged onto the empty
-/// line first (display only: the server already put it there). A wrong card simply disappears and a life is lost.
-/// Every rule is checked by the server; there is no move timer.
+/// with "?" for its value. Drag it up: it stays under the finger while the cards part smoothly where it would go
+/// (no magnet); letting go glides it into that gap and places it, and the next card slides in at the bottom. The start
+/// card is dragged onto the empty line first (display only: the server already put it there). A wrong card simply
+/// disappears and a life is lost. Every rule is checked by the server; there is no move timer.
 class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key, this.runId, this.challengeCode});
 
@@ -32,25 +32,94 @@ class TimelineScreen extends ConsumerStatefulWidget {
 
 /// The card just placed (or the start card just thrown) turns green until the next move.
 const _rightTint = Color(0xFFDDF5E6);
+const _handHeight = 64.0;
 
-class _TimelineScreenState extends ConsumerState<TimelineScreen> {
+/// Where things are in the play field. Highest value on top; gap 0 = above the top card.
+class _Geometry {
+  const _Geometry({
+    required this.width,
+    required this.startY,
+    required this.row,
+    required this.spacing,
+    required this.lineBottom,
+    required this.home,
+    required this.count,
+    required this.restOffset,
+  });
+
+  final double width;
+  final double startY;
+  final double row;
+  final double spacing;
+
+  /// Below this the card is back over its waiting place: no gap opens.
+  final double lineBottom;
+
+  /// The waiting card's place at the bottom.
+  final Rect home;
+
+  /// Cards on the line.
+  final int count;
+
+  /// 0.5 while playing: the line rests centred in room for one more row, so an open gap parts it symmetrically and
+  /// a placed card ends up exactly where it was dropped.
+  final double restOffset;
+
+  double get pitch => row + spacing;
+
+  /// Top of line card [k]; with [open] set, the cards part around that gap.
+  double cardTop(int k, int? open) => startY + (open == null ? k + restOffset : (k < open ? k : k + 1)) * pitch;
+
+  Rect slot(int gap) => Rect.fromLTWH(0, startY + gap * pitch, width, row);
+
+  /// The gap under a card centred at [y], judged against the resting line so it never flickers while cards move.
+  int? gapAt(double y) {
+    if (y > lineBottom) return null;
+    var gap = 0;
+    for (var k = 0; k < count; k++) {
+      if (cardTop(k, null) + row / 2 < y) gap++;
+    }
+    return gap;
+  }
+}
+
+class _TimelineScreenState extends ConsumerState<TimelineScreen> with SingleTickerProviderStateMixin {
   late final _provider = timelineProvider(widget.runId);
-  final _fieldKey = GlobalKey();
+
+  /// After letting go the card glides into its gap (or back to its waiting place).
+  late final AnimationController _glide;
 
   /// Run whose start card was already thrown onto the line in this screen.
   String? _introDone;
+  _Geometry? _geo;
 
-  // Drag state, in field coordinates. Gaps are counted on screen: 0 = above the top (highest) card.
-  Offset? _pointer;
-  Offset _grab = Offset.zero;
-  int? _hover;
+  // Drag: the card's top-left in field coordinates and the gap it is over.
+  Offset? _cardAt;
+  int? _over;
+  RunState? _dragRun;
+  bool _dragIntro = false;
 
-  /// Gap sent to the server; the card stays snapped there until the answer.
+  // Glide after letting go.
+  Rect? _glideFrom;
+  Rect? _glideTo;
+  int? _glideGap;
+
+  /// Gap sent to the server; the card waits there until the answer.
   int? _pending;
 
-  // Geometry of the last build, used while dragging.
-  double _snapBelow = 0;
-  List<double> _cardCenters = const [];
+  @override
+  void initState() {
+    super.initState();
+    _glide = AnimationController(vsync: this, duration: const Duration(milliseconds: 240))
+      ..addListener(() => setState(() {}))
+      ..addStatusListener(_glided);
+  }
+
+  @override
+  void dispose() {
+    _glide.dispose();
+    super.dispose();
+  }
 
   bool _introActive(TimelineView view, RunState run) =>
       run.isPlaying &&
@@ -60,52 +129,66 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       view.last == null &&
       _introDone != run.id;
 
-  Offset? _toField(Offset global) {
-    final box = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
-    return box?.globalToLocal(global);
-  }
-
-  /// Over the line: the gap below every card whose centre is above the finger; null below the line.
-  int? _gapAt(Offset p) => p.dy > _snapBelow ? null : _cardCenters.where((c) => c < p.dy).length;
-
-  void _dragStart(DragStartDetails d) {
+  void _dragStart(RunState run, bool intro) {
+    final geo = _geo;
+    if (geo == null || _glide.isAnimating) return;
     setState(() {
-      _grab = d.localPosition;
-      _pointer = _toField(d.globalPosition);
+      _cardAt = geo.home.topLeft;
+      _dragRun = run;
+      _dragIntro = intro;
     });
   }
-
-  void _dragCancel() => setState(() {
-        _pointer = null;
-        _hover = null;
-      });
 
   void _dragUpdate(DragUpdateDetails d) {
-    if (_pointer == null) return; // no drag started (e.g. while a move is being checked)
-    final p = _toField(d.globalPosition);
-    if (p == null) return;
-    final gap = _gapAt(p);
-    if (gap != _hover && gap != null) HapticFeedback.selectionClick();
+    final geo = _geo;
+    final at = _cardAt;
+    if (geo == null || at == null) return; // no drag started (e.g. while a move is being checked)
+    final next = at + d.delta;
+    final gap = geo.gapAt(next.dy + _handHeight / 2);
+    if (gap != _over && gap != null) HapticFeedback.selectionClick();
     setState(() {
-      _pointer = p;
-      _hover = gap;
+      _cardAt = next;
+      _over = gap;
     });
   }
 
-  void _dragEnd(RunState run, bool intro) {
-    if (_pointer == null) return;
-    final gap = _hover;
+  void _dragEnd() {
+    final geo = _geo;
+    final at = _cardAt;
+    if (geo == null || at == null) return;
+    final gap = _over;
     setState(() {
-      _pointer = null;
-      _hover = null;
+      _glideFrom = at & geo.home.size;
+      _glideTo = gap == null ? geo.home : geo.slot(gap);
+      _glideGap = gap;
+      _cardAt = null; // _over stays: the gap is kept open while the card glides into it
     });
-    if (gap == null) return; // let go below the line: the card goes back
+    _glide.forward(from: 0);
+  }
+
+  void _glided(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    final gap = _glideGap;
+    final run = _dragRun;
+    final intro = _dragIntro;
+    setState(() {
+      _glideFrom = null;
+      _glideTo = null;
+      _glideGap = null;
+      _over = null;
+      if (gap != null && run != null) {
+        if (intro) {
+          _introDone = run.id;
+        } else {
+          _pending = gap;
+        }
+      }
+    });
+    if (gap == null || run == null) return;
     if (intro) {
       HapticFeedback.lightImpact();
-      setState(() => _introDone = run.id);
       return;
     }
-    setState(() => _pending = gap);
     // The screen shows the highest value first; the server counts slots from the lowest.
     ref.read(_provider.notifier).place(run.line.length - gap);
   }
@@ -206,9 +289,9 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
             child: Text(
               intro
                   ? 'İlk kartı yukarı, çizgiye sürükle'
-                  : view.busy
+                  : view.busy || _pending != null
                       ? 'Kontrol ediliyor...'
-                      : 'Kartı yukarı sürükle; boşluğa gelince oturur, bırakınca yerleşir',
+                      : 'Kartı yukarı sürükle, kartlar aralanınca bırak',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, color: LU.muted),
             ),
@@ -227,36 +310,39 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     final freshId = last != null
         ? (last.correct ? last.card.id : null)
         : (_introDone == run.id && run.line.length == 1 ? run.line.first.id : null);
-    final handGap = _hover ?? (view.busy ? _pending : null);
     void report(GameCard card) => showCardReportDialog(context, ref, card, screen: 'timeline');
 
     const labelHeight = 20.0;
-    const handHeight = 64.0;
-    final handTop = size.height - handHeight;
+    final home = Rect.fromLTWH(0, size.height - _handHeight, size.width, _handHeight);
     const lineTop = labelHeight + 6;
-    final lineBottom = (playing ? handTop - 14 : size.height) - labelHeight - 6;
-
-    // Top -> bottom: (card, isHand). The hand shows in the line while it is snapped into a gap.
-    final entries = <(GameCard, bool)>[];
-    for (var i = 0; i <= line.length; i++) {
-      if (handGap == i && hand != null) entries.add((hand, true));
-      if (i < line.length) entries.add((line[i], false));
-    }
-    // The whole line fits without scrolling: rows (then the spacing) shrink as it grows.
+    final lineBottom = (playing ? home.top - 14 : size.height) - labelHeight - 6;
     final area = lineBottom - lineTop;
-    final m = entries.length;
+    // The whole line fits without scrolling: rows (then the spacing) shrink as it grows. While playing there is room
+    // for one more row (the card being placed).
+    final rows = line.length + (playing ? 1 : 0);
     var spacing = 8.0;
-    var rowHeight = 56.0;
-    if (m > 0) {
-      rowHeight = (area - (m - 1) * spacing) / m;
-      if (rowHeight < 30) {
-        rowHeight = 30;
-        if (m > 1) spacing = math.max(2.0, (area - m * rowHeight) / (m - 1));
+    var row = 56.0;
+    if (rows > 0) {
+      row = (area - (rows - 1) * spacing) / rows;
+      if (row < 30) {
+        row = 30;
+        if (rows > 1) spacing = math.max(2.0, (area - rows * row) / (rows - 1));
       }
-      rowHeight = math.min(rowHeight, 56.0);
+      row = math.min(row, 56.0);
     }
-    final total = m * rowHeight + math.max(0, m - 1) * spacing;
-    final startY = lineTop + math.max(0.0, (area - total) / 2);
+    final total = rows * row + math.max(0, rows - 1) * spacing;
+    final geo = _Geometry(
+      width: size.width,
+      startY: lineTop + math.max(0.0, (area - total) / 2),
+      row: row,
+      spacing: spacing,
+      lineBottom: lineBottom,
+      home: home,
+      count: line.length,
+      restOffset: playing ? 0.5 : 0,
+    );
+    _geo = geo;
+    final open = _over ?? _pending;
 
     const labelStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: LU.muted);
     final children = <Widget>[
@@ -272,99 +358,140 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
         top: lineBottom + 6,
         child: Text('↓ ${run.attribute.lowerLabel}', maxLines: 1, overflow: TextOverflow.ellipsis, style: labelStyle),
       ),
-    ];
-    if (m == 0) {
-      // Empty line: the start card has not been thrown yet.
-      children.add(Positioned(
-        left: 0,
-        right: 0,
-        top: lineTop,
-        height: area,
-        child: Container(
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: LU.primarySoft.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: LU.primary.withValues(alpha: 0.35), width: 1.5),
+      if (intro)
+        // Empty line: the start card has not been thrown yet.
+        Positioned(
+          left: 0,
+          right: 0,
+          top: lineTop,
+          height: area,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: LU.primarySoft.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: LU.primary.withValues(alpha: 0.35), width: 1.5),
+            ),
+            child: const Text('Kartı buraya sürükle',
+                style: TextStyle(color: LU.onPrimarySoft, fontWeight: FontWeight.w600)),
           ),
-          child: const Text('Kartı buraya sürükle',
-              style: TextStyle(color: LU.onPrimarySoft, fontWeight: FontWeight.w600)),
         ),
-      ));
-    }
+    ];
 
-    final centers = <double>[];
-    for (final (k, (card, isHand)) in entries.indexed) {
-      final top = startY + k * (rowHeight + spacing);
-      if (!isHand) centers.add(top + rowHeight / 2);
+    for (final (k, card) in line.indexed) {
       children.add(AnimatedPositioned(
-        key: ValueKey(isHand ? 'slot' : card.id),
-        duration: const Duration(milliseconds: 180),
+        key: ValueKey(card.id),
+        duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
         left: 0,
-        right: 0,
-        top: top,
-        height: rowHeight,
-        child: isHand
-            ? _LineCard(card: card, height: rowHeight, dark: true, hidden: true)
-            : _LineCard(
-                card: card,
-                height: rowHeight,
-                tint: card.id == freshId ? _rightTint : null,
-                onReport: () => report(card),
-              ),
+        width: geo.width,
+        top: geo.cardTop(k, open),
+        height: row,
+        child: _LineCard(
+          card: card,
+          height: row,
+          tint: card.id == freshId ? _rightTint : null,
+          onReport: () => report(card),
+        ),
       ));
     }
-    _snapBelow = lineBottom + labelHeight;
-    _cardCenters = centers;
 
     if (playing && hand != null) {
-      final dragging = _pointer != null;
-      final canDrag = !view.busy && _pending == null;
-      // One keyed detector for the whole gesture (rebuilding it mid-drag would cancel the drag): the card at the
-      // bottom turns invisible while a copy follows the finger or while it sits snapped in a gap.
+      // Waiting for the server: the card sits in its gap (same key as the card it becomes on the line, so a right
+      // answer turns it over in place).
+      if (_pending != null && _glideFrom == null) {
+        final r = geo.slot(_pending!);
+        children.add(AnimatedPositioned(
+          key: ValueKey(hand.id),
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          left: r.left,
+          width: r.width,
+          top: r.top,
+          height: r.height,
+          child: _LineCard(card: hand, height: r.height, dark: true, hidden: true),
+        ));
+      }
+
+      final moving = _cardAt != null || _glideFrom != null;
+      final canDrag = !view.busy && _pending == null && !_glide.isAnimating;
+      // One keyed detector for the whole gesture (rebuilding it mid-drag would cancel the drag); the waiting card
+      // hides while it is in the hand. The next card slides in from below.
       children.add(Positioned(
         key: const ValueKey('home'),
-        left: 0,
-        right: 0,
-        top: handTop,
-        height: handHeight,
+        left: home.left,
+        width: home.width,
+        top: home.top,
+        height: home.height,
         child: GestureDetector(
-          onPanStart: canDrag ? _dragStart : null,
+          onPanStart: canDrag ? (_) => _dragStart(run, intro) : null,
           onPanUpdate: _dragUpdate,
-          onPanEnd: (_) => _dragEnd(run, intro),
-          onPanCancel: _dragCancel,
+          onPanEnd: (_) => _dragEnd(),
+          onPanCancel: _dragEnd,
           child: Opacity(
-            opacity: dragging || handGap != null ? 0 : 1,
-            child: _LineCard(card: hand, height: handHeight, dark: true, hidden: true, grip: true),
+            opacity: moving || _pending != null ? 0 : 1,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              layoutBuilder: (current, previous) => current ?? const SizedBox.shrink(),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0, 0.6), end: Offset.zero)
+                      .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                  child: child,
+                ),
+              ),
+              child: _LineCard(
+                key: ValueKey(hand.id),
+                card: hand,
+                height: _handHeight,
+                dark: true,
+                hidden: true,
+                grip: true,
+              ),
+            ),
           ),
         ),
       ));
-      if (dragging && _hover == null) {
-        children.add(Positioned(
-          key: const ValueKey('floating'),
-          left: _pointer!.dx - _grab.dx,
-          top: _pointer!.dy - _grab.dy,
-          width: size.width,
-          height: handHeight,
+
+      // The card in the hand: under the finger, then gliding; drawn last so it stays on top.
+      Rect? rect;
+      var angle = 0.0;
+      if (_cardAt != null) {
+        rect = _cardAt! & home.size;
+        angle = -0.025;
+      } else if (_glideFrom != null && _glideTo != null) {
+        final t = Curves.easeOutCubic.transform(_glide.value);
+        rect = Rect.lerp(_glideFrom, _glideTo, t);
+        angle = -0.025 * (1 - t);
+      }
+      if (rect != null) {
+        children.add(AnimatedPositioned(
+          key: ValueKey(hand.id),
+          duration: Duration.zero,
+          left: rect.left,
+          width: rect.width,
+          top: rect.top,
+          height: rect.height,
           child: IgnorePointer(
             child: Transform.rotate(
-              angle: -0.03,
-              child: _LineCard(card: hand, height: handHeight, dark: true, hidden: true, grip: true),
+              angle: angle,
+              child: _LineCard(card: hand, height: rect.height, dark: true, hidden: true, grip: rect.height >= 60),
             ),
           ),
         ));
       }
     }
-    return Stack(key: _fieldKey, clipBehavior: Clip.none, children: children);
+    return Stack(clipBehavior: Clip.none, children: children);
   }
 }
 
 // ------------------------------------------------------------------ pieces
 
-/// One row: value (Space Grotesk) and title. [dark] + [hidden] = the new card ("?"), at the bottom or snapped in a gap.
+/// One row: value (Space Grotesk) and title. [dark] + [hidden] = the new card ("?"), waiting, in the hand or in a gap.
 class _LineCard extends StatelessWidget {
   const _LineCard({
+    super.key,
     required this.card,
     required this.height,
     this.onReport,
@@ -392,7 +519,8 @@ class _LineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final fg = dark ? Colors.white : LU.ink;
     final sub = [if (card.subtitle.isNotEmpty) card.subtitle, if (card.type.isNotEmpty) card.type].join(' · ');
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
       height: height,
       decoration: BoxDecoration(
         color: dark ? LU.ink : (tint ?? LU.surface),
