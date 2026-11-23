@@ -21,6 +21,9 @@ def assetlinks(request):
     return JsonResponse(statements, safe=False)
 
 
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def health(request):
     checks = {"database": True, "cache": True}
     try:
