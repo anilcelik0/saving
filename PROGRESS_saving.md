@@ -470,6 +470,12 @@ Why: the Yapı Kredi statement read every row but failed the self-check (previou
 ---
 
 ## Notes / Decisions
+- Monetization (2026-11-28): v1 ships **free, no ads** (no Play payments profile needed). Pro subscription in v1.x via
+  our own Flet extension wrapping RevenueCat `purchases_flutter`, reusing shared `billing` (`Entitlement` "pro",
+  RevenueCat webhook per app). Pro features to be decided (idea: unlimited statement reads, detailed reports, full
+  portfolio, export). Ads only if income falls short (free users, sensitive categories blocked). Adding Pro needs: a
+  Play payments profile + payouts bank account, privacy/KVKK new version (Google Play, RevenueCat abroad transfer),
+  data safety update.
 - No django-celery-beat: schedules live in code (`CELERY_BEAT_SCHEDULE`).
 - No CORS package: Android native client does not need it.
 - Both environments run with `DEBUG=False`; errors are visible in `docker compose logs web`.
