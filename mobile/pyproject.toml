@@ -1,7 +1,7 @@
 [project]
 name = "saving"
 version = "0.1.0"
-description = "Saving - personal finance client for app_manager backend"
+description = "Bütçe Defteri (Saving) - personal finance client for app_manager backend"
 requires-python = ">=3.12"
 dependencies = [
     "flet==1.1.2",
@@ -13,7 +13,7 @@ dependencies = [
 org = "tr.com.appmanager"
 # Google Play package name: permanent once the app is published
 bundle_id = "tr.com.appmanager.saving"
-product = "Saving"
+product = "Bütçe Defteri"
 company = "appmanager"
 
 [tool.flet.app]

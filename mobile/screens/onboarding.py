@@ -128,7 +128,7 @@ def _settings():
 
 
 PAGES = [
-    (_welcome, "Saving'e hoş geldin",
+    (_welcome, "Bütçe Defteri'ne hoş geldin",
      "Bakiyeni, harcamalarını, ödemelerini ve yatırımlarını tek yerden takip et. Kısa bir turla nasıl "
      "kullanacağını gösterelim."),
     (_accounts, "Önce hesaplarını ekle",

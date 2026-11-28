@@ -1,10 +1,12 @@
-# Google Play · Uygulama içeriği beyanları (Saving)
+# Google Play · Uygulama içeriği beyanları (Bütçe Defteri · slug `saving`)
 
 Play Console > uygulama > **Politika > Uygulama içeriği** altındaki formlar için hazır cevaplar.
 Hesap tipi: **kişisel** → üretime çıkmadan önce kapalı test zorunlu (bkz. son bölüm).
 
 | Alan | Değer |
 |---|---|
+| Uygulama adı (başlık, en fazla 30 karakter) | Bütçe Defteri: Harcama Takibi |
+| Ana ekrandaki ad | Bütçe Defteri |
 | Paket adı | `tr.com.appmanager.saving` (yayından sonra değiştirilemez) |
 | Kategori | Finans |
 | Gizlilik politikası URL'si | https://appmanager.com.tr/legal/saving/privacy/ |

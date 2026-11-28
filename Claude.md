@@ -5,7 +5,7 @@ One repo, one DB, one Docker Compose stack; clients are isolated by `ClientApp` 
 
 | Client (slug) | What | Mobile | Progress | Flow |
 |---|---|---|---|---|
-| **Saving** (`saving`) | Budget/tracking, bank statement parsing, investments, reporting | Flet, `mobile/` | `PROGRESS_saving.md` | `docs/FLOW_saving.md` |
+| **Saving** (`saving`, store name "Bütçe Defteri") | Budget/tracking, bank statement parsing, investments, reporting | Flet, `mobile/` | `PROGRESS_saving.md` | `docs/FLOW_saving.md` |
 | **Line Up** (`lineup`) | Data-driven card ordering game (timeline, streak, daily puzzle, invite challenges) | Flutter, `mobile_lineup/` | `PROGRESS_lineup.md` | `docs/FLOW_lineup.md` |
 
 `docs/BRIEF_lineup.md` is the original Line Up brief (input only). **CLAUDE.md wins over any brief.**

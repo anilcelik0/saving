@@ -45,7 +45,7 @@ def _secure_storage():
 
 async def main(page: ft.Page):
     _ignore_connection_reset(asyncio.get_running_loop())
-    page.title = "Saving"
+    page.title = "Bütçe Defteri"
     prefs = ft.SharedPreferences()
     settings = SettingsStore(prefs)
     await settings.load()

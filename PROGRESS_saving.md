@@ -297,6 +297,11 @@ Decisions (2026-11-16): package `tr.com.appmanager.saving`; personal developer a
 request -> 30 days locked (login offers cancel) -> Celery deletes everything; deactivation = user freezes, login
 reopens.
 - [x] Package name: `[tool.flet] bundle_id = "tr.com.appmanager.saving"`, org `tr.com.appmanager`
+- [x] App name (2026-11-28): **Bütçe Defteri** (store title "Bütçe Defteri: Harcama Takibi"; "Hesap Kitap" dropped,
+      several apps use it; no Play app or trademark found under "Bütçe Defteri", descriptive so weak as a trademark).
+      Shown in `product`, page title, login, onboarding; `CLIENT_APPS["saving"]["name"]` (shared settings, Line Up
+      unchanged) → `ClientApp.name` → legal texts' `{{app}}` (filled when read, no new version). Slug, package and
+      internal names stay `saving`. Pending: `manage.py bootstrap` on dev and server to update the DB name
 - [x] Play Console declarations: `docs/PLAY_STORE.md` (privacy URL, app access, ads, IARC, audience 18+, financial
       features, data safety table, closed test steps, legal notes: KVKK md. 9 Cloudflare, VERBİS)
 - [x] Legal texts + consents (shared `accounts` app); live check 30/30 (API: lists, Markdown body, web pages,

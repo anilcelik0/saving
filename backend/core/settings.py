@@ -64,7 +64,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + SHARED_APPS + SAVING_APPS + LI
 # Client applications served by this backend (slug -> config); `manage.py bootstrap` registers them (name,
 # allow_guests) and publishes their legal texts (legal_texts/<slug>/).
 CLIENT_APPS = {
-    "saving": {"name": "Saving"},
+    "saving": {"name": "Bütçe Defteri"},
     "lineup": {"name": "Line Up", "allow_guests": True, "android_package": "tr.com.appmanager.lineup"},
 }
 

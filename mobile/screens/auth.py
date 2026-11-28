@@ -30,7 +30,7 @@ def login_view(state) -> ft.View:
         padding=24,
         vertical_alignment=ft.MainAxisAlignment.CENTER,
         controls=[
-            ft.Text("Saving", size=28, weight=ft.FontWeight.BOLD),
+            ft.Text("Bütçe Defteri", size=28, weight=ft.FontWeight.BOLD),
             identifier,
             password,
             ft.FilledButton("Giriş yap", on_click=handler),
