@@ -375,6 +375,19 @@ reopens.
 - [x] Delete a card statement cycle (2026-11-19): Hareketler -> Ekstre row -> trash icon -> confirm -> all card
       transactions of that account cycle deleted (`POST transactions/delete-cycle/`, same cycle rule as bulk-status,
       investment mirrors kept). Re-importing the statement afterwards works (dedupe keys are gone with the rows)
+- [x] Issue reports pass (2026-11-28), statuses set in the dev DB:
+  - "Vade otomatik seçilince ilk vadesi gelmese de ödeniyor": already fixed on 2026-11-19 (picked_day); re-checked
+    9/9 in a rolled-back shell run (recurring / installment / single entry due tomorrow stay pending, due today ->
+    paid, daily task on the due day, moved to the future -> pending) -> resolved
+  - Hint text disappears on focus, comes back on blur (`form_kit.hide_hint_on_focus`: big_amount, inline_text,
+    plain_input, entry description, report message) -> resolved
+  - Ready names for recurring / installment entries (Kira, Aidat, Elektrik, Su, Doğalgaz, İnternet, Telefon,
+    Netflix, Spotify, Kredi taksiti; income: Maaş, Kira geliri): a tap fills the name and selects the matching
+    default category -> resolved
+  - Back button could not close "Ekstre yükle" opened from the + menu: the dialog opened while the sheet was still
+    closing; the chosen tile's action now runs on the sheet's `on_dismiss` -> resolved (check on the device)
+  - "Kategori dağılımında gelir listelenmiyor": closed (not planned for now)
+  - [ ] Check on the device (Android build), then set the same statuses on the production DB (admin)
 
 ## Statement reader v2: one general engine ✅
 Why (2026-11-16): VakıfBank switched its card statement from US to Turkish number format (+ points column,

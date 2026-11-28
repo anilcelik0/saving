@@ -4,10 +4,10 @@ import flet as ft
 
 from .choices import FREQUENCIES, KINDS, NONE
 from .form_kit import (
-    CategoryGrid, Chips, Collapsible, DateChips, QuickForm, Segmented, big_amount, field, hero,
+    CategoryGrid, Chips, Collapsible, DateChips, QuickForm, Segmented, big_amount, field, hero, hide_hint_on_focus,
     plain_input,
 )
-from .theme import EXPENSE, INCOME, MUTED, kind_badge, muted
+from .theme import EXPENSE, INCOME, MUTED, kind_badge, muted, tr_lower
 from .ui import (
     FormError, ask_scope, fmt_date, fmt_money, fmt_number, guarded, parse_int, parse_money,
     toast,
@@ -105,6 +105,13 @@ def open_entry_form(state, txn, on_saved, repeat="none"):
 
 
 REPEAT_CHIPS = [("none", "Tek seferlik"), ("recurring", "Düzenli"), ("installment", "Taksitli")]
+# Ready names for recurring / installment entries: (name, default category it selects when that category exists)
+PRESET_NAMES = {
+    "expense": [("Kira", "Kira"), ("Aidat", "Faturalar"), ("Elektrik", "Faturalar"), ("Su", "Faturalar"),
+                ("Doğalgaz", "Faturalar"), ("İnternet", "Faturalar"), ("Telefon", "Faturalar"),
+                ("Netflix", "Abonelikler"), ("Spotify", "Abonelikler"), ("Kredi taksiti", "Kredi/Borç")],
+    "income": [("Maaş", "Maaş"), ("Kira geliri", "Ek Gelir")],
+}
 KIND_COLORS = {"expense": (ft.Colors.ERROR_CONTAINER, EXPENSE), "income": (ft.Colors.TERTIARY_CONTAINER, INCOME)}
 
 
@@ -148,17 +155,18 @@ def entry_form(state, txn: dict | None, on_saved, default_repeat="none") -> ft.V
     # ---- controls
     amount_label = muted("Tutar", size=13)
     amount = big_amount(txn.get("amount"), on_change=lambda e: refresh())
-    description = ft.TextField(
+    description = hide_hint_on_focus(ft.TextField(
         value=txn.get("description") or "", hint_text="ör. Migros, Kira, Maaş",
         prefix_icon=ft.Icons.EDIT_NOTE, text_style=ft.TextStyle(size=16, weight=ft.FontWeight.W_600),
         capitalization=ft.TextCapitalization.SENTENCES,
-    )
+    ))
     kind = Segmented(KINDS, txn.get("kind", "expense"), on_change=lambda k: kind_changed(k), colors=KIND_COLORS,
                      disabled=in_series)
     category = CategoryGrid(categories_for(kind.value), txn.get("category"),
                             recent=settings.recent_categories if settings else None)
     account = Chips(account_chips, initial_account)
     day = DateChips(page, txn.get("date") or date.today())
+    presets = Chips([], allow_none=True, on_change=lambda k: preset_chosen(k))
     day_field = field("Tarih", day.control)
 
     repeat = Chips(REPEAT_CHIPS, default_repeat, on_change=lambda k: refresh())
@@ -184,6 +192,17 @@ def entry_form(state, txn: dict | None, on_saved, default_repeat="none") -> ft.V
                               auto_pay, note],
                              extras_summary, expanded=default_repeat != "none")
 
+    def preset_chosen(name):
+        if not name:
+            return
+        description.value = name
+        wanted = tr_lower(dict(PRESET_NAMES[kind.value]).get(name, ""))
+        match = next((c["id"] for c in categories_for(kind.value) if tr_lower(c["name"]) == wanted), None)
+        if match:
+            category.set_categories(categories_for(kind.value), match)
+        presets.set_options(presets.options, None)  # a tap fills the name; no chip stays selected
+        refresh()
+
     def kind_changed(key):
         category.set_categories(categories_for(key))
         repeat.set_options([c for c in REPEAT_CHIPS if key == "expense" or c[0] != "installment"], repeat.value)
@@ -195,6 +214,8 @@ def entry_form(state, txn: dict | None, on_saved, default_repeat="none") -> ft.V
         day_field.controls[0].value = "Tarih" if mode == "none" else "İlk ödeme tarihi"
         frequency_field.visible = end_field.visible = mode == "recurring"
         installments_field.visible = mode == "installment"
+        presets.control.visible = mode != "none"
+        presets.set_options([(n, n) for n, _ in PRESET_NAMES[kind.value]], None)
         extras.refresh()
         if is_edit:
             form.set_action("Değişiklikleri kaydet")
@@ -289,7 +310,7 @@ def entry_form(state, txn: dict | None, on_saved, default_repeat="none") -> ft.V
 
     body = [
         hero(amount_label, amount),
-        field("İsim", description),
+        field("İsim", ft.Column([description, presets.control], spacing=8)),
         field("Kategori", category.control),
         field("Hesap", account.control),
         day_field,

@@ -21,25 +21,44 @@ def _safe_update(control: ft.Control):
 
 
 # ---------------------------------------------------------------- inputs
+def hide_hint_on_focus(tf: ft.TextField) -> ft.TextField:
+    """The grey hint disappears as soon as the field is focused (Flutter keeps it until typing starts, which
+    reads like text to delete first); it comes back on blur. Later `hint_text` changes are kept."""
+    saved = {}
+
+    def focus(e):
+        saved["hint"] = tf.hint_text
+        tf.hint_text = None
+        _safe_update(tf)
+
+    def blur(e):
+        if tf.hint_text is None and "hint" in saved:
+            tf.hint_text = saved.pop("hint")
+            _safe_update(tf)
+
+    tf.on_focus, tf.on_blur = focus, blur
+    return tf
+
+
 def big_amount(value=None, hint="0,00", suffix="₺", on_change=None, text=None) -> ft.TextField:
     """Large centered number input (amount, quantity, principal). `text`: already formatted input value."""
-    return ft.TextField(
+    return hide_hint_on_focus(ft.TextField(
         value=text if text is not None else money_input_value(value), hint_text=hint, keyboard_type=ft.KeyboardType.NUMBER,
         text_align=ft.TextAlign.CENTER, border=ft.NoInputBorder(), filled=False,
         text_style=ft.TextStyle(size=40, weight=ft.FontWeight.W_800),
         hint_style=ft.TextStyle(size=40, weight=ft.FontWeight.W_800, color=ft.Colors.OUTLINE),
         suffix=ft.Text(f" {suffix}", size=28, weight=ft.FontWeight.W_700) if suffix else None,
         content_padding=ft.Padding.symmetric(vertical=4), on_change=on_change,
-    )
+    ))
 
 
 def inline_text(value="", hint="Açıklama ekle", width=240) -> ft.TextField:
     """Small centered underlined field placed under the big amount."""
-    return ft.TextField(
+    return hide_hint_on_focus(ft.TextField(
         value=value or "", hint_text=hint, text_align=ft.TextAlign.CENTER, width=width, filled=False,
         border=ft.UnderlineInputBorder(side=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT)), dense=True,
         text_style=ft.TextStyle(size=15, weight=ft.FontWeight.W_500),
-    )
+    ))
 
 
 def hero(label, amount: ft.Control, *below: ft.Control) -> ft.Container:
@@ -59,8 +78,8 @@ def field(label: str, control: ft.Control, visible=True) -> ft.Column:
 
 
 def plain_input(value="", hint="", number=False, multiline=False) -> ft.TextField:
-    return ft.TextField(value=value or "", hint_text=hint, multiline=multiline,
-                        keyboard_type=ft.KeyboardType.NUMBER if number else ft.KeyboardType.TEXT)
+    return hide_hint_on_focus(ft.TextField(value=value or "", hint_text=hint, multiline=multiline,
+                                           keyboard_type=ft.KeyboardType.NUMBER if number else ft.KeyboardType.TEXT))
 
 
 # ---------------------------------------------------------------- choices

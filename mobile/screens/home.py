@@ -88,11 +88,20 @@ class HomeScreen:
         state, page = self.state, self.page
         done = self.refresh_current
 
+        # The chosen action runs once the sheet has fully closed: a dialog opened while the sheet was still
+        # closing (Ekstre yükle) could not be dismissed with the Android back button.
+        chosen = {}
+
         def run(action):
             def handler(e):
+                chosen["action"] = action
                 page.pop_dialog()
-                action()
             return handler
+
+        def after_close(e):
+            action = chosen.pop("action", None)
+            if action:
+                action()
 
         def entry():
             from .transactions import open_entry_form
@@ -149,6 +158,6 @@ class HomeScreen:
             ], spacing=12, tight=True, scroll=ft.ScrollMode.AUTO),
                 padding=ft.Padding.only(left=20, right=20, top=4, bottom=24)),
             show_drag_handle=True, scrollable=True, bgcolor=ft.Colors.SURFACE_CONTAINER_LOWEST,
-            shape=ft.RoundedRectangleBorder(radius=28),
+            shape=ft.RoundedRectangleBorder(radius=28), on_dismiss=after_close,
         )
         page.show_dialog(sheet)

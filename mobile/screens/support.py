@@ -9,7 +9,7 @@ import flet as ft
 
 from config import APP_VERSION, is_packaged
 
-from .form_kit import Chips, QuickForm, field
+from .form_kit import Chips, QuickForm, field, hide_hint_on_focus
 from .theme import ACCENT, EXPENSE, INCOME, MUTED, card, grouped, icon_badge, muted
 from .ui import FormError, empty_text, fmt_date, guarded, toast
 
@@ -76,8 +76,8 @@ def report_form(state, category: str = "bug", related_statement: str | None = No
     current = {"loaded": False, "picked": None}  # picked: statement file chosen again from the phone
 
     kind = Chips(CATEGORIES, category, on_change=lambda k: kind_changed(k))
-    message = ft.TextField(multiline=True, min_lines=4, max_lines=10, max_length=4000, hint_text=HINTS[category],
-                           capitalization=ft.TextCapitalization.SENTENCES)
+    message = hide_hint_on_focus(ft.TextField(multiline=True, min_lines=4, max_lines=10, max_length=4000,
+                                              hint_text=HINTS[category], capitalization=ft.TextCapitalization.SENTENCES))
 
     statements = Chips([], related_statement, allow_none=True, on_change=lambda k: statement_changed())
     statement_hint = muted("", size=12)
