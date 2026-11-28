@@ -178,6 +178,36 @@ def private_storage():
     return storages["private"]
 
 
+class StatementReadLog(BaseModel):
+    """
+    One statement read by the engine, kept for reading quality per bank / layout / engine version
+    (admin "Ekstre okuma kalitesi"). No user, no file name, no text: it outlives the statement record
+    (deleted after import by default) and account deletion, so it must never hold personal data.
+    """
+
+    bank = models.CharField(max_length=30, blank=True)
+    statement_type = models.CharField(max_length=10, blank=True)
+    file_type = models.CharField(max_length=5)  # pdf | xlsx
+    engine_version = models.CharField(max_length=20, blank=True)
+    status = models.CharField(max_length=10)  # ready | failed
+    error = models.CharField(max_length=255, blank=True)
+    is_generic = models.BooleanField(default=False)
+    check_status = models.CharField(max_length=10, blank=True)
+    checks = models.JSONField(default=list, blank=True)  # ["balance:ok", "charges:fail", ...]
+    line_count = models.PositiveIntegerField(default=0)
+    flagged_count = models.PositiveIntegerField(default=0)  # lines with a warning flag
+    # filled when the user confirms: what the user changed in the preview (the reader's mistakes, roughly)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    action_changes = models.PositiveIntegerField(default=0)  # included/excluded differently than suggested
+    category_changes = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.bank or '?'} {self.statement_type} {self.file_type} {self.check_status or self.status}"
+
+
 class StatementImport(OwnedModel):
     """
     An uploaded bank statement. Parsed asynchronously into StatementLines (preview),
@@ -214,6 +244,10 @@ class StatementImport(OwnedModel):
     # reader's self-check against the statement's own totals: "ok" | "mismatch" | "unknown" (+ message for the user)
     check_status = models.CharField(max_length=10, blank=True)
     check_message = models.CharField(max_length=255, blank=True)
+    # every check made: [{"code", "label", "expected", "actual", "ok"}] (amounts as strings)
+    check_details = models.JSONField(default=list, blank=True)
+    read_log = models.OneToOneField(StatementReadLog, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name="statement")
 
     class Meta:
         ordering = ["-created_at"]
@@ -249,6 +283,12 @@ class StatementLine(BaseModel):
     action = models.CharField(max_length=10, choices=Action.choices, default=Action.IMPORT)
     skip_reason = models.CharField(max_length=15, choices=SkipReason.choices, blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+    # reader's notes for the user: [{"code", "level": "info"|"warn", "text"}] (statements/base.py ParsedLine.flags)
+    flags = models.JSONField(default=list, blank=True)
+    # what the reader suggested; differences after the review are counted in StatementReadLog
+    suggested_action = models.CharField(max_length=10, blank=True)
+    suggested_category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True,
+                                           related_name="+")
     matched_transaction = models.ForeignKey(
         Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )  # action=match: pending candidate; action=refund: existing paid purchase to cancel

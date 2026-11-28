@@ -38,6 +38,14 @@ docker compose exec web python manage.py makemigrations saving_budget
 docker compose exec web python manage.py migrate
 docker compose restart celery_worker
 
+# Statement reader accuracy (2026-11-28). Dev PC: migration 0011 already applied; the worker runs the new engine
+docker compose restart celery_worker
+# Server, after git pull: docker compose up -d --build; docker compose exec web python manage.py migrate
+# After every change in saving_budget/statements (samples in backend/statement_samples/, git-ignored):
+docker compose exec web python manage.py check_statements            # --accept after checking the differences
+# New sample from a real statement (copy it into backend/statement_samples/raw/ first, delete it afterwards):
+docker compose exec web python manage.py make_statement_sample statement_samples/raw/<file> --review
+
 # APK (uses https://appmanager.com.tr automatically)
 cd mobile; New-Item -ItemType Directory -Force assets\fonts; Invoke-WebRequest "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf" -OutFile assets\fonts\Inter.ttf
 start ms-settings:developers               # Developer Mode ON (Flutter plugins need symlinks)
@@ -410,6 +418,49 @@ Why (2026-11-16): VakıfBank switched its card statement from US to Turkish numb
 - [x] Live check 8/8: November card statement uploaded -> ready, check ok (29.338,38), 32 lines, payment
       skipped as card_payment, installments 1/3 + 3/3, confirm, re-upload -> 31 duplicate + 1 card_payment;
       test data removed, sample copies deleted from the container
+
+## Statement reader accuracy ✅ (2026-11-28)
+Why: the Yapı Kredi statement read every row but failed the self-check (previous balance label unknown, the
+"Kalan Tutar/Taksit" column unread, restructured-loan rows dated 2025). Goal: measure first, then improve.
+- [x] Sample set + regression check: `statements/samples.py`, commands `make_statement_sample` (engine input with
+      names / addresses (block under the addressee, address words, 81 provinces) / card, IBAN, customer, TC, phone
+      numbers / e-mails masked; positions, amounts, dates, installment notes, labels and bank names kept; verifies the
+      fixture reads exactly like the original) and `check_statements` (every fixture vs `<name>.expected.json`,
+      `--accept`). 10 samples (VakıfBank account PDF + XLSX, VakıfBank card ×2, Enpara, Garanti ×3, QNB, Yapı Kredi),
+      all 10 read like the originals; masked text reviewed by eye. Baseline stored before any engine change
+- [x] Engine input split from files (`layout.extract_pages` / `engine.read_table` -> `parse_pdf_pages` /
+      `parse_table`, `registry.read_input` / `parse_input`), so fixtures and files take the same path
+- [x] `vocabulary.py`: every label word in one place (table header roles, summary roles + ignore list, row words,
+      date / holder / balance patterns). Header words drop a glued "(TL)"; "Kalan Tutar/Taksit" = installment column
+- [x] `summary.py`: card summary read without bank code: "label : amount" (amount may be right-aligned far away),
+      grids / equations (labels on 1-4 lines above the amounts, matched per heading by position; running text and
+      date lines stop the label search), table summary rows. `readings()` keeps combinations that agree with
+      themselves (previous + charges + cash + fees - credits = debt); all 8 card samples give a full reading
+- [x] `card.py`: undated lines under a row -> detail text ("N / M taksidi" read), breakdown (first lines summing to
+      the row amount: Anapara + Faiz + BSMV + KKDF) or orphans (rows whose date line is missing). Every
+      interpretation (purchase sign × orphans none / all / single × summary readings) is evaluated; the one with
+      the most passed checks wins, the most likely on a tie. Checks: balance, charges, credits (refunds may be netted)
+- [x] Line flags (`ParsedLine.flags` -> `StatementLine.flags`): installment_date (info), old_date (non-installment row
+      > 45 days before the period -> cut-off date), date_outside, from_detail, suspect (difference = line amount),
+      suspect_sign (difference = 2 × line amount), balance_break (account row where the running balance breaks).
+      Account check also compares the printed closing balance. Messages name the difference and the flagged lines
+- [x] Yapı Kredi: ok (76,35 debt, 10.225,71 charges, 20.298,72 credits), installments 20/40 and "kalan 20", old
+      dates on the cut-off; other 9 samples: same dates/amounts, now with charges/credits checks
+- [x] Fault injection (in memory): a row losing its date is recovered (from_detail, check ok); dropped row -> mismatch
+      with the difference; flipped sign -> that row flagged suspect_sign; account amount misread / row missing -> the
+      row flagged balance_break
+- [x] Reading quality: `StatementReadLog` (anonymous: bank, type, file type, engine version, checks, line / flagged
+      counts; on confirm: lines included/excluded differently than suggested + categories changed; outlives the
+      statement record and account deletion, holds no personal data). `StatementLine.suggested_action/category`,
+      `StatementImport.check_details`, migration 0011. Admin: check_status column/filter, line flags, "Okuma
+      kalitesi" page (per bank / type / file type, period and engine version filters, problems first)
+- [x] Mobile preview: per-check list when something is off, line notes (⚠ warn / info), "Yalnızca kontrol gereken
+      satırlar" switch, Excel hint for PDFs that did not verify
+- [x] Live check 14/14 (rolled back): upload -> ready/ok, 3 checks, flags, suggestions, API fields, review counted on
+      confirm, log kept after statement delete, failed read logged, admin pages; no files left
+- [ ] Privacy text (decision): mention anonymous reading statistics; using statements sent with "Sorun bildir" as
+      masked samples needs its own sentence (the report consent says "inceleme için")
+- [ ] OCR for scanned PDFs (later, if such statements appear: PaddleOCR words + positions into the same engine)
 
 ---
 

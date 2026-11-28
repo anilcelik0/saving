@@ -6,3 +6,4 @@ staticfiles/
 media/
 celerybeat-schedule*
 secrets/
+statement_samples/

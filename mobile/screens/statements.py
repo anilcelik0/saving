@@ -19,6 +19,12 @@ SKIP_REASONS = {
     "user": "Aktarılmayacak",
 }
 POLL_SECONDS, POLL_LIMIT = 1.5, 60
+EXCEL_HINT = ("İpucu: bankanızın internet / mobil şubesinden ekstreyi Excel (.xlsx) olarak indirip yüklerseniz "
+              "genellikle daha güvenilir okunur.")
+
+
+def _warnings(line) -> list:
+    return [f for f in line.get("flags") or [] if f["level"] == "warn"]
 
 
 class StatementsScreen:
@@ -137,6 +143,10 @@ class StatementReview:
         self.lines: list = []
         self.header = ft.Text("Ekstre okunuyor...")
         self.check_text = ft.Text("", size=13, visible=False)  # reader's self-check against the statement totals
+        self.check_list = ft.Column(spacing=0, visible=False)  # every check: expected vs read
+        self.excel_hint = ft.Text(EXCEL_HINT, size=12, color=MUTED, visible=False)
+        self.only_flagged = ft.Switch(label="Yalnızca kontrol gereken satırlar", value=False, visible=False,
+                                      on_change=lambda e: self._render())
         self.list = ft.ListView(expand=True)
         self.confirm_button = ft.FilledButton("Aktar", visible=False, on_click=guarded(self.page, self._confirm))
         self.delete_after = ft.Checkbox(
@@ -149,8 +159,8 @@ class StatementReview:
             route="/statement",
             appbar=ft.AppBar(title=ft.Text("Ekstre önizleme"), actions=[
                 ft.IconButton(ft.Icons.BUG_REPORT_OUTLINED, tooltip="Sorun bildir", on_click=report)]),
-            controls=[ft.Container(ft.Column([self.header, self.check_text, self.report_button], spacing=2,
-                                             tight=True),
+            controls=[ft.Container(ft.Column([self.header, self.check_text, self.check_list, self.excel_hint,
+                                              self.report_button, self.only_flagged], spacing=2, tight=True),
                                    padding=ft.Padding.symmetric(horizontal=16)), self.list,
                       ft.Container(ft.Column([self.delete_after, self.confirm_button], tight=True), padding=16)],
             padding=0,
@@ -195,9 +205,17 @@ class StatementReview:
         self.check_text.visible = bool(message)
         self.check_text.value = ("✓ " if check == "ok" else "⚠ " if check == "mismatch" else "") + (message or "")
         self.check_text.color = INCOME if check == "ok" else ft.Colors.ORANGE_800 if check == "mismatch" else MUTED
+        details = s.get("check_details") or []
+        self.check_list.controls = [self._check_row(c) for c in details]
+        self.check_list.visible = bool(details) and check != "ok"  # details matter when something is off
+        self.excel_hint.visible = check in ("mismatch", "unknown") and s["original_name"].lower().endswith(".pdf")
         if check == "mismatch":
             self.report_button.content = "Toplam tutmuyor: bu ekstreyi bize bildirin"
-        self.list.controls = [self._tile(line, editable) for line in self.lines] or [empty_text("Satır yok.")]
+        flagged = [line for line in self.lines if _warnings(line)]
+        self.only_flagged.visible = bool(flagged)
+        self.only_flagged.label = f"Yalnızca kontrol gereken satırlar ({len(flagged)})"
+        shown = flagged if self.only_flagged.value and flagged else self.lines
+        self.list.controls = [self._tile(line, editable) for line in shown] or [empty_text("Satır yok.")]
         self.confirm_button.visible = self.delete_after.visible = editable
         self.confirm_button.content = f"{len(selected)} satırı aktar"
         self.page.update()
@@ -227,14 +245,29 @@ class StatementReview:
             disabled=not editable or line["skip_reason"] == "duplicate",
             on_change=lambda e: self.page.run_task(guarded(self.page, lambda: self._toggle(line, e.control.value))),
         )
+        subtitle = [ft.Text(" · ".join(filter(None, notes)), color=color)]
+        for flag in line.get("flags") or []:  # reader's notes: warnings first need a look, info is context
+            warn = flag["level"] == "warn"
+            subtitle.append(ft.Text(("⚠ " if warn else "") + flag["text"], size=12,
+                                    color=ft.Colors.ORANGE_800 if warn else MUTED))
         return ft.ListTile(
             leading=checkbox,
             title=ft.Text(line["description"]),
-            subtitle=ft.Text(" · ".join(filter(None, notes)), color=color),
+            subtitle=ft.Column(subtitle, spacing=2, tight=True),
             trailing=ft.Text(("-" if is_expense else "+") + fmt_money(line["amount"]),
                              color=EXPENSE if is_expense else INCOME),
             on_click=(lambda e: self._edit_dialog(line)) if editable and line["skip_reason"] != "duplicate" else None,
         )
+
+    @staticmethod
+    def _check_row(check):
+        """One self-check: 'Dönem harcamaları ✓' or 'Dönem ödemeleri ✗ ekstrede 1.250,00 ₺, okunan 1.000,00 ₺'."""
+        if check["code"] == "running_balance":
+            detail = f"{check['actual']}/{check['expected']} satırda tutuyor"
+        else:
+            detail = f"ekstrede {fmt_money(check['expected'])}, okunan {fmt_money(check['actual'])}"
+        return ft.Text(f"{'✓' if check['ok'] else '✗'} {check['label']}: {detail}", size=12,
+                       color=INCOME if check["ok"] else ft.Colors.ORANGE_800)
 
     async def _update(self, line, data):
         updated = await self.state.budget.statements.update_line(line["id"], data)

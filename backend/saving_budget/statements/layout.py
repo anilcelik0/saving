@@ -16,32 +16,12 @@ import pdfplumber
 from .cid import decode, learn_mapping
 from .tokens import CURRENCY_WORDS, SIGN_WORDS, Amount, is_time, leading_date, parse_amount
 from .utils import fold
+from .vocabulary import ROLE_PHRASES
 
 LINE_TOLERANCE = 3.0  # points: words whose tops differ less belong to the same visual line
 COLUMN_TOLERANCE = 6.0  # points: right edges closer than this belong to the same numeric column
 LABEL_SLACK = 12.0  # header label span is widened by this much when matching data columns
 
-# header words -> column role (longest phrase wins); compared on folded words without punctuation
-ROLE_PHRASES = [
-    (("islem", "tarihi"), "date"), (("islem", "tarih"), "date"), (("hareket", "tarihi"), "date"),
-    (("tarih",), "date"), (("tarihi",), "date"), (("valor",), "date"),
-    (("saat",), "time"),
-    (("islem", "no"), "ref"), (("dekont", "no"), "ref"), (("fis", "no"), "ref"), (("referans",), "ref"),
-    (("ref", "no"), "ref"), (("sira", "no"), "ref"),
-    (("islem", "aciklamasi"), "description"), (("donem", "ici", "islemler"), "description"),
-    (("aciklama",), "description"), (("aciklamasi",), "description"), (("isyeri",), "description"),
-    (("islemler",), "description"),
-    (("islem", "tutari"), "amount"), (("tutar",), "amount"), (("tutari",), "amount"), (("miktar",), "amount"),
-    (("kalan", "borc"), "installment"), (("kalan", "taksit"), "installment"), (("taksit",), "installment"),
-    (("borc",), "debit"), (("cikan",), "debit"), (("alacak",), "credit"), (("giren",), "credit"),
-    (("yatan",), "credit"),
-    (("bakiye",), "balance"), (("bakiyesi",), "balance"),
-    (("bonus",), "bonus"), (("puan",), "bonus"), (("worldpuan",), "bonus"), (("parapuan",), "bonus"),
-    (("maxipuan",), "bonus"), (("chip", "para"), "bonus"), (("parafpara",), "bonus"),
-    (("doviz",), "original"), (("orijinal",), "original"),
-    (("islem",), "description"),
-]
-ROLE_PHRASES.sort(key=lambda p: -len(p[0]))
 MONEY_ROLES = {"amount", "debit", "credit", "balance"}
 UNUSED_VALUE_ROLES = {"bonus", "original", "time"} | MONEY_ROLES
 # installment notes that may sit under another header: "11.Taksit", "3.", "1.799,88x12=...", "2x1.136,50", "2/6"
@@ -126,16 +106,30 @@ class Row:
 
 
 # ---------------------------------------------------------------- words -> lines
-def read_lines(path: str) -> list[Line]:
+def extract_pages(path: str) -> list[list[dict]]:
+    """The reader's whole input from a PDF: words per page as {"text", "x0", "x1", "top"}, "(cid:N)" glyphs decoded.
+    Sample fixtures (samples.py) store exactly this, so a masked sample reads like the original file."""
     with pdfplumber.open(path) as pdf:
         pages = [page.extract_words(keep_blank_chars=False, use_text_flow=False) for page in pdf.pages]
     text = " ".join(w["text"] for words in pages for w in words)
     mapping = learn_mapping(text) if "(cid:" in text else {}
+    return [
+        [{"text": decode(w["text"], mapping) if mapping else w["text"],
+          "x0": float(w["x0"]), "x1": float(w["x1"]), "top": float(w["top"])} for w in words]
+        for words in pages
+    ]
+
+
+def read_lines(path: str) -> list[Line]:
+    return lines_from_pages(extract_pages(path))
+
+
+def lines_from_pages(pages: list[list[dict]]) -> list[Line]:
     lines = []
     for page_no, words in enumerate(pages):
         current: list[Word] = []
         for w in sorted(words, key=lambda w: (w["top"], w["x0"])):
-            word = Word(decode(w["text"], mapping) if mapping else w["text"], w["x0"], w["x1"], w["top"], page_no)
+            word = Word(w["text"], w["x0"], w["x1"], w["top"], page_no)
             if current and abs(word.top - current[0].top) > LINE_TOLERANCE:
                 lines.append(_line(current, page_no))
                 current = []
@@ -152,7 +146,8 @@ def _line(words: list[Word], page: int) -> Line:
 
 # ---------------------------------------------------------------- header labels
 def _key(word: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", fold(word))
+    """Folded header word without punctuation; a glued currency note is dropped ("Tutar(TL)" -> "tutar")."""
+    return re.sub(r"[^a-z0-9]", "", re.sub(r"\((tl|try|₺)\)", "", fold(word)))
 
 
 def header_labels(line: Line) -> list[Label]:

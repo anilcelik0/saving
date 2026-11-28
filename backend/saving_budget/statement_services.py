@@ -11,9 +11,12 @@ from django.db.models import F
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import Category, Kind, MerchantCategoryRule, StatementImport, StatementLine, Transaction
+from .models import (
+    Category, Kind, MerchantCategoryRule, StatementImport, StatementLine, StatementReadLog, Transaction,
+)
 from .services import FALLBACK_CATEGORY
 from .statements import StatementParseError, detect_and_parse
+from .statements.engine import ENGINE_VERSION
 from .statements.registry import BANK_LABELS
 from .statements.classify import merchant_key, skip_reason, suggest_category_name
 from .statements.utils import normalize
@@ -109,28 +112,31 @@ def parse_statement(statement_id) -> None:
     statement = StatementImport.objects.select_related("account").get(pk=statement_id)
     statement.status = StatementImport.Status.PARSING
     statement.save(update_fields=["status", "updated_at"])
+    file_type = statement.file.name.rsplit(".", 1)[-1].lower()[:5] if statement.file else ""
     try:
         parsed = detect_and_parse(statement.file.path)
-        _build_lines(statement, parsed)
+        _build_lines(statement, parsed, file_type)
     except StatementParseError as exc:
-        _fail(statement, str(exc))
+        _fail(statement, str(exc), file_type)
     except Exception:
         logger.exception("Statement %s parse failed", statement_id)
-        _fail(statement, "Ekstre okunurken beklenmeyen bir hata oluştu.")
+        _fail(statement, "Ekstre okunurken beklenmeyen bir hata oluştu.", file_type)
     finally:
         if statement.file:
             statement.file.delete(save=False)  # personal data: keep only parsed lines
             StatementImport.objects.filter(pk=statement.pk).update(file="")
 
 
-def _fail(statement, message):
+def _fail(statement, message, file_type=""):
+    log = StatementReadLog.objects.create(file_type=file_type, engine_version=ENGINE_VERSION, status="failed",
+                                          error=message[:255])
     StatementImport.objects.filter(pk=statement.pk).update(
-        status=StatementImport.Status.FAILED, error=message[:255], updated_at=timezone.now()
+        status=StatementImport.Status.FAILED, error=message[:255], read_log=log, updated_at=timezone.now()
     )
 
 
 @db_transaction.atomic
-def _build_lines(statement, parsed):
+def _build_lines(statement, parsed, file_type=""):
     categories = {
         (c.kind, c.name.casefold()): c
         for c in Category.objects.filter(user=statement.user, is_archived=False)
@@ -162,6 +168,7 @@ def _build_lines(statement, parsed):
         line = StatementLine(
             statement=statement, line_no=no, date=p.date, description=p.description[:255],
             raw_text=p.raw_text, kind=kind, amount=abs(p.amount), installment=p.installment, external_key=key,
+            flags=p.flags,
         )
         # 1) user's learned merchant rule, 2) built-in reasoning, 3) fallback category
         rule = learned.get((kind, merchant_key(p.description)))
@@ -191,6 +198,8 @@ def _build_lines(statement, parsed):
 
     if parsed.statement_type == "card":
         _link_refunds(statement, lines, taken)
+    for line in lines:  # the reader's suggestion, compared with the user's choice on confirm
+        line.suggested_action, line.suggested_category = line.action, line.category
 
     StatementLine.objects.bulk_create(lines)
     for rule_id, hits in rule_hits.items():
@@ -201,6 +210,13 @@ def _build_lines(statement, parsed):
     statement.period_start, statement.period_end = parsed.period_start, parsed.period_end
     statement.closing_balance = parsed.closing_balance
     statement.check_status, statement.check_message = parsed.check_status, parsed.check_message
+    statement.check_details = parsed.checks
+    statement.read_log = StatementReadLog.objects.create(
+        bank=parsed.bank, statement_type=parsed.statement_type, file_type=file_type, engine_version=ENGINE_VERSION,
+        status="ready", is_generic=parsed.generic, check_status=parsed.check_status,
+        checks=[f"{c['code']}:{'ok' if c['ok'] else 'fail'}" for c in parsed.checks],
+        line_count=len(lines), flagged_count=sum(any(f["level"] == "warn" for f in p.flags) for p in parsed.lines),
+    )
     statement.status = StatementImport.Status.READY
     statement.error = ""
     statement.save()
@@ -301,9 +317,26 @@ def confirm_statement(statement: StatementImport) -> StatementImport:
     statement.status = StatementImport.Status.IMPORTED
     statement.imported_count, statement.matched_count, statement.cancelled_count = imported, matched, cancelled
     statement.save(update_fields=["status", "imported_count", "matched_count", "cancelled_count", "updated_at"])
+    _log_review(statement, lines)
     # raw statement text (counterparty names, references) is only needed for parsing/classification
     statement.lines.update(raw_text="")
     return statement
+
+
+def _log_review(statement: StatementImport, lines: list[StatementLine]) -> None:
+    """What the user changed before importing: lines included / excluded differently than suggested, and
+    categories changed on imported lines. Counted on the statement's (anonymous) read log."""
+    if not statement.read_log_id:
+        return
+    included = lambda action: action != Action.SKIP  # noqa: E731
+    action_changes = sum(1 for x in lines if x.suggested_action and
+                         included(x.action) != included(x.suggested_action))
+    category_changes = sum(1 for x in lines if included(x.action) and x.suggested_action
+                           and x.category_id != x.suggested_category_id)
+    StatementReadLog.objects.filter(pk=statement.read_log_id).update(
+        confirmed_at=timezone.now(), action_changes=action_changes, category_changes=category_changes,
+        updated_at=timezone.now(),
+    )
 
 
 def delete_statement_data(statement: StatementImport) -> None:
@@ -329,6 +362,10 @@ def statement_snapshot(user, statement_id) -> dict | None:
         "bank_label": BANK_LABELS.get(s.bank, s.bank),
         "is_generic_parser": s.is_generic,
         "check": [s.check_status, s.check_message],
+        "check_details": s.check_details,
+        "flagged_lines": sum(1 for flags in s.lines.values_list("flags", flat=True)
+                             if any(f.get("level") == "warn" for f in flags or [])),
+        "engine_version": s.read_log.engine_version if s.read_log_id else "",
         "statement_type": s.statement_type,
         "status": s.status,
         "error": s.error,

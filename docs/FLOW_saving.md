@@ -3,7 +3,7 @@
 Sistemin uçtan uca akışı. Her faz tamamlandığında bu dosya güncellenir.
 Kesikli çizgili / gri kutular henüz yapılmamış (planlanan) kısımlardır.
 
-**Son güncelleme:** Faz 4 tamamlandı (raporlar: kategori, trend, net varlık, portföy geçmişi) — 2026-11-10
+**Son güncelleme:** Ekstre okuyucu doğruluk çalışması (özet okuyucu, ek kontroller, olası yorumların denenmesi, satır notları, okuma kalitesi, örnek seti) — 2026-11-28
 
 ---
 
@@ -232,16 +232,20 @@ flowchart TD
     SAVE --> TASK[Celery: parse_statement_task]
     TASK --> ENG["Tek genel okuyucu (tüm bankalar)<br/>kelimeler + sayfadaki konumları → tarihle başlayan satırlar<br/>tutar sütunları hizalamadan bulunur, başlıktan adlandırılır<br/>(Tutar · Borç/Alacak · Bakiye · Taksit · Puan)<br/>sayı biçimi her sayıda ayrı: 1.234,56 / 1,234.56<br/>Excel: başlık satırı aynı kelimelerle bulunur"]
     ENG --> META[Banka + tür metinden tanınır<br/>kart: hesap kesim, dönem · hesap: tarih aralığı, bakiye]
-    META --> OK{Satır bulundu mu?}
+    META --> SUM["Kart özeti okunur (banka kodu yok)<br/>'etiket : tutar' · ızgara / denklem (etiketler üstte, tutarlar altta)<br/>· tablodaki özet satırı<br/>kendi içinde tutan okumalar: önceki + harcama − ödeme = borç"]
+    SUM --> DET["Tarihsiz satırlar üstteki işleme bağlanır<br/>metin: açıklama / 'N / M taksidi' · tutarlar: döküm<br/>(Anapara+Faiz+BSMV = işlem) ya da tarihi düşmüş satır adayı"]
+    DET --> HYP["Olası yorumların hepsi denenir:<br/>alışveriş işareti × tarihsiz tutarlar × özet okumaları<br/>ekstrenin en iyi doğruladığı seçilir (eşitlikte en olası)"]
+    HYP --> OK{Satır bulundu mu?}
     OK -- Hayır --> FAIL[Durum: Hata<br/>'Bu ekstreden hareket okunamadı' + Sorun bildir]
-    OK -- Evet --> CHK{"Öz-denetim<br/>kart: önceki borç + satırlar = dönem borcu<br/>hesap: bakiye zinciri"}
-    CHK -- Tutuyor --> GOOD[Önizlemede ✓ doğrulandı]
-    CHK -- Tutmuyor --> WARN[Önizlemede ⚠ fark X TL<br/>+ 'bu ekstreyi bize bildirin']
-    CHK -- Toplam yok --> UNK[Önizlemede 'kontrol edin']
+    OK -- Evet --> CHK{"Öz-denetim (her kontrol ayrı)<br/>kart: önceki + satırlar = dönem borcu,<br/>harcamalar, ödemeler (özette basılıysa)<br/>hesap: satır satır bakiye + kapanış bakiyesi"}
+    CHK -- Tutuyor --> GOOD[Önizlemede ✓ doğrulandı<br/>dönem borcu, harcamalar, ödemeler]
+    CHK -- Tutmuyor --> WARN["Önizlemede ⚠ fark X TL + kontrol listesi<br/>farkı açıklayan satırlar işaretli<br/>(aynı tutar / iki katı = yön ters / tarihsiz tutar)<br/>PDF ise Excel önerisi + 'bu ekstreyi bize bildirin'"]
+    CHK -- Toplam yok --> UNK[Önizlemede 'kontrol edin' + Excel önerisi]
     GOOD --> RULES
     WARN --> RULES
     UNK --> RULES
     ENG --> DEL[Dosya silinir<br/>sadece satırlar kalır]
+    CHK --> LOG[("Okuma kaydı (anonim)<br/>banka · tür · dosya türü · motor sürümü<br/>kontroller · işaretli satır sayısı")]
 
     subgraph RULES["Her satır için kurallar"]
         K1{Daha önce aktarıldı mı?<br/>banka ref no / hash /<br/>aynı tarih+tutar+tür} -- Evet --> SK1[Atla: mükerrer]
@@ -255,8 +259,9 @@ flowchart TD
     end
 
     RULES --> READY[Durum: Onay bekliyor]
-    READY --> REVIEW[Önizleme: işaretle / kaldır<br/>kategori değişince öğrenilir ve<br/>aynı işyerinin satırlarına uygulanır<br/>eşleştir / iade / yeni kayıt]
+    READY --> REVIEW["Önizleme: işaretle / kaldır<br/>satır notları: ⚠ kontrol edin · bilgi (taksit asıl tarihi)<br/>'yalnızca kontrol gereken satırlar' filtresi<br/>kategori değişince öğrenilir ve<br/>aynı işyerinin satırlarına uygulanır<br/>eşleştir / iade / yeni kayıt"]
     REVIEW --> CONF["Aktar<br/>☑ aktardıktan sonra ekstre bilgilerini sil"]
+    CONF --> LOG2[("Okuma kaydına: önerilenden farklı<br/>dahil edilen/çıkarılan satır ve<br/>değiştirilen kategori sayısı")]
     CONF --> T1[Yeni kayıtlar: ÖDENDİ<br/>kaynak=ekstre · kartsa ekstre kesim tarihi]
     CONF --> T2[Eşleşen bekleyen kayıt: ÖDENDİ<br/>ekstre tarihi ve tutarıyla]
     CONF --> T3[İade: ilgili harcama İPTAL]
@@ -276,8 +281,20 @@ flowchart TD
 **Kart ekstresi kuralları**
 - Önceki dönem bakiyesi, toplam ve "ödemeniz için teşekkürler" satırları hiç gelmez; harcamalar tek tek gelir.
 - Hesap ekstresindeki "Kredi Kartı Borç Ödeme" satırı atlanır (çift sayım olmasın).
-- Önceki dönemde başlamış taksit (ekstrede eski alışveriş tarihiyle görünür) → ekstre kesim tarihine yazılır.
+- Önceki dönemde başlamış taksit (ekstrede eski alışveriş tarihiyle görünür) → ekstre kesim tarihine yazılır
+  (bilgi notu: asıl işlem tarihi). Taksit bilgisi alttaki satırdan da okunur ("… işlemin 20 / 40 taksidi").
+- Taksit bilgisi olmayan ama dönemden 45 günden eski tarihli satır → kesim tarihine yazılır, ⚠ "tarihi kontrol edin".
+- Kesim tarihinden sonraki tarih → ⚠ "dönemin dışında".
 - İade (eksi tutar) → gelir.
+
+**Okuyucuyu geliştirme (geliştirici)**
+- Örnek seti: `backend/statement_samples/` (git'e ve Docker imajına girmez). Gerçek ekstre
+  `make_statement_sample <dosya>` ile maskelenir (isim, adres, kart/IBAN/müşteri no, e-posta; konum, tutar ve
+  tarih korunur) ve orijinal gibi okunduğu doğrulanır; asıl dosya sonra silinebilir.
+- Her motor değişikliğinden sonra `check_statements`: tüm örnekleri okur, beklenen sonuçla farkları gösterir;
+  farklar kontrol edilince `--accept`.
+- Admin › Ekstre okuma kayıtları › **Okuma kalitesi**: banka / tür / dosya türü / motor sürümü bazında doğrulanma
+  oranı, tutmayan ve okunamayan okumalar, işaretli satır oranı, kullanıcının değiştirdiği satır ve kategori oranı.
 
 ---
 

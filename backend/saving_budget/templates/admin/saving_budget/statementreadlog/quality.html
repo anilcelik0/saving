@@ -1,0 +1,52 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Her ekstre okuması kişisel veri olmadan kaydedilir. <b>Doğrulandı</b>: ekstrenin kendi toplamları tuttu.
+  <b>İşaretli satır</b>: okuyucunun "kontrol edin" dediği satırlar. <b>Satır / kategori değişikliği</b>: aktarmadan önce
+  kullanıcının değiştirdiği satırlar (okuyucunun hatalarının yaklaşık ölçüsü). Önce sorunlu gruplar listelenir.</p>
+<form method="get" style="margin-bottom: 12px;">
+  Dönem:
+  <select name="days" onchange="this.form.submit()">
+    <option value="30" {% if days == "30" %}selected{% endif %}>Son 30 gün</option>
+    <option value="90" {% if days == "90" %}selected{% endif %}>Son 90 gün</option>
+    <option value="365" {% if days == "365" %}selected{% endif %}>Son 1 yıl</option>
+    <option value="all" {% if days == "all" %}selected{% endif %}>Tümü</option>
+  </select>
+  Motor sürümü:
+  <select name="version" onchange="this.form.submit()">
+    <option value="">Hepsi</option>
+    {% for v in versions %}<option value="{{ v }}" {% if v == version %}selected{% endif %}>{{ v }}</option>{% endfor %}
+  </select>
+</form>
+<div class="module">
+  <table style="width: 100%;">
+    <tr><th>Banka</th><th>Tür</th><th>Dosya</th><th>Okuma</th><th>Doğrulandı</th><th>Tutmuyor</th>
+        <th>Doğrulanamadı</th><th>Okunamadı</th><th>Ort. satır</th><th>İşaretli satır</th><th>Aktarılan</th>
+        <th>Satır değişikliği</th><th>Kategori değişikliği</th><th>Son okuma</th><th>Son sorun</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.bank }}</td><td>{{ r.kind }}</td><td>{{ r.file_type }}</td><td>{{ r.count }}</td>
+      <td>{{ r.ok }} ({{ r.ok_rate }})</td>
+      <td>{% if r.mismatch %}<b style="color:#b45309">{{ r.mismatch }}</b>{% else %}0{% endif %}</td>
+      <td>{{ r.unknown }}</td>
+      <td>{% if r.failed %}<b style="color:#b91c1c">{{ r.failed }}</b>{% else %}0{% endif %}</td>
+      <td>{{ r.avg_lines }}</td><td>{{ r.flagged_rate }}</td><td>{{ r.confirmed }}</td>
+      <td>{{ r.action_rate }}</td><td>{{ r.category_rate }}</td>
+      <td>{{ r.last|date:"d.m.Y H:i" }}</td><td>{{ r.last_problem|date:"d.m.Y H:i"|default:"-" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="15">Bu dönemde okuma yok.</td></tr>
+    {% endfor %}
+    {% if total %}
+    <tr style="font-weight: bold;">
+      <td>{{ total.bank }}</td><td></td><td></td><td>{{ total.count }}</td><td>{{ total.ok }} ({{ total.ok_rate }})</td>
+      <td>{{ total.mismatch }}</td><td>{{ total.unknown }}</td><td>{{ total.failed }}</td><td>{{ total.avg_lines }}</td>
+      <td>{{ total.flagged_rate }}</td><td>{{ total.confirmed }}</td><td>{{ total.action_rate }}</td>
+      <td>{{ total.category_rate }}</td><td></td><td></td>
+    </tr>
+    {% endif %}
+  </table>
+</div>
+<p>Tutmayan bir okumanın ayrıntısı için: Ekstreler listesinde "Check status" filtresi (ekstre kaydı kullanıcı aktarıp
+  sildiyse yalnızca bu özet kalır). Okuyucuyu geliştirmek için örnek ekstre: kullanıcı "Sorun bildir" ile gönderdiyse
+  <code>make_statement_sample</code> ile maskeleyip örnek setine ekleyin.</p>
+{% endblock %}

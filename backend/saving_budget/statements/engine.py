@@ -9,37 +9,27 @@ balance). Amounts are read in Turkish or US format per number, so a bank switchi
 
 Excel: the header row is found by the same keywords, cells give the columns directly.
 
-Every result is checked against the statement itself: card -> previous balance + rows = statement debt,
-account -> running balance. The outcome (ok / mismatch / unknown + message) is shown on the preview, so a missed or
-misread row is visible instead of silently imported.
+Every result is checked against the statement itself: card -> the summary's own totals (card.py, summary.py),
+account -> running balance row by row and the closing balance. The outcome (ok / mismatch / unknown + message,
+every check, flags on the lines that need a look) is shown on the preview, so a missed or misread row is visible
+instead of silently imported. Label words: vocabulary.py.
 """
 
 import re
-from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 
 import openpyxl
 
-from . import layout
+from . import card, layout, summary
 from .base import ParsedLine, ParsedStatement, StatementParseError
 from .profiles import detect_bank, is_card
-from .tokens import Amount, Installment, find_date, leading_date, parse_amount
+from .tokens import Amount, find_date, leading_date, parse_amount
 from .utils import card_period, fold
+from .vocabulary import CLOSING, CUT_OFF, HOLDER, PERIOD, ROLE_PHRASES  # noqa: F401 - HOLDER used by samples.py
 
+ENGINE_VERSION = "2026.11.28"  # stored with every read (StatementReadLog): quality per engine version
 TOLERANCE = Decimal("0.05")
-PAYMENT_WORDS = ("odeme", "tesekkur")  # card credits with these words are payments, the rest are refunds
-SUMMARY_WORDS = ("onceki donem", "onceki ekstre", "bir onceki", "devir", "toplam")
-DEBT_LABELS = ("donem borcunuz", "donem borcu", "ekstre borcu", "hesap ozeti borcu", "toplam borcunuz",
-               "guncel donem borcu", "genel toplam")
-PREVIOUS_LABELS = ("onceki hesap bakiyesi", "onceki donem bakiyeniz", "bir onceki ekstre bakiyeniz",
-                   "onceki donemden devir edilen tutar", "onceki donem hesap ozeti bakiyeniz",
-                   "onceki ekstre bakiyesi", "devreden bakiye", "onceki bakiye")
-CUT_OFF = re.compile(r"(hesap\s+kesim\s+tarihi|ekstre\s+tarihi|kesim\s+tarihi|hesap\s+özeti\s+tarihi)", re.I)
-PREVIOUS_CUT_OFF = re.compile(r"önceki\s+hesap\s+kesim\s+tarihiniz", re.I)
-PERIOD = re.compile(r"tarih\s+aral[ıi]ğ[ıi]", re.I)
-HOLDER = re.compile(r"^(?:hesap\s+sahibi|ad[ıi]?\s+soyad[ıi]?|müşteri\s+ad[ıi])\s*:?\s*(.+)$", re.I)
-CLOSING = re.compile(r"(?<![a-zçğıöşü])bakiye\s*:\s*(\S+)", re.I)
 
 AMOUNT_NOTE = re.compile(r"\s*\([^()]*(?:tutar|TL|₺)[^()]*\)", re.I)  # "(İşlem tutarı: 485,01 TL)"
 DESC_TRAILING_AMOUNTS = re.compile(r"(?:\s+[-+]?[\d.,]*\d[.,]\d{2}(?:\s?(?:TL|TRY|USD|EUR|GBP))?)+$")
@@ -49,24 +39,7 @@ INCOMING = re.compile(r"A\.Ş\.\s+(.+?)\s+hesabından .*?hesabına gelen", re.S)
 
 
 # ---------------------------------------------------------------- helpers
-def money(value: Decimal) -> str:
-    return f"{value:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
-
-
-def label_amount(lines: list[str], labels: tuple[str, ...]) -> Decimal | None:
-    """First amount printed after one of the labels on the same line."""
-    for line in lines:
-        folded = fold(line)
-        for label in labels:
-            at = folded.find(label)
-            if at < 0:
-                continue
-            for word in line[at + len(label):].replace(":", " ").split():
-                if amount := parse_amount(word):
-                    return amount.signed
-                if word.isalpha() and fold(word) not in ("tl", "try"):
-                    break  # another label starts before any amount
-    return None
+money = card.money
 
 
 def label_date(lines: list[str], pattern: re.Pattern, skip=("sonraki",)) -> date | None:
@@ -99,35 +72,32 @@ def describe_account(op_name: str, detail: str) -> str:
     return " · ".join(p for p in parts if p)[:255]
 
 
-def adjust_installment_date(line_date: date, period_start: date | None, cut_off: date | None, installment: str):
-    """Installments of earlier purchases keep the purchase date; book them on the cut-off date of this statement."""
-    if installment and period_start and cut_off and line_date < period_start:
-        return cut_off
-    return line_date
-
-
 def set_check(result: ParsedStatement, status: str, message: str):
     result.check_status, result.check_message = status, message[:255]
 
 
 # ---------------------------------------------------------------- PDF
 def parse_pdf(path: str) -> ParsedStatement:
-    lines = layout.read_lines(path)
+    return parse_pdf_pages(layout.extract_pages(path))
+
+
+def parse_pdf_pages(pages: list[list[dict]]) -> ParsedStatement:
+    """Words per page (layout.extract_pages or a sample fixture) -> parsed statement."""
+    lines = layout.lines_from_pages(pages)
     if not any(line.words for line in lines):
         raise StatementParseError("PDF'te okunabilir metin yok (taranmış görüntü olabilir).")
     rows, columns, has_header = layout.table_rows(lines)
     row_lines = {id(r.line) for r in rows}
     meta = [line.text for line in lines if id(line) not in row_lines]
     folded = fold("\n".join(meta))
-    card = is_card(folded)
-    _resolve_roles(rows, columns, card)
+    is_card_statement = is_card(folded)
+    _resolve_roles(rows, columns, is_card_statement)
     layout.assign(rows, columns)
 
-    result = ParsedStatement(bank=detect_bank(folded), statement_type="card" if card else "account")
+    result = ParsedStatement(bank=detect_bank(folded), statement_type="card" if is_card_statement else "account")
     result.generic = not has_header or result.bank == "other"
-    every_line = [line.text for line in lines]
-    if card:
-        _card(result, rows, every_line)
+    if is_card_statement:
+        card.read_pdf(result, lines, rows, columns, [line.text for line in lines])
     else:
         _attach_details(lines, rows, columns)
         _account(result, rows, columns, meta)
@@ -152,12 +122,12 @@ def _balance_score(rows, amount_col, balance_col) -> float:
     return max(forward, backward) / (len(pairs) - 1)
 
 
-def _resolve_roles(rows, columns, card: bool):
+def _resolve_roles(rows, columns, is_card_statement: bool):
     """Give unlabeled columns a role: densest -> amount; for accounts a running-balance column -> balance."""
     unlabeled = [c for c in columns if not c.role]
     has_amount = any(c.role in ("amount", "debit", "credit") for c in columns)
     balance = next((c for c in columns if c.role == "balance"), None)
-    if card:
+    if is_card_statement:
         if not has_amount and (best := _densest(unlabeled)):
             best.role = "amount"
         return
@@ -200,94 +170,6 @@ def _attach_details(lines, rows, columns):
         last_top = line.top
 
 
-def _card_amount(row) -> tuple[Amount, bool | None] | None:
-    """(amount, credit?) where credit is decided by a debit/credit column, else None (decided by sign markers)."""
-    if found := row.amounts("amount"):
-        return found[-1], None
-    if found := row.amounts("debit"):
-        return found[-1], False
-    if found := row.amounts("credit"):
-        return found[-1], True
-    return None
-
-
-def _summary(row) -> bool:
-    return any(word in fold(row.description) for word in SUMMARY_WORDS)
-
-
-def _purchase_sign(entries, debt, previous) -> str:
-    """
-    Which printed sign marks a purchase: normally none ("" -> credits carry "+" or "-"). Decided by the payment rows
-    ("ÖDEMENİZ İÇİN TEŞEKKÜRLER" are credits), else by which reading matches the statement debt.
-    """
-    signed = [(row, amount) for row, (amount, side) in entries if side is None and not _summary(row)]
-    payment_signs = {a.sign for row, a in signed if any(w in fold(row.description) for w in PAYMENT_WORDS)}
-    if len(payment_signs) == 1:
-        credit_sign = payment_signs.pop()
-        if credit_sign:
-            return ""  # payments are marked -> purchases are unmarked
-        markers = Counter(a.sign for _, a in signed if a.sign)
-        return markers.most_common(1)[0][0] if markers else ""  # payments unmarked -> purchases carry the sign
-    if debt is not None:
-        for candidate in ("", *sorted({a.sign for _, a in signed if a.sign})):
-            net = sum((-a.value if a.sign != candidate else a.value) for _, a in signed)
-            if abs((previous or 0) + net - debt) < TOLERANCE or abs(net - debt) < TOLERANCE:
-                return candidate
-    return ""
-
-
-def _card(result: ParsedStatement, rows, text_lines: list[str]):
-    cut_off = label_date(text_lines, CUT_OFF, skip=("sonraki", "onceki"))
-    if cut_off:
-        result.period_start, result.period_end = card_period(cut_off)
-        if (previous := label_date(text_lines, PREVIOUS_CUT_OFF, skip=())) and previous < cut_off:
-            result.period_start = previous + timedelta(days=1)
-
-    entries = [(row, found) for row in rows if (found := _card_amount(row))]
-    debt = label_amount(text_lines, DEBT_LABELS)
-    previous = label_amount(text_lines, PREVIOUS_LABELS)
-    purchase_sign = _purchase_sign(entries, debt, previous)
-
-    previous_row, net = None, Decimal("0")
-    for row, (amount, side) in entries:
-        folded = fold(row.description)
-        if any(word in folded for word in SUMMARY_WORDS):
-            if any(word in folded for word in ("onceki", "devir")):
-                previous_row = amount.value
-            continue
-        credit = side if side is not None else amount.sign != purchase_sign
-        installment = Installment()
-        for word in row.installment_words:
-            installment.add_token(word)
-        installment.read_description(" ".join(row.installment_words))  # "11.Taksit", plans split over words
-        description = clean_description(installment.read_description(row.description))
-        expense = -amount.value if credit else amount.value
-        net += expense
-        is_payment = credit and any(word in fold(description) for word in PAYMENT_WORDS)
-        result.lines.append(ParsedLine(
-            date=adjust_installment_date(row.date, result.period_start, cut_off, str(installment)),
-            description=description or "Kart işlemi",
-            amount=-expense,
-            raw_text=row.raw,
-            installment=str(installment),
-            hint="card_payment" if is_payment else "",
-        ))
-
-    if previous is None:
-        previous = previous_row
-    if debt is None:
-        set_check(result, "unknown", "Ekstrede dönem borcu bulunamadı; satırları kontrol edin.")
-    elif previous is not None and abs(previous + net - debt) < TOLERANCE:
-        set_check(result, "ok", f"Ekstre toplamıyla doğrulandı (dönem borcu {money(debt)} TL).")
-    elif previous is None and abs(net - debt) < TOLERANCE:
-        set_check(result, "ok", f"Ekstre toplamıyla doğrulandı (dönem borcu {money(debt)} TL).")
-    else:
-        difference = debt - (previous or 0) - net
-        set_check(result, "mismatch",
-                  f"Okunan satırlar ekstre toplamıyla tutmuyor (fark {money(difference)} TL). Eksik ya da hatalı "
-                  "okunan satır olabilir; satırları kontrol edin, gerekirse ekstreyi bize bildirin.")
-
-
 def _account(result: ParsedStatement, rows, columns, meta: list[str]):
     balance_col = next((c for c in columns if c.role == "balance"), None)
     amounts = []
@@ -319,15 +201,16 @@ def _account(result: ParsedStatement, rows, columns, meta: list[str]):
     elif result.lines:
         result.period_start = min(line.date for line in result.lines)
         result.period_end = max(line.date for line in result.lines)
+    printed_closing = None
     for line in meta:
         if m := CLOSING.search(line):
             if amount := parse_amount(m.group(1)):
-                result.closing_balance = amount.signed
+                printed_closing = result.closing_balance = amount.signed
                 break
     if result.closing_balance is None and balance_col and balances and balances[-1]:
         result.closing_balance = balances[-1].signed
     result.holder_name = _holder(meta, result.bank)
-    _check_balances(result, balances, [v for _, v, _ in amounts])
+    check_balances(result, [b.signed if b else None for b in balances], [v for _, v, _ in amounts], printed_closing)
 
 
 def _first(lines, pattern):
@@ -354,19 +237,40 @@ def _holder(meta: list[str], bank: str) -> str:
     return ""
 
 
-def _check_balances(result, balances, values):
-    pairs = [(v, b.signed) for v, b in zip(values, balances) if b]
-    if len(pairs) < 2:
+def check_balances(result: ParsedStatement, balances: list, values: list, printed_closing=None):
+    """Running balance: each row must move the balance by its amount (rows printed oldest or newest first).
+    The row where it does not is flagged; the last balance must equal a printed closing balance."""
+    lines = result.lines
+    known = [i for i, b in enumerate(balances) if b is not None]
+    if len(known) < 2:
         set_check(result, "unknown", "Bakiye sütunu bulunamadı; satırları kontrol edin.")
         return
-    forward = sum(abs(abs(b2 - b1) - v2) < TOLERANCE for (_, b1), (v2, b2) in zip(pairs, pairs[1:]))
-    backward = sum(abs(abs(b1 - b2) - v1) < TOLERANCE for (v1, b1), (_, b2) in zip(pairs, pairs[1:]))
-    misses = len(pairs) - 1 - max(forward, backward)
-    if misses == 0:
+    pairs = list(zip(known, known[1:]))
+    forward = [abs(abs(balances[j] - balances[i]) - values[j]) < TOLERANCE for i, j in pairs]
+    backward = [abs(abs(balances[i] - balances[j]) - values[i]) < TOLERANCE for i, j in pairs]
+    oldest_first = sum(forward) >= sum(backward)
+    breaks = [j if oldest_first else i for (i, j), ok in zip(pairs, forward if oldest_first else backward) if not ok]
+    for index in breaks:
+        lines[index].flag("balance_break", "Bakiye bu satırda tutmuyor: tutar ya da yön hatalı okunmuş, ya da "
+                                           "yakınında bir satır eksik olabilir.")
+    result.checks.append({"code": "running_balance", "label": "Satır satır bakiye",
+                          "expected": str(len(pairs)), "actual": str(len(pairs) - len(breaks)), "ok": not breaks})
+    closing_ok = True
+    if printed_closing is not None:
+        last = balances[known[-1]] if oldest_first else balances[known[0]]
+        closing_ok = abs(last - printed_closing) < TOLERANCE
+        result.checks.append({"code": "closing", "label": "Kapanış bakiyesi", "expected": str(printed_closing),
+                              "actual": str(last), "ok": closing_ok})
+    if not breaks and closing_ok:
         set_check(result, "ok", "Bakiye hareketleriyle doğrulandı.")
+    elif breaks:
+        first = lines[breaks[0]]
+        set_check(result, "mismatch", f"{len(breaks)} satırda bakiye tutmuyor (ilki {first.date:%d.%m.%Y} "
+                                      f"'{first.description[:40]}'). Eksik ya da hatalı okunan satır olabilir; "
+                                      "işaretli satırları kontrol edin, gerekirse ekstreyi bize bildirin.")
     else:
-        set_check(result, "mismatch", f"{misses} satırda bakiye tutmuyor. Eksik ya da hatalı okunan satır olabilir; "
-                                      "satırları kontrol edin, gerekirse ekstreyi bize bildirin.")
+        set_check(result, "mismatch", "Satırlar birbiriyle tutuyor ama son bakiye ekstredeki bakiyeden farklı: "
+                                      "ekstrenin sonunda okunmamış satır olabilir.")
 
 
 # ---------------------------------------------------------------- Excel
@@ -395,16 +299,24 @@ def _cell_amount(value) -> Amount | None:
 def _cell_role(text: str) -> tuple[str, int] | None:
     keys = [re.sub(r"[^a-z0-9]", "", fold(w)) for w in text.split()]
     keys = [k for k in keys if k]
-    for index, (phrase, role) in enumerate(layout.ROLE_PHRASES):
+    for index, (phrase, role) in enumerate(ROLE_PHRASES):
         if tuple(keys[:len(phrase)]) == phrase or (len(phrase) == 1 and phrase[0] in keys and len(keys) <= 2):
             return role, index
     return None
 
 
-def parse_xlsx(path: str) -> ParsedStatement:
+def read_table(path: str) -> list[list]:
+    """The reader's whole input from an Excel file: cell values of the first sheet."""
     sheet = openpyxl.load_workbook(path, data_only=True, read_only=True).worksheets[0]
-    table = [list(row) for row in sheet.iter_rows(values_only=True)]
-    header_at, columns = None, {}
+    return [list(row) for row in sheet.iter_rows(values_only=True)]
+
+
+def parse_xlsx(path: str) -> ParsedStatement:
+    return parse_table(read_table(path))
+
+
+def find_header(table: list[list]) -> tuple[int | None, dict]:
+    """Index of the transaction table's header row + {role: (column index, phrase rank)}."""
     for i, row in enumerate(table[:60]):
         found = {}
         for j, value in enumerate(row):
@@ -412,15 +324,30 @@ def parse_xlsx(path: str) -> ParsedStatement:
                 found[hit[0]] = (j, hit[1])
         roles = set(found)
         if "date" in roles and roles & (layout.MONEY_ROLES | {"description"}):
-            header_at, columns = i, found
-            break
+            return i, found
+    return None, {}
+
+
+def _text_lines(rows: list[list]) -> list[layout.Line]:
+    """Excel rows above the table as text lines (for the summary reader): cells side by side."""
+    out = []
+    for n, row in enumerate(rows):
+        words = [w for cell in row if (text := _cell_text(cell)) for w in text.split()]
+        out.append(layout.Line([layout.Word(w, i * 10.0, i * 10.0 + 8, float(n), 0) for i, w in enumerate(words)],
+                               0, float(n)))
+    return out
+
+
+def parse_table(table: list[list]) -> ParsedStatement:
+    """Cell values (read_table or a sample fixture) -> parsed statement."""
+    header_at, columns = find_header(table)
     if header_at is None:
         raise StatementParseError("Excel dosyasında hareket tablosu bulunamadı.")
 
     meta_cells = [_cell_text(v) for row in table[:header_at] for v in row if _cell_text(v)]
     folded = fold(" ".join(meta_cells))
-    card = is_card(folded)
-    result = ParsedStatement(bank=detect_bank(folded), statement_type="card" if card else "account")
+    is_card_statement = is_card(folded)
+    result = ParsedStatement(bank=detect_bank(folded), statement_type="card" if is_card_statement else "account")
     result.generic = result.bank == "other"
     pairs = _xlsx_pairs(table[:header_at])
     description_cols = [j for j, value in enumerate(table[header_at]) if (hit := _cell_role(_cell_text(value)))
@@ -429,49 +356,62 @@ def parse_xlsx(path: str) -> ParsedStatement:
     detail_cols = [j for j in description_cols if j != op_col]
 
     get = lambda row, role: row[columns[role][0]] if role in columns and columns[role][0] < len(row) else None  # noqa: E731
-    rows, blanks, balances = [], 0, []
+    lines, entries, blanks, balances = [], [], 0, []
     for row in table[header_at + 1:]:
         day = _cell_date(get(row, "date"))
         if day is None:
             blanks += 1
-            if rows and blanks >= 3:
+            if (lines or entries) and blanks >= 3:
                 break
             continue
         blanks = 0
+        side = None
         if amount := _cell_amount(get(row, "amount")):
             signed = amount.signed
         elif amount := _cell_amount(get(row, "debit")):
-            signed = -amount.value
+            signed, side = -amount.value, False
         elif amount := _cell_amount(get(row, "credit")):
-            signed = amount.value
+            signed, side = amount.value, True
         else:
             continue
         op_name = _cell_text(row[op_col]) if op_col is not None and op_col < len(row) else ""
         detail = " ".join(_cell_text(row[j]) for j in detail_cols if j < len(row) and _cell_text(row[j]))
-        if card:
-            line = ParsedLine(date=day, description=clean_description(" ".join(filter(None, [op_name, detail]))),
-                              amount=-signed if not amount.sign else signed, raw_text=f"{op_name} {detail}".strip())
+        if is_card_statement:
+            text = " ".join(filter(None, [op_name, detail]))
+            installment = _cell_text(get(row, "installment"))
+            entries.append(card.CardEntry(date=day, description=text, amount=amount, side=side,
+                                          installment_words=installment.split(), raw=text,
+                                          summary=card.is_summary(text)))
         else:
-            line = ParsedLine(date=day, description=describe_account(op_name or detail, detail if op_name else ""),
-                              amount=signed, raw_text=f"{op_name} {detail}".strip(),
-                              external_ref=_cell_text(get(row, "ref")))
-        rows.append(line)
-        balances.append(_cell_amount(get(row, "balance")))
-    result.lines = rows
+            lines.append(ParsedLine(date=day, description=describe_account(op_name or detail, detail if op_name else ""),
+                                    amount=signed, raw_text=f"{op_name} {detail}".strip(),
+                                    external_ref=_cell_text(get(row, "ref"))))
+            balances.append(_cell_amount(get(row, "balance")))
 
     if holder := pairs.get("hesap sahibi"):
         result.holder_name = holder[:100]
+    printed_closing = None
     if balance := pairs.get("bakiye"):
         if amount := parse_amount(balance.replace(" ", "").replace("TL", "")):
-            result.closing_balance = amount.signed
+            printed_closing = result.closing_balance = amount.signed
     if (period := pairs.get("tarih araligi")) and len(dates := _dates(period)) >= 2:
         result.period_start, result.period_end = dates[0], dates[1]
-    elif rows:
-        result.period_start, result.period_end = min(r.date for r in rows), max(r.date for r in rows)
-    if card:
-        set_check(result, "unknown", "Excel kart ekstresi toplamla doğrulanamadı; satırları kontrol edin.")
-    else:
-        _check_balances(result, balances, [abs(r.amount) for r in rows])
+    if is_card_statement:
+        meta_lines = _text_lines(table[:header_at])
+        cut_off = label_date([line.text for line in meta_lines], CUT_OFF, skip=("sonraki", "onceki"))
+        if cut_off and not result.period_start:
+            result.period_start, result.period_end = card_period(cut_off)
+        elif entries and not result.period_start:
+            result.period_start, result.period_end = min(e.date for e in entries), max(e.date for e in entries)
+        card.finish(result, entries, [], summary.label_values(meta_lines, set()), cut_off)
+        if result.check_status == "unknown":
+            set_check(result, "unknown", "Excel kart ekstresi toplamla doğrulanamadı; satırları kontrol edin.")
+        return result
+    result.lines = lines
+    if not result.period_start and lines:
+        result.period_start, result.period_end = min(r.date for r in lines), max(r.date for r in lines)
+    check_balances(result, [b.signed if b else None for b in balances], [abs(r.amount) for r in lines],
+                   printed_closing)
     return result
 
 
@@ -485,3 +425,4 @@ def _xlsx_pairs(rows) -> dict[str, str]:
                 value = next((c for c in cells[i + 1:i + 3] if c), "")
                 pairs.setdefault(fold(cell).rstrip(" :"), value)
     return pairs
+

@@ -140,12 +140,12 @@ class StatementImportSerializer(serializers.ModelSerializer):
             "id", "account", "file", "exclude_from_balance", "original_name", "status", "error", "bank",
             "bank_label", "is_generic", "statement_type", "period_start", "period_end", "closing_balance",
             "imported_count", "matched_count", "cancelled_count", "counts", "check_status", "check_message",
-            "created_at",
+            "check_details", "created_at",
         ]
         read_only_fields = [
             "id", "original_name", "status", "error", "bank", "is_generic", "statement_type", "period_start",
             "period_end", "closing_balance", "imported_count", "matched_count", "cancelled_count", "check_status",
-            "check_message", "created_at",
+            "check_message", "check_details", "created_at",
         ]
 
     def get_bank_label(self, obj):
@@ -184,11 +184,11 @@ class StatementLineSerializer(serializers.ModelSerializer):
         fields = [
             "id", "line_no", "date", "description", "kind", "amount", "installment", "action", "skip_reason",
             "category", "matched_transaction", "matched_info", "refund_target_line", "refund_info",
-            "result_transaction",
+            "result_transaction", "flags",
         ]
         read_only_fields = [
             "id", "line_no", "date", "description", "kind", "amount", "installment", "skip_reason",
-            "refund_target_line", "result_transaction",
+            "refund_target_line", "result_transaction", "flags",
         ]
 
     def get_matched_info(self, obj):

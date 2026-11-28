@@ -1,0 +1,5 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+  <li><a href="{% url 'admin:saving_budget_statementreadlog_quality' %}">Okuma kalitesi</a></li>
+  {{ block.super }}
+{% endblock %}
